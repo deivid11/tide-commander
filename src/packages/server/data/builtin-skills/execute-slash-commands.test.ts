@@ -8,6 +8,13 @@ describe('Execute Slash Commands built-in skill', () => {
     expect(executeSlashCommands.content).toContain('GET /api/plugins/slash-commands');
     expect(executeSlashCommands.content).toContain('shellCommandId');
     expect(executeSlashCommands.content).toContain('requiresSudo');
-    expect(executeSlashCommands.content).toContain('do not ask for, accept, read, or transmit');
+    expect(executeSlashCommands.content).toContain('"grep":"literal text"');
+    expect(executeSlashCommands.content).toContain('"tail":10');
+    expect(executeSlashCommands.content).toContain('Never place `| grep`');
+    expect(executeSlashCommands.content).toContain('awaitingUserAuthorization: true');
+    expect(executeSlashCommands.content).toContain('secure password component');
+    expect(executeSlashCommands.content).toContain('COMMANDER_SLASH_COMMAND_RESULT');
+    expect(executeSlashCommands.content).toContain('never rerun the command automatically');
+    expect(executeSlashCommands.content).toContain('Never ask for, accept, read, or transmit');
   });
 });

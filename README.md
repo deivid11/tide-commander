@@ -1,429 +1,455 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/tide-commander-logo.png" alt="Tide Commander" width="400" />
+  <img src="https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/tide-commander-logo.png" alt="Tide Commander" width="360" />
 </p>
 
-<p align="center"><strong>A visual multi-agent orchestrator for Claude Code, Codex, OpenCode, Grok, and Pi</strong></p>
+<h1 align="center">Tide Commander</h1>
 
-![Tide Commander Preview](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-3d.png)
+<p align="center">
+  <strong>The visual AI build suite for a new generation of creators.</strong>
+</p>
 
-[![Try Demo](https://img.shields.io/badge/Try%20Demo-tidecommander.com-blue?style=for-the-badge&logo=globe)](https://tidecommander.com/app)
-[![Watch the demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=for-the-badge&logo=youtube)](https://www.youtube.com/watch?v=r1Op_xfhqOM)
-[![npm version](https://img.shields.io/npm/v/tide-commander?style=for-the-badge&logo=npm)](https://www.npmjs.com/package/tide-commander)
+<p align="center">
+  Turn ideas into software, automations, workflows, documents, data tools, and 3D projects—without living inside an IDE.
+</p>
 
-Tide Commander is a Claude Code, Codex, and OpenCode orchestrator and manager that lets you deploy, control, and monitor multiple AI coding agents from a single visual interface. Spawn agents, assign tasks, and watch them work in real-time on an RTS-inspired 3D battlefield — or switch to a lightweight 2D canvas or a metrics dashboard.
+<p align="center">
+  Claude Code &nbsp;·&nbsp; Codex &nbsp;·&nbsp; OpenCode &nbsp;·&nbsp; Grok &nbsp;·&nbsp; Pi
+</p>
 
-## 🚀 Getting Started 
+<p align="center">
+  <a href="https://www.npmjs.com/package/tide-commander"><img src="https://img.shields.io/npm/v/tide-commander?style=flat-square&logo=npm" alt="npm version" /></a>
+  <a href="https://github.com/deivid11/tide-commander/stargazers"><img src="https://img.shields.io/github/stars/deivid11/tide-commander?style=flat-square&logo=github" alt="GitHub stars" /></a>
+  <a href="https://github.com/deivid11/tide-commander/blob/master/LICENSE"><img src="https://img.shields.io/github/license/deivid11/tide-commander?style=flat-square" alt="MIT license" /></a>
+  <img src="https://img.shields.io/badge/Node.js-18%2B-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node.js 18+" />
+</p>
 
-Requirements:
-- Node.js 18+
-- At least one supported CLI provider:
-  - **Claude Code** — `claude` command in PATH
-  - **Codex** — `codex` command in PATH (OpenAI Codex CLI)
-  - **OpenCode** — `opencode` command in PATH ([opencode CLI](https://github.com/nicholasgriffintn/opencode))
-  - **Grok** — `grok` command in PATH (Grok Build CLI headless mode)
-  - **Pi** — `pi` command in PATH ([pi coding agent](https://github.com/earendil-works/pi-mono), `npm i -g @earendil-works/pi-coding-agent`)
+<p align="center">
+  <a href="https://tidecommander.com/app"><img src="https://img.shields.io/badge/TRY_LIVE_DEMO-OPEN-2563EB?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Try the live demo" /></a>
+  <a href="https://www.youtube.com/watch?v=r1Op_xfhqOM"><img src="https://img.shields.io/badge/WATCH_DEMO-YOUTUBE-DC2626?style=for-the-badge&logo=youtube&logoColor=white" alt="Watch the demo" /></a>
+</p>
 
-Install and run:
+![Tide Commander visual multi-agent command center](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-3d.png)
+
+> **More than an agent manager. More than an IDE.** Tide Commander is a complete build environment designed around teams of AI agents. Every character is a real process working on real project files with native tools, credentials, context, and session history.
+
+Traditional creation tools split the work across an IDE, terminal multiplexer, Git client, file browser, automation canvas, infrastructure dashboard, and a growing pile of AI chats. Tide Commander brings those surfaces together so you can move from intent to finished output in one place.
+
+You do not have to live in code to use it. Start with natural language and visual controls; open the exact files, commands, diffs, data, or infrastructure only when you want deeper control.
+
+## ⚡ Run it in 30 seconds
 
 ```bash
-# Run directly without installing (recommended)
-bunx tide-commander
+npx tide-commander@latest
+```
 
-# Or install globally
-npm i -g tide-commander@latest
+Open **[http://localhost:6200](http://localhost:6200)**. If Claude Code, Codex, OpenCode, Grok, or Pi is already installed and authenticated, you are ready to spawn your first agent.
+
+Prefer Bun? Use `bunx tide-commander@latest`.
+
+## Why creators use Tide Commander
+
+Traditional IDEs were designed for one person editing one file at a time. AI-native creation is different: multiple agents can research, plan, build, test, document, automate, and operate in parallel. Tide Commander is a workspace for that shift—a visual build suite where you direct the outcome while the team handles the execution.
+
+<p align="center"><strong>For solo creators, founders, researchers, operators, engineers, product teams, and anyone who builds with AI.</strong></p>
+
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>✨ Create from intent</h3>
+      Start with the outcome you want. Spawn specialists, give them context, and let boss agents coordinate the work.
+    </td>
+    <td width="33%" valign="top">
+      <h3>👀 See the work happen</h3>
+      Follow tool calls, PTY output, background jobs, queues, context usage, and blockers live instead of watching silent spinners.
+    </td>
+    <td width="33%" valign="top">
+      <h3>🛠️ Replace tool switching</h3>
+      Work with files, source, Git, tests, documents, data, terminals, services, and rich previews in the same build suite.
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>🔀 Use the right harness</h3>
+      Mix Claude, Codex, OpenCode, Grok, and Pi in one team—and migrate a conversation when another runtime fits better.
+    </td>
+    <td width="33%" valign="top">
+      <h3>⚙️ Automate the repeatable</h3>
+      Build workflows and triggers, connect your services, or add local plugins and slash commands that bypass the LLM.
+    </td>
+    <td width="33%" valign="top">
+      <h3>📱 Pick up anywhere</h3>
+      Reconnect to the same server-side sessions from desktop, mobile, Android, or the browser extension.
+    </td>
+  </tr>
+</table>
+
+## Everything you need to create
+
+| | |
+|---|---|
+| **🎯 Orchestration**<br>Boss/subordinate teams, delegation reports, project areas, task labels, tracking boards, agent memory, prompt stacking, skills, and runtime migration. | **📡 Observability**<br>Structured tool cards, streamed PTY commands, a live background-task rail, server-side message queues, interrupts, context gauges, account limits, and reconnect recovery. |
+| **📁 Unified build workspace**<br>Multi-root file explorer, source editing, Git status/diffs/history, branch comparison, project-wide filename/content search, tests, and `@file` / `@folder` / `@agent` context. | **🧩 Extensibility**<br>Trusted plugins, slash commands, shell scripts, workflows, webhooks, integrations, custom skills/classes/models, REST API, WebSocket API, and browser automation. |
+| **🖼️ Rich previews**<br>Markdown, Mermaid, PlantUML, Office documents, spreadsheets, archives, images, PDF, audio/video, STL, GLB, FreeCAD, and G-code. | **🌐 Flexible UI**<br>3D, 2D, Flat, Dashboard, Commander, and Guake views; Android support; custom themes, shortcuts, sounds, haptics, and 10 UI languages. |
+
+## 🤖 Bring your favorite AI harness
+
+Use different harnesses side by side—even inside the same project. Tide Commander normalizes their event streams into one conversation, tool, status, context, and file-diff experience without hiding each provider's native sessions or strengths.
+
+| Harness | Required command | Default runtime | Optional persistent/streaming mode |
+|---|---|---|---|
+| **Claude Code** | `claude` | Headless `stream-json` process with stdin follow-ups | Interactive Claude TUI in tmux; general tmux mode can preserve processes across Commander restarts |
+| **Codex** | `codex` | `codex exec --experimental-json` with native session resume | Persistent `codex app-server` for token streaming, detached turns, reconnect, and native thread forking |
+| **OpenCode** | `opencode` | `opencode run --format json` with session resume | Persistent `opencode serve` daemon with streaming and restart recovery |
+| **Grok** | `grok` | Headless `streaming-json` with native resume | Model/effort selection, account profiles, context tracking, and usage gauges |
+| **Pi** | `pi` | `pi --mode json` NDJSON sessions | Persistent `pi --mode rpc` with mid-turn steering, native `/compact`, live model/provider switching, and tmux reconnect |
+
+Persistent modes are opt-in under **Settings → General**. Pi can use any model provider loaded by Pi—for example Anthropic, OpenAI Codex, xAI, Gemini, Copilot, OpenCode Go, or a local provider—and Tide displays the active model provider separately from the Pi harness.
+
+### Switch harness without throwing the conversation away
+
+The agent editor can change any agent to any supported harness:
+
+- **Smart Context** — a compact hand-off fitted to the target context window
+- **Visible Transcript** — a budgeted readable copy of the conversation
+- **Fresh Start** — change the runtime without importing conversation content
+
+Claude, Codex, Grok, and Pi have writable native session stores and support imported context. OpenCode can be selected with Fresh Start. Every provider can be the source of a migration. Tide validates the new session, reports imported/dropped content, archives the original, and provides rollback through session history.
+
+## 📦 Installation and CLI
+
+### Requirements
+
+- **Node.js 18+** (Node.js 22 is used in CI), or Bun for `bunx`
+- At least one supported AI agent CLI installed and authenticated: `claude`, `codex`, `opencode`, `grok`, or `pi`
+- Optional: `tmux` for process persistence, Pi RPC restart recovery, and Claude interactive TUI mode
+
+### Run without installing
+
+```bash
+# Bun
+bunx tide-commander@latest
+
+# Or npm
+npx tide-commander@latest
+```
+
+Open `http://localhost:6200`.
+
+### Install globally
+
+```bash
+npm install -g tide-commander@latest
 tide-commander start
 ```
 
-Command lifecycle:
+The server starts in the background by default:
 
 ```bash
-# Start in background (default)
-tide-commander start
-
-# Stop the background server
+tide-commander start                 # Start in background
+tide-commander start --foreground    # Keep attached to this terminal
 tide-commander stop
-
-# Check whether server is running
 tide-commander status
-
-# Show the latest server logs
 tide-commander logs
-
-# Follow logs in real time
 tide-commander logs --follow
+tide-commander version
 ```
 
-CLI flags (for `start`):
+Common server options:
 
 ```bash
-tide-commander --help
-tide-commander --foreground
-tide-commander logs --lines 200
-tide-commander --port 8080 --host 0.0.0.0
-tide-commander --listen-all --port 8080
-tide-commander --https --tls-key ./certs/localhost-key.pem --tls-cert ./certs/localhost.pem
-tide-commander --install-local-cert --https
-```
-
-To generate and trust a local certificate automatically (requires `mkcert`):
-
-```bash
+tide-commander start --port 8080 --host 127.0.0.1
+tide-commander start --listen-all --port 8080
+tide-commander start --restart
+tide-commander start --https --tls-key ./certs/key.pem --tls-cert ./certs/cert.pem
 tide-commander start --install-local-cert --https
+tide-commander start --https --generate-auth-token
 ```
 
-## 🔒 HTTPS Security
+Run `tide-commander --help` for the complete CLI reference.
 
-Use HTTPS/WSS whenever Tide Commander is reachable beyond localhost, especially on shared networks.
+## 🔒 Remote Access and HTTPS
 
-- Enable HTTPS with existing cert files: `tide-commander start --https --tls-key ./certs/localhost-key.pem --tls-cert ./certs/localhost.pem`
-- Generate and install a trusted local cert with `mkcert`: `tide-commander start --install-local-cert --https`
-- Set an auth token explicitly: `tide-commander start --https --auth-token <your-token>`
-- Generate a secure auth token automatically: `tide-commander start --https --generate-auth-token`
-- For development UI over HTTPS, set `DEV_HTTPS=1` and provide `DEV_TLS_KEY_PATH` + `DEV_TLS_CERT_PATH`.
-
-### Serving HTTP and HTTPS at the same time
-
-`HTTPS=1` replaces the plain listener — nothing is served in the clear. To serve
-**both**, set `HTTPS_PORT` instead: `PORT` keeps serving `http://` while TLS is served
-on `HTTPS_PORT`, from the same process, sharing one WebSocket client set.
+Tide Commander executes local tools and exposes project files, so use HTTPS/WSS and an auth token whenever it is reachable beyond localhost.
 
 ```bash
-HTTPS_PORT=5175 \
+tide-commander start \
+  --listen-all \
+  --https \
+  --install-local-cert \
+  --generate-auth-token
+```
+
+You can also serve HTTP and HTTPS from the same process. `PORT` keeps the plain listener and `HTTPS_PORT` adds TLS; both listeners share the same agents and WebSocket clients.
+
+```bash
+PORT=6200 \
+HTTPS_PORT=6201 \
 TLS_KEY_PATH=~/.tide-commander/certs/localhost-key.pem \
 TLS_CERT_PATH=~/.tide-commander/certs/localhost.pem \
 tide-commander start
 ```
 
-Useful when local browsers can stay on `http://localhost` but remote clients (a phone,
-another machine over a VPN) need a secure context for the clipboard API, service workers
-and `crypto.randomUUID`. `HTTPS_PORT` takes precedence if `HTTPS=1` is also set.
+This is useful when localhost can stay on HTTP while a phone or another computer needs a secure context. If `HTTPS=1` is used without `HTTPS_PORT`, HTTPS replaces the plain listener.
 
 Notes:
-- Local certs are stored in `~/.tide-commander/certs/` when using `--install-local-cert`.
-- For a cert that also covers a LAN/VPN address, include it in the mkcert SAN list:
-  `mkcert -cert-file … -key-file … localhost 127.0.0.1 ::1 192.168.1.100`.
-- `--generate-auth-token` prints the generated token at startup; save it in a secure password manager.
-- If `AUTH_TOKEN` is configured, keep using it with HTTPS for transport encryption plus access control.
 
-## 🧑‍💻 Development Setup
+- `--install-local-cert` uses `mkcert` and stores certificates in `~/.tide-commander/certs/`.
+- Add LAN or VPN addresses to the certificate SAN list when remote clients use those addresses.
+- Keep generated auth tokens in a password manager.
+- HTTPS protects transport; `AUTH_TOKEN` controls access. Use both remotely.
 
-Use this only if you are developing Tide Commander itself:
+## 🎖️ Core Concepts
+
+### Agents, bosses, and delegation
+
+Every character is a real AI harness process with its own working directory, provider, model, session, prompt stack, memory, permissions, skills, context usage, and task state. A **boss** can own subordinate agents, choose specialists, send tasks through the Tide Commander API, wait for reports, and summarize the team's progress.
+
+Task labels and tracking states make the work visible outside the chat. Agents can report that they are thinking, working, blocked, waiting for subordinates, ready for review, or safe to clear from context.
+
+### Areas
+
+Rectangle or circular areas organize agents by project or responsibility. Areas can own multiple project folders, add area-specific instructions to agents inside them, expose an instant tmux terminal rooted in the project, and group agents in Commander and Flat views. Finished areas can be archived and restored without deleting their agents.
+
+### Agent classes and custom models
+
+Classes bundle a role, model, instructions, and default skills. Tide includes Scout, Builder, Debugger, Architect, Warrior, Support, and Boss classes. Custom classes can use uploaded GLB character models with scale, offsets, and idle/walk/working animation mappings.
+
+![Create Agent Class](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/create_agent_class.png)
+
+### Prompt stacking and memory
+
+Instructions are composed in layers:
+
+1. Tide Commander base rules
+2. Global system prompt
+3. Area prompt
+4. Agent-class instructions
+5. Individual agent instructions
+6. Assigned skills, identity, and persistent agent memory
+
+This lets you define organization-wide conventions once, specialize them by project/class, and keep durable notes per agent without copying the same prompt everywhere.
+
+### Skills
+
+Skills are reusable instruction sets with tool permissions and optional model/context behavior. They can be assigned directly or inherited from a class. Built-ins cover notifications, inter-agent messaging, delegation reports, tracking, persistent memory, streaming execution, Git/release workflows, server/PM2 logs, tests, databases, browser/computer control, HTTP requests, workflows, triggers, Mermaid, Bitbucket review, and backup/restore.
+
+Custom skills are Markdown-based and can be managed from the UI. Changes hot-reload into assigned agents while preserving their sessions.
+
+### Plugins
+
+Trusted local plugins can add:
+
+- slash commands that bypass the LLM
+- structured Guake/Spotlight result cards
+- right-sidebar views and modals
+- interactive actions and WebSocket patches
+- browser-side UI bundles and styles
+- server handlers and integration-backed settings
+- configurable global shortcuts
+
+Recent built-ins expose Gmail inbox cards, Jira ticket search/details, account usage across every harness, task boards, and managed shell commands. Plugins run with Tide Commander's local privileges, so only install code you trust.
+
+### Workflows and triggers
+
+The workflow editor builds state machines from action, wait, decision, and end states. Actions can assign agent tasks, wait for events, set variables, and transition on agent completion, variable conditions, timeouts, cron schedules, triggers, or manual decisions. Running instances support pause, resume, cancel, timelines, variables, reasoning traces, and scoped workflow chat.
+
+Triggers can react to webhooks, cron/one-shot schedules, Gmail, Slack, Jira, WhatsApp, and Bitbucket. Matching can be structural, LLM-based, or hybrid, with optional variable extraction, signature validation, delivery deduplication, and fire/matcher history.
+
+### Buildings
+
+Buildings are functional objects, not decoration:
+
+| Type | What it does |
+|---|---|
+| **Server** | Custom or PM2 start/stop/restart, logs, health, CPU/memory, and port detection |
+| **Docker** | Create/adopt containers or control Compose projects, logs, health, and ports |
+| **Database** | MySQL, PostgreSQL, and Oracle connections, schema browser, SQL editor, and history |
+| **Terminal** | Persistent browser terminal through ttyd |
+| **Tests** | Scan and run Maven/JUnit, Cucumber, Vitest, and PHPUnit suites down to a method |
+| **HTTP Requests** | Browse and run IntelliJ-style `.http`/`.rest` requests with environments |
+| **Monitor** | System metrics and monitoring |
+| **Folder** | Open a project path in the file explorer |
+| **Link** | Open a dashboard, admin panel, or other URL |
+| **Boss Building** | Aggregate subordinate buildings and control them together |
+
+## 🖥️ Views and Navigation
+
+### 3D battlefield
+
+The default Three.js view provides RTS-style selection, movement, camera controls, buildings, project areas, custom characters, and animated work/status effects.
+
+![3D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/example-battlefield.png)
+
+### 2D view
+
+A lightweight top-down canvas with the same agents, areas, and buildings for lower-power devices or very large teams.
+
+![2D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-2d.png)
+
+### Flat view
+
+An IDE-style, low-overhead project layout with area status bars, buildings, agent lists, and embedded conversations. It keeps the operational controls without rendering a battlefield.
+
+### Dashboard
+
+Metrics and cards for agent state, current work, errors, context, and infrastructure.
+
+![Dashboard View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/dashboard_view.png)
+
+### Commander view
+
+A live multi-terminal grid grouped by area. See every conversation at once, switch area tabs, and expand an agent without losing the overview.
+
+![Commander View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/commander_view.png)
+
+### Guake terminal
+
+The main agent conversation surface supports multiple rendering levels, Markdown, syntax highlighting, structured tool cards, permission prompts, Git/building/workflow/tracking side panels, message search, pinned/recent agents, file attachments, screenshots, interrupts, and queued follow-ups.
+
+### Spotlight
+
+Press **Ctrl+K** (or **Alt+P**) to search and act across Tide Commander. Spotlight finds:
+
+- agents by name, class, area, provider, status, current task, or recent activity
+- current and archived conversations, with ranked matching extracts
+- filenames and file contents across every area project
+- modified files and Git changes
+- buildings, areas, folders, settings, sessions, and commands
+- plugin slash commands and their structured results
+
+Search is accent-insensitive, supports multi-word matches across different fields, and can open a file directly at the matching line.
+
+## 🧰 The build workspace that can replace your IDE
+
+For many projects, the whole creation loop—from brief and research to files, commands, diffs, tests, previews, and operations—can stay inside Tide Commander. The file explorer supports multiple project roots, project-scoped tabs and expanded folders, source editing, Git status, working-tree diffs, binary/image/PDF diffs, branch comparison, file history, and test results. Files changed by an agent are clickable directly from its tool card or message.
+
+![File Explorer with Git Diffs](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/diffs_view_2.png)
+
+![Inline File Inspection](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/edit_dtails_while_chatting.png)
+
+Specialized viewers include:
+
+- rendered Markdown, Mermaid, PlantUML, SVG, images, and PDF
+- `.docx`, `.docm`, `.odt`, `.fodt`, `.doc`, and `.rtf` documents
+- `.xlsx`, `.xlsm`, `.xls`, `.ods`, `.csv`, and `.tsv` spreadsheets with virtualized grids, filter/sort, selections, and statistics
+- zip/tar/7z/rar and many package/archive formats as browsable trees
+- audio waveforms and video playback
+- interactive STL, GLB, FreeCAD (`.FCStd`), and layer-aware G-code previews
+
+You can browse from inside a viewer, drag files out to the desktop, download folders as streaming zip files, and export rendered Markdown to PDF.
+
+## 🔌 Integrations and External Control
+
+Built-in integrations provide settings, secure secrets, API routes, agent skills, and trigger handlers for:
+
+- Slack (including multiple instances, messages, threads, files, reactions, and inbound events)
+- Gmail
+- Google Calendar
+- Google Drive
+- Jira Cloud / Service Desk
+- WhatsApp through the local bridge
+- DOCX document generation
+
+Tide Commander also ships an optional Chromium browser extension that captures console/network failures, opens an agent chat side panel, sends requests or selected DOM/React components as context, and supports multiple Commander servers. macOS Alfred and KDE KRunner launch/search integrations are included in the repository.
+
+## 📡 Live Execution and Session Control
+
+Long commands can run through Tide Commander's exec API in a PTY-backed card. Output streams with ANSI color and terminal redraw handling, survives UI reconnects, can be stopped with its whole process tree, and returns a bounded tail to the agent without hiding the full live output from the user. Active ordinary CLI Bash/Task jobs also appear in the background-task rail.
+
+Prompts sent while an agent is busy are kept in a server-side queue. Message bursts are merged into one follow-up, queued items can be interrupted or removed, and supported persistent runtimes reconnect to in-flight turns after a Commander restart. **Ctrl+C** in an open terminal interrupts the active run when no text selection is being copied.
+
+Session history can restore a past conversation onto the same or a new agent, pre-filling its original harness/model/reasoning configuration. Spotlight searches both active and archived sessions.
+
+## 📲 Resume Anywhere
+
+Agent sessions live on the server rather than in one browser tab. Start on desktop and reconnect from a phone, tablet, browser extension, or another computer. The Android app adds local notifications, haptics, optional background connectivity, and in-app APK/UI updates.
+
+![Mobile Remote Session Resume](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/mobile-remote-resume.png)
+
+## 🎮 What a real workflow looks like
+
+1. **Create a project area** and attach one or more project folders.
+2. **Spawn a small team**—for example a boss, a researcher, a builder, and a test/review specialist—using whichever harness fits each role.
+3. **Give the boss the outcome**, not a list of terminal commands. It can delegate focused tasks and collect reports from its subordinates.
+4. **Watch execution live** in Commander view: tool cards, streamed commands, background jobs, current prompts, blockers, and context pressure stay visible.
+5. **Review the result in place** through rendered documents, data grids, 3D previews, file viewers, Git diffs, and test output.
+6. **Keep the useful context** by sending follow-ups, restoring an older session, or moving the conversation to another harness.
+7. **Walk away without losing visibility**—notifications and the mobile clients keep you connected to the same running team.
+
+## ⌨️ Default Keyboard Shortcuts
+
+| Key | Action |
+|---|---|
+| `Ctrl+K` / `Alt+P` | Open Spotlight |
+| `Tab` | Toggle Commander view |
+| `Alt+N` | Spawn an agent |
+| `Ctrl+1` … `Ctrl+9` | Select agent by index |
+| `Space` | Open the selected agent terminal |
+| `Alt+2` | Cycle 3D / 2D / Flat / Dashboard |
+| `Alt+E` | Toggle file explorer |
+| `Ctrl+L` | Open recent agents and buildings |
+| `Ctrl+Shift+F` | Open the global session finder |
+| `Ctrl+T` | Toggle test results |
+| `Alt+J` / `Alt+K` | Cycle pinned agents in the terminal |
+| `Alt+H` / `Alt+L` | Previous / next agent |
+| `Escape` | Deselect or close the active surface |
+
+Shortcuts can be rebound or disabled in Settings. Plugin commands can also define global shortcuts.
+
+## 🔐 Permission Modes and Secrets
+
+- **Bypass mode** lets a trusted autonomous CLI execute without approval prompts.
+- **Interactive mode** asks for approval on protected operations and supports remembered file/command patterns. Claude uses Tide's hook-based approval bridge; other harness behavior follows the capabilities of their CLI runtime.
+- **Plugin command sudo** always requires a short-lived user authorization flow. Passwords are not persisted, logged, put in command arguments/environment variables, or exposed to agents.
+- **Secrets** are encrypted in the server store and referenced as `{{SECRET_NAME}}`; the real value is injected server-side instead of being saved in agent prompts.
+
+## ⚙️ Configuration
+
+The most common environment variables are:
+
+| Variable | Default | Description |
+|---|---:|---|
+| `PORT` | `6200` | Backend and production web-app port |
+| `HOST` | `127.0.0.1` | Backend bind host |
+| `VITE_PORT` | `5173` | Development frontend port |
+| `LISTEN_ALL_INTERFACES` | unset | Set to `1` to bind `0.0.0.0` |
+| `AUTH_TOKEN` | unset | HTTP and WebSocket authentication token |
+| `HTTPS` | unset | Set to `1` to replace HTTP with HTTPS/WSS |
+| `HTTPS_PORT` | unset | Add an HTTPS/WSS listener alongside `PORT` |
+| `TLS_KEY_PATH` | `~/.tide-commander/certs/localhost-key.pem` | Backend TLS private key |
+| `TLS_CERT_PATH` | `~/.tide-commander/certs/localhost.pem` | Backend TLS certificate |
+| `DEV_HTTPS` | unset | Enable HTTPS for Vite development |
+| `DEV_TLS_KEY_PATH` | unset | Vite TLS private key |
+| `DEV_TLS_CERT_PATH` | unset | Vite TLS certificate |
+| `CODEX_BINARY` | auto | Override the Codex executable path |
+
+See [`.env.example`](.env.example) for the maintained template.
+
+### Data storage
+
+Tide Commander stores application state under the XDG data directory, normally `~/.local/share/tide-commander/`. This includes agents, areas, buildings, skills, classes, secrets, session history, workflows, triggers, plugin state, command definitions, and the SQLite integration/monitoring event store. Runtime-only process state is also persisted there for recovery.
+
+Provider conversations remain in each CLI's native session store. Tide references and reads those sessions rather than replacing the provider's own history format. Custom 3D models are stored under `~/.tide-commander/custom-models/`.
+
+## 🧑‍💻 Development
 
 ```bash
 # Install dependencies
 bun install
 
-# Start dev frontend + backend
+# Start Vite (5173) and the API server (6200)
 bun run dev
-```
 
-Open `http://localhost:5173` in your browser (or `https://localhost:5173` when `DEV_HTTPS=1`).
-
-## 💡 Why Tide Commander?
-
-Managing multiple Claude Code terminals at the same time is painful. Tide Commander replaces that mess with a single visual UI where you can see every agent, their status, and their output at a glance.
-
-Despite looking like a game, Tide Commander is a full-featured Claude Code GUI packed with developer tools: built-in file explorer with git diffs, conversation history with tool formatting, permission controls, and a command palette. For many workflows, an IDE becomes almost unnecessary.
-
-Think of it like having a team of AI developers at your command. Assign one agent to investigate a bug while another implements a feature. Watch them work in real-time, send follow-up commands, and keep your project moving forward on multiple fronts.
-
-## 🎖️ Agent Concepts
-
-Tide Commander introduces several powerful concepts for orchestrating your AI agents:
-
-### Boss
-The boss agent has context of other agents assigned to him. The boss can delegate tasks. Imagine you have a single boss to talk with, and the boss decides which of the subordinate agents is the most capable of doing the requested task. This saves a lot of time, without having to know which Claude Code terminal has which context. The boss can also give you a summary of the progress of their workers.
-
-### Group Areas
-Help to organize agents in projects and find them quickly. Areas can have assigned folders, enabling the file explorer on those added folders. Completed or inactive areas can be **archived** to hide them from the battlefield without deleting them - they can be restored at any time.
-
-### Buildings
-3D models placed on the battlefield with real functionality. Building types include:
-- **Server** - Start/stop/restart services with real-time log streaming (supports PM2 and Docker)
-- **Database** - Connect to MySQL, PostgreSQL, or Oracle with a built-in SQL query editor, schema browser, and query history
-- **Docker** - Manage containers and compose projects with health checks and port detection
-- **Link** - Quick URL shortcuts accessible from the field
-- **Folder** - Opens the file explorer for a specific directory
-- **Boss Building** - Manages multiple subordinate buildings with unified controls
-
-### Classes
-Like COD or Minecraft classes, you assign a class to the agent character. It has a linked model, a definition of instructions (like a claude.md), and a definition of skills (you can also create skills on the same interface).
-
-Built-in classes include Scout, Builder, Debugger, Architect, Warrior, Support, and Boss. You can also create **custom classes** with your own 3D models, instructions, and default skills.
-
-![Create Agent Class](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/create_agent_class.png)
-
-### Custom 3D Models
-You can upload your own 3D character models in **GLB format**. Custom models support animation mapping for idle, walk, and working states. Models are uploaded through the class editor and stored locally. Scaling and position offsets are configurable per model.
-
-### Commander View
-A view where you can see all the Claude Code agent terminals on a single view, grouped by areas.
-
-![Commander View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/commander_view.png)
-
-### Skills
-Built-in and custom skills that extend what agents can do. Skills are like plugins with defined tool permissions and can be assigned to specific agents or classes. Built-in skills include notifications, inter-agent messaging, git workflows, server log access, and streaming command execution. You can create your own skills in TypeScript.
-
-### Snapshots
-Save the full conversation history and any created/modified files from an agent's session. Snapshots can be reviewed later with full tool formatting, and files can be restored from them.
-
-### Secrets
-Securely store API keys, tokens, and other credentials. Use `{{SECRET_NAME}}` placeholders in your prompts, and the server injects the real values before sending to Claude. Secrets never leave the server.
-
-### System Prompts & Prompt Stacking
-Define global instructions that apply to all agents, then layer them with class-specific and individual agent customizations for fine-grained control.
-
-**Prompt Hierarchy** (stacked in order):
-1. **Tide Commander Base Rules** — Core framework instructions from `CLAUDE.md` and `TIDE_COMMANDER_APPENDED_PROMPT`
-2. **Global System Prompt** — User-defined global instructions (set in Settings > System Prompt) applied to **all agents automatically**
-3. **Agent Class Instructions** — Custom class-specific rules (if agent has a custom class assigned)
-4. **Individual Agent Instructions** — Agent-specific overrides (set per-agent in agent configuration)
-5. **Skills & Agent Identity** — Skill definitions, notifications setup, inter-agent messaging
-
-**How to Use:**
-- Set a global system prompt in **Settings > System Prompt** to define coding standards, communication rules, or project conventions that all agents should follow
-- Assign custom agent classes to inherit group-level instructions on top of the global prompt
-- Add individual agent instructions to override or specialize behavior for a specific agent
-- Global prompts persist across agent restarts and server restarts
-- Export/import global prompts with your agent configurations
-
-**Example Use Cases:**
-- Define team coding style guidelines once, apply to all agents via global prompt
-- Create "Backend Developer" and "Frontend Developer" classes with specialized instructions
-- Override an agent's behavior for specific projects or tasks with individual instructions
-- Set security best practices globally, then customize per-agent as needed
-
-### View Modes
-Four ways to view the battlefield (cycle with Alt+2):
-- **3D View** - Full Three.js battlefield with character models and post-processing (default)
-
-![3D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/example-battlefield.png)
-
-- **2D View** - Lightweight canvas-based rendering for better performance
-
-![2D View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/preview-2d.png)
-
-- **Dashboard** - Agent status cards, building overview, and metrics
-
-![Dashboard View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/dashboard_view.png)
-
-- **Commander View** - Tactical command panel for agent coordination
-
-![Commander View](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/commander_view.png)
-
-### Spotlight Search
-Press **Ctrl+K** (or Alt+P) to open the command palette. Search for agents by name, class, or current task. Jump to areas, find modified files across all agents, or trigger quick actions.
-
-## ✨ Features
-
-AI coding orchestration and multi-agent management features:
-
-- 🎮 **3D Battlefield** - Visual command center with Three.js (also has a lightweight 2D canvas mode)
-- 🎯 **RTS Controls** - Click to select, right-click to move, number keys for quick selection
-- 📡 **Real-time Activity Feed** - Watch your agents work in real-time
-- 🤹 **Multi-Agent Management** - Spawn and control multiple Claude/Codex/OpenCode instances simultaneously
-- 💾 **Session Persistence** - Agents resume their Claude Code, Codex, or OpenCode sessions across restarts
-- 📊 **Context Tracking** - Mana bar visualization showing agent context usage
-- 📁 **File Explorer** - Built-in file browser with git diff viewer for uncommitted changes
-
-![File Explorer with Git Diffs](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/diffs_view_2.png)
-- 📋 **Large Text & Screenshot Paste** - Compact and send large content easily
-- ⌨️ **Custom Hotkeys** - Configurable keyboard shortcuts
-- 🔐 **Permission Control** - Permissionless or permission-enabled per agent
-- 🎬 **Custom 3D Models** - Upload your own GLB models with animation mapping
-- 🏗️ **Buildings** - Servers, databases, Docker containers, and links managed from the battlefield
-- 🧩 **Skills System** - Built-in and custom skills assignable to agents or classes
-- 📸 **Snapshots** - Save conversation history and modified files for later review or restore
-- 🔑 **Secrets Management** - Secure storage with `{{PLACEHOLDER}}` injection into prompts
-- 🔍 **Spotlight Search** - Command palette (Ctrl+K) to find agents, files, and actions
-- 📺 **Commander View** - See all agent terminals at once in a grid, grouped by area
-- 📊 **Dashboard View** - Agent status cards, building overview, and metrics
-- 🖥️ **Guake Terminal** - Drop-down terminal overlay for agent conversations
-- 🔎 **Inline File Inspection** - Click on files added or edited by the agent directly in the chat to view diffs and contents — no need to leave Commander or open an IDE
-
-![Inline File Inspection](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/img/edit_dtails_while_chatting.png)
-- 🌐 **Multiplayer** - WebSocket-based multi-user support
-- 🌍 **Multilingual** - Full i18n support with 10 languages: English, Spanish, French, German, Italian, Portuguese, Russian, Chinese, Japanese, and Hindi
-- 📱 **Mobile Compatible** - Works on mobile devices and Android (optional APK)
-
-## 📲 Resume Anywhere
-
-Your agent sessions are not tied to one machine. Start work on desktop, then reconnect and continue the same conversations from your phone, tablet, or any other computer with remote access to your Tide Commander server.
-
-This makes it easy to keep tasks moving while you are away from your primary workstation.
-
-![Mobile Remote Session Resume](docs/img/mobile-remote-resume.png)
-
-## 📚 Documentation
-
-Detailed guides for each feature are available in the [`docs/`](docs/) folder:
-
-| Topic | Description |
-|-------|-------------|
-| [Buildings](docs/buildings.md) | Server, Database, Docker, and Boss building types with PM2 integration |
-| [Custom Classes & 3D Models](docs/custom-classes.md) | Create custom agent classes with your own GLB models and animations |
-| [Skills](docs/skills.md) | Built-in and custom skills, tool permissions, and assignment |
-| [Snapshots](docs/snapshots.md) | Save and restore conversation history and file artifacts |
-| [Secrets](docs/secrets.md) | Secure credential storage with placeholder injection |
-| [Architecture](docs/architecture.md) | Runtime architecture, command flow, and incremental improvements |
-| [REST API (OpenAPI)](docs/openapi.yaml) | Machine-readable OpenAPI 3.1 spec for `/api` HTTP routes |
-| [WebSocket API (AsyncAPI)](docs/asyncapi.yaml) | Machine-readable AsyncAPI 2.6 spec for `/ws` message contracts |
-| [Views & UI](docs/views.md) | 3D, 2D, Dashboard, Commander View, Guake terminal, and Spotlight |
-| [Android APK](docs/android.md) | Build and install the optional mobile companion app |
-| [Docker Deployment](docs/docker.md) | Run Tide Commander in a Docker container |
-| [Contributing](CONTRIBUTING.md) | Setup, workflow, and pull request guidelines for contributors |
-| [Security Policy](SECURITY.md) | Supported versions, vulnerability reporting, and disclosure process |
-
-## 🎮 How to Use
-
-1. **Deploy an agent** - Click the **+ New Agent** button ➕
-2. **Configure it** - Give it a name and choose a working directory 📁
-3. **Select it** - Click on the agent in the 3D view or press 1-9 👆
-4. **Send commands** - Type your task in the command bar and press Enter ⌨️
-5. **Watch it work** - The activity feed shows real-time progress 👀
-6. **Send follow-ups** - Agents maintain context, so you can have ongoing conversations 💬
-
-You can spawn multiple agents, each working in different directories or on different tasks. Switch between them by clicking or using number keys.
-
-## ⌨️ Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| 1-9 | Select agent by index |
-| Escape | Deselect / Close modal |
-| Alt+N | Spawn new agent |
-| Enter | Send command (when input focused) |
-| Ctrl+K / Alt+P | Spotlight search |
-| Alt+2 | Cycle view mode (3D / 2D / Dashboard) |
-| Alt+S | Toggle sidebar |
-| Alt+R | Toggle right panel |
-| Alt+E | Toggle file explorer |
-| Alt+J / Alt+K | Navigate messages in terminal |
-| ` (backtick) | Toggle Guake terminal |
-
-Shortcuts are fully customizable in Settings.
-
-## 🔧 How It Works
-
-### Overview
-
-Tide Commander is a Claude Code, Codex, and OpenCode-compatible orchestrator that provides a visual interface for managing multiple AI coding CLI instances simultaneously. Each "agent" you spawn is a real CLI process running in the background, and you can send commands to them and watch their output in real-time.
-
-### Core Components
-
-**🖥️ Frontend (React + Three.js)**
-- 3D battlefield where agents are visualized as characters
-- WebSocket connection to receive real-time updates
-- Command input for sending tasks to agents
-- Activity feed showing what each agent is doing
-
-**⚙️ Backend (Node.js + Express)**
-- REST API for agent CRUD operations
-- WebSocket server for real-time event streaming
-- Process manager that spawns and controls Claude, Codex, and OpenCode CLI instances
-
-**🤖 CLI Integration (Claude + Codex + OpenCode + Grok + Pi)**
-- Claude agents run `claude` with `--output-format stream-json` and use stdin for follow-up messages
-- Codex agents run `codex exec --experimental-json` and resume via session-based command args
-- OpenCode agents run `opencode run --format json` for NDJSON streaming and resume via `-s <sessionId>`
-- Grok agents run `grok -p … --output-format streaming-json` (headless) and resume via `--resume <sessionId>`
-- Pi agents run `pi --mode json -p …` (headless NDJSON) and resume via `--session <sessionId>`; the optional Pi RPC mode (Config → General) keeps a persistent `pi --mode rpc` process per agent and STEERS mid-turn messages into the live run instead of queueing them. Pi RPC agents can switch between authenticated model providers (for example Anthropic → OpenAI Codex) in the same conversation through the agent editor or Bulk Manage. Any agent can also be migrated to another harness from the agent editor (Claude ⇄ Codex ⇄ Grok ⇄ Pi ⇄ OpenCode, `POST /api/agents/:id/convert-runtime`): Commander copies the visible conversation into a new validated native session for the target runtime — Smart Context, a budgeted visible transcript, or a fresh start — while archiving the original session for one-click rollback from the session history. Claude, Codex, Grok, and Pi have writable session stores; OpenCode is fresh-start only. With tmux mode enabled, Pi RPC processes survive Commander restarts and reconnect automatically
-- Events (tool usage, text output, errors) are parsed from stdout for all providers
-- Sessions are persisted and can be resumed
-- OpenCode reads `.claude/CLAUDE.md` natively (like Claude Code)
-
-### Architecture
-
-For Mermaid diagrams and deeper design notes, see [`docs/architecture.md`](docs/architecture.md).
-
-![System Architecture](https://raw.githubusercontent.com/deivid11/tide-commander/master/docs/system-architecture.png)
-
-### Data Storage
-
-**Server State** is saved to `~/.local/share/tide-commander/`:
-- `agents.json` - Agent configurations (name, position, session mapping, token usage)
-- `areas.json` - Drawing areas synced from the frontend
-- `buildings.json` - Building configurations and service definitions
-- `skills.json` - Custom skill definitions
-- `custom-agent-classes.json` - Custom agent class definitions
-- `secrets.json` - Encrypted secrets storage
-- `snapshots/` - Saved conversation snapshots with file captures
-
-**Custom Models** are stored in `~/.tide-commander/custom-models/`
-
-**Claude Conversations** are read from `~/.claude/projects/`:
-- Claude Code stores session files as JSONL (one JSON object per line)
-- Directory names encode the working directory path (e.g., `/home/user/project` → `-home-user-project`)
-- Tide Commander reads these to resume sessions and display conversation history
-
-## 🔐 Permission Modes
-
-Agents can operate in two permission modes:
-
-### Bypass Mode (Default)
-Agents run with `--dangerously-skip-permissions`, allowing them to execute any tool (Bash, Edit, Write, etc.) without asking for approval. This is ideal for trusted, autonomous work.
-
-### Interactive Mode
-Agents require user approval for potentially dangerous operations. This mode uses a hook-based system:
-
-#### Safe Tools (Auto-Approved)
-These read-only tools are automatically approved without prompting:
-- `Read`, `Glob`, `Grep` - File reading and searching
-- `Task`, `TaskOutput` - Agent task management
-- `WebFetch`, `WebSearch` - Web content fetching
-- `TodoWrite` - Task list management
-- `AskUserQuestion` - User interaction
-- `EnterPlanMode`, `ExitPlanMode`, `Skill` - Planning tools
-
-#### Dangerous Tools (Require Approval)
-These tools prompt for user permission:
-- `Bash` - Shell command execution
-- `Edit`, `Write` - File modifications
-- `NotebookEdit` - Jupyter notebook edits
-
-#### Remembered Patterns
-When approving a permission request, you can check "Remember this" to auto-approve similar future requests:
-- **File operations**: Remembers the directory (e.g., approving `/project/src/file.ts` remembers `/project/src/`)
-- **Bash commands**: Remembers the command prefix (e.g., approving `npm test` remembers `npm`)
-
-Remembered patterns are stored in `~/.tide-commander/remembered-permissions.json` and can be cleared via the API or by deleting the file.
-
-#### Setting Permission Mode
-When spawning an agent, select the permission mode in the spawn dialog. You can also change it later by editing the agent configuration.
-
-## ⚙️ Configuration
-
-Configuration via environment variables (see `.env.example`):
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | 5174 | Backend server port |
-| `HOST` | `127.0.0.1` | Backend bind host |
-| `VITE_PORT` | 5173 | Vite dev server port |
-| `TIDE_SERVER` | `http://localhost:$PORT` | Server URL for hooks |
-| `LISTEN_ALL_INTERFACES` | _(unset)_ | Set to `1` to listen on 0.0.0.0 instead of localhost |
-| `AUTH_TOKEN` | _(unset)_ | Token for authenticating WebSocket and HTTP connections |
-| `HTTPS` | _(unset)_ | Set to `1` to serve backend over HTTPS/WSS **instead of** HTTP |
-| `HTTPS_PORT` | _(unset)_ | Serve TLS on this port **in addition to** plain HTTP on `PORT`; takes precedence over `HTTPS` |
-| `TLS_KEY_PATH` | `~/.tide-commander/certs/localhost-key.pem` | TLS private key path for backend HTTPS |
-| `TLS_CERT_PATH` | `~/.tide-commander/certs/localhost.pem` | TLS certificate path for backend HTTPS |
-| `DEV_HTTPS` | _(unset)_ | Set to `1` to run Vite dev server over HTTPS |
-| `DEV_TLS_KEY_PATH` | _(unset)_ | TLS private key path for Vite dev HTTPS |
-| `DEV_TLS_CERT_PATH` | _(unset)_ | TLS certificate path for Vite dev HTTPS |
-
-## 🛠️ Development
-
-```bash
-# Run client only
+# Individual processes
 bun run dev:client
-
-# Run server only
 bun run dev:server
 
-# Run both concurrently
-bun run dev
+# Quality checks
+bun run lint:types
+bun run lint
+bun run test
 
-# Build for production
+# Production build
 bun run build
 ```
 
@@ -431,78 +457,87 @@ bun run build
 
 ```bash
 docker build -t tide-commander .
-docker run -p 5174:5174 \
+docker run -p 6200:6200 \
   -v ~/.local/share/tide-commander:/root/.local/share/tide-commander \
   tide-commander
 ```
 
-> Note: The Docker container needs at least one CLI (`claude`, `codex`, `opencode`, `grok`, or `pi`) accessible inside the container for agent processes to work.
+At least one supported AI agent CLI and its credentials must also be available inside the container for agents to run. See the Docker guide for host CLI mounts and deployment details.
 
-## 📱 Android APK (Optional)
+## 📱 Android APK
 
-Tide Commander can be built as an Android app using Capacitor. The APK connects to your Tide Commander server over the local network, giving you a mobile remote control for your agents.
-
-**Prerequisites:** Android SDK and Java 17+
+Prerequisites: Android SDK and Java 17+.
 
 ```bash
-# Build debug APK
 make apk
-
-# Or build release APK
 make apk-release
-
-# Build debug APK pointing to a live dev server
 make dev-apk CAP_SERVER_URL=http://192.168.1.100:5173
 ```
 
-The APK will be at `android/app/build/outputs/apk/debug/app-debug.apk`.
+The debug APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. For a normal APK, leave `CAP_SERVER_URL` unset and configure the Commander server URL in the app. Remote Android connections require the server to listen beyond localhost; HTTPS is strongly recommended.
 
-For non-dev APKs, make sure `CAP_SERVER_URL` is unset before building.
+## 📚 Documentation
 
-To configure which server the app connects to, set `LISTEN_ALL_INTERFACES=1` on your server and update the server URL in the app settings.
+| Topic | Guide |
+|---|---|
+| Architecture | [Runtime and server architecture](docs/architecture.md) |
+| Buildings | [Servers, Docker, databases, tests, HTTP requests, and more](docs/buildings.md) |
+| Views | [3D, 2D, Dashboard, Commander, Guake, and UI navigation](docs/views.md) |
+| Custom classes | [Custom classes, GLB models, and animation mapping](docs/custom-classes.md) |
+| Skills | [Built-in/custom skills, permissions, assignment, and hot reload](docs/skills.md) |
+| Plugins | [Trusted local plugins, slash commands, renderers, sidebars, and actions](docs/plugins.md) |
+| Secrets | [Encrypted values and prompt placeholders](docs/secrets.md) |
+| Browser bridge | [Browser control and integration](docs/browser-bridge.md) |
+| Headless CAD | [FreeCAD jobs and generated previews](docs/headless-cad.md) |
+| Bitbucket review | [Automated pull-request review triggers](docs/bitbucket-pr-review.md) |
+| Android | [Build and configure the Android app](docs/android.md) |
+| Docker | [Container deployment](docs/docker.md) |
+| REST API | [OpenAPI 3.1 specification](docs/openapi.yaml) |
+| WebSocket API | [AsyncAPI 2.6 specification](docs/asyncapi.yaml) |
+| Releases | [Full changelog](CHANGELOG.md) |
+| Contributing | [Contributor guide](CONTRIBUTING.md) |
+| Security | [Security policy](SECURITY.md) |
 
 ## 🐛 Troubleshooting
 
-**Agent stuck in "working" status**
-- The Claude process may have died unexpectedly
-- Refresh the page - status sync runs on reconnect
-- Check server logs for errors
+**A harness is not detected**
 
-**"Claude Code CLI not found"**
-- Ensure `claude` is in your PATH
-- Run `which claude` to verify installation
-- For OpenCode agents, ensure `opencode` is in your PATH (`which opencode`)
+- Run `which claude`, `which codex`, `which opencode`, `which grok`, or `which pi` as appropriate.
+- Authenticate the CLI outside Tide Commander once before spawning an agent.
+- Pi validates that `pi` is the coding agent rather than the unrelated Anaconda utility with the same command name.
 
-**WebSocket disconnects**
-- Check that the server is running (default port 6200, or your configured `PORT`)
-- Look for CORS or firewall issues
+**An agent is stuck in “working”**
+
+- Open its background-task rail and server logs to check for a live child process.
+- Use the terminal interrupt/stop action before killing the agent.
+- Persistent Codex, OpenCode, and Pi modes may reconnect to a still-running detached turn after a server restart.
+
+**The web app cannot connect**
+
+- The production default is `http://localhost:6200`; development uses `http://localhost:5173` for Vite and proxies to port `6200`.
+- Verify `tide-commander status`, then inspect `tide-commander logs`.
+- For remote clients, verify bind host, firewall, URL scheme, certificate, and auth token.
+
+## Ready to command the team?
+
+```bash
+npx tide-commander@latest
+```
+
+<p align="center">
+  <a href="https://tidecommander.com/app"><strong>Try the live demo</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://www.youtube.com/watch?v=r1Op_xfhqOM"><strong>Watch it in action</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/deivid11/tide-commander/stargazers"><strong>Star the project</strong></a>
+</p>
 
 ## 💬 Community
 
-Join the Discord to chat, share feedback, report bugs, or request features:
-
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/MymXXDCvf)
 
-## 🗺️ Roadmap
-
-Planned features and improvements — contributions and feedback welcome:
-
-- [ ] **Test Coverage** — Unit, integration, and E2E tests (currently minimal)
-- [x] **Multilingual Support** — i18n with 10 languages (EN, ES, FR, DE, IT, PT, RU, ZH, JA, HI)
-- [x] **Codex Integration** — Compatible with OpenAI Codex CLI alongside Claude Code
-- [x] **OpenCode Integration** — Compatible with OpenCode CLI as a third provider
-- [x] **Grok Integration** — Compatible with Grok Build CLI headless mode as a fourth provider
-- [x] **Pi Integration** — Compatible with the Pi coding agent CLI (JSON mode) as a fifth provider
-- [ ] **Buildings Plugin System** — External plugin API for community-built building types
-- [x] **API Documentation** — OpenAPI/Swagger spec for the REST and WebSocket APIs
-- [ ] **Observability** — Error tracking, logging aggregation, and performance monitoring
-
-Have a feature idea or found a bug? Open an [issue](https://github.com/your-repo/tide-commander/issues) or drop it in the [Discord](https://discord.gg/MymXXDCvf).
+Found a bug or have a feature idea? Open a [GitHub issue](https://github.com/deivid11/tide-commander/issues) or join the Discord community. If Tide Commander improves your workflow, a GitHub star helps more creators find it.
 
 ## 📄 License
 
 MIT
- 
-
-Added a line.
-Another line added. 

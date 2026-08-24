@@ -25,9 +25,13 @@ For an entry with \`kind: "shell"\`, execute it through the streamed exec API. A
 {"agentId":"YOUR_AGENT_ID","shellCommandId":"COMMAND_ID","shellArgs":["staging"]}
 \`\`\`
 
-POST that body to \`/api/exec\`. The command streams in the terminal like any other exec task. Check the final \`exitCode\`.
+POST that body to \`/api/exec\`. Non-sudo commands stream in the terminal like any other exec task; check the final \`exitCode\`.
 
-If \`requiresSudo\` is true, do not ask for, accept, read, or transmit the user's password. Sudo slash commands require the Commander's interactive password modal and must be launched by the user. Explain that limitation and identify the slash command they should run.
+For bounded result context, add structured top-level output filters to the JSON body: \`"grep":"literal text"\` filters matching lines, then \`"tail":10\` keeps the final matching lines. These filters affect only the HTTP result or completion callback; the user still sees the complete live stream. Never place \`| grep\`, \`| tail\`, or other shell syntax in \`shellArgs\`: arguments remain literal positional values and are never evaluated.
+
+If \`requiresSudo\` is true, submit the same \`/api/exec\` body without a sudo authorization. A successful \`202\` response with \`awaitingUserAuthorization: true\` means Commander rendered a secure password component directly in the agent conversation. Tell the user that authorization is waiting in Commander; after they submit it, Commander launches the command and streams its output automatically. When execution finishes, Commander invokes you again with a bounded \`COMMANDER_SLASH_COMMAND_RESULT\` message containing the exit code and the requested filtered output. Review that result, report it to the user, and never rerun the command automatically.
+
+Never ask for, accept, read, or transmit the user's sudo password. Never add a password, authorization ID, or guessed credential to the request. The browser component and Commander server own the entire authorization handoff.
 
 Do not invent slash commands or call disabled commands. Prefer the canonical \`name\` from the discovery response.`,
 };

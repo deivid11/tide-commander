@@ -8,7 +8,7 @@
 
 import { Router, Request, Response } from 'express';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
-import { agentService, secretsService } from '../services/index.js';
+import { agentService, runtimeService, secretsService } from '../services/index.js';
 import { createLogger, generateId, getCommanderBaseUrl } from '../utils/index.js';
 import { findBashToolUseForExec } from '../services/bash-toolcall-registry.js';
 import { killProcessTree } from '../services/process-tree-kill.js';
@@ -95,6 +95,29 @@ export function applyTailFilter(output: string, tail: TailSpec): string {
   const parts = body.split('\n');
   if (parts.length <= lines) return output;
   return parts.slice(-lines).join('\n') + (endsWithNewline ? '\n' : '');
+}
+
+/** Literal, line-oriented grep for response filtering; never interpreted by a shell. */
+export function applyLiteralGrepFilter(output: string, grep: string): string {
+  if (!grep) return output;
+  const endsWithNewline = output.endsWith('\n');
+  const body = endsWithNewline ? output.slice(0, -1) : output;
+  if (!body) return '';
+  const matched = body.split('\n').filter((line) => line.includes(grep));
+  return matched.length > 0 ? `${matched.join('\n')}${endsWithNewline ? '\n' : ''}` : '';
+}
+
+const MAX_SLASH_RESULT_CHARS = 12_000;
+
+export function buildShellCommandAgentResult(
+  invocation: string,
+  exitCode: number | null,
+  output: string,
+  durationMs: number,
+): string {
+  const truncated = output.length > MAX_SLASH_RESULT_CHARS;
+  const outputTail = truncated ? output.slice(-MAX_SLASH_RESULT_CHARS) : output;
+  return `[COMMANDER_SLASH_COMMAND_RESULT]\nThe user authorized and Commander finished the sudo slash command you requested.\nCommand: ${invocation}\nExit code: ${exitCode ?? 'terminated'}\nDuration: ${durationMs} ms\nOutput${truncated ? ' (tail; earlier output omitted)' : ''}:\n${outputTail || '(no output)'}\n[/COMMANDER_SLASH_COMMAND_RESULT]\nReview the result, inform the user, and continue the original task if needed. Do not rerun the command automatically.`;
 }
 
 // ============================================================================
@@ -303,6 +326,7 @@ router.post('/', async (req: Request, res: Response) => {
   let executionSudoPassword: Buffer | undefined;
   let executionSudoChannel: { close: () => Promise<void> } | undefined;
   let executionEnvOverrides: Record<string, string> = {};
+  let notifyRequestingAgent = false;
   try {
     const {
       agentId,
@@ -315,6 +339,15 @@ router.post('/', async (req: Request, res: Response) => {
     } = req.body;
     const directCommand = typeof req.body.command === 'string' ? req.body.command : '';
     const isShellSlashCommand = typeof shellCommandId === 'string' && shellCommandId.length > 0;
+    const explicitTailLines = Number.isFinite(Number(tail)) && Number(tail) > 0
+      ? Math.min(Math.floor(Number(tail)), 10_000)
+      : undefined;
+    const responseGrep = typeof req.body.grep === 'string' && req.body.grep.length > 0
+      ? req.body.grep
+      : undefined;
+    if (responseGrep && (responseGrep.length > 500 || responseGrep.includes('\0'))) {
+      throw new PluginShellCommandError('grep output filter must be 500 characters or fewer');
+    }
 
     // Validate required fields. Managed slash commands resolve their saved
     // script server-side and never send script contents or sudo passwords here.
@@ -344,6 +377,47 @@ router.post('/', async (req: Request, res: Response) => {
       const args = Array.isArray(shellArgs) && shellArgs.every((argument) => typeof argument === 'string')
         ? shellArgs as string[]
         : [];
+      const requestedDefinition = await pluginShellCommandService.get(shellCommandId);
+      if (requestedDefinition.runAsSudo && typeof sudoAuthorization !== 'string') {
+        const authorizationRequest = await pluginShellCommandService.prepareArgs(shellCommandId, agentId, args);
+        if (!authorizationRequest.challengeId || !authorizationRequest.expiresAt) {
+          throw new PluginShellCommandError('Unable to create sudo authorization request', 500, 'SUDO_CHALLENGE_INVALID');
+        }
+        const instanceId = `sudo-${authorizationRequest.challengeId}`;
+        if (broadcastFn) {
+          broadcastFn({
+            type: 'plugin_output',
+            payload: {
+              agentId,
+              output: {
+                pluginId: 'shell-commands',
+                rendererId: 'shell-command-sudo-request',
+                instanceId,
+                data: {
+                  kind: 'shell-command-sudo-request',
+                  commandId: authorizationRequest.commandId,
+                  invocation: authorizationRequest.invocation,
+                  args: authorizationRequest.args,
+                  challengeId: authorizationRequest.challengeId,
+                  expiresAt: authorizationRequest.expiresAt,
+                  ...(explicitTailLines ? { tail: explicitTailLines } : {}),
+                  ...(responseGrep ? { grep: responseGrep } : {}),
+                },
+                title: requestedDefinition.summary,
+                command: authorizationRequest.invocation,
+                createdAt: Date.now(),
+              },
+            },
+          } as ServerMessage);
+        }
+        res.status(202).json({
+          success: true,
+          awaitingUserAuthorization: true,
+          command: authorizationRequest.invocation,
+          message: 'Sudo authorization requested from the user in Commander',
+        });
+        return;
+      }
       const prepared = await pluginShellCommandService.prepareExecution(
         shellCommandId,
         agentId,
@@ -352,6 +426,7 @@ router.post('/', async (req: Request, res: Response) => {
       );
       shellCommandDefinition = prepared.definition;
       executionSudoPassword = prepared.sudoPassword;
+      notifyRequestingAgent = prepared.requestedByAgent === true;
       command = prepared.invocation;
       requestedCwd = prepared.definition.cwd;
       requestedPty = prepared.definition.pty;
@@ -390,9 +465,6 @@ router.post('/', async (req: Request, res: Response) => {
     const stripped = isShellSlashCommand ? null : splitTrailingTailFilter(processedCommand);
     const executedCommand = stripped ? stripped.command : processedCommand;
     // An explicit `tail` body param wins over a parsed pipe filter.
-    const explicitTailLines = Number.isFinite(Number(tail)) && Number(tail) > 0
-      ? Math.min(Math.floor(Number(tail)), 10000)
-      : undefined;
     const responseTail: TailSpec | undefined = explicitTailLines !== undefined
       ? { lines: explicitTailLines }
       : stripped?.tail;
@@ -592,13 +664,23 @@ router.post('/', async (req: Request, res: Response) => {
     // output reaches the agent — the full stream already went to the terminal.
     const rendered = renderer?.getText();
     const fullOutput = renderer ? (rendered ? `${rendered}\n` : '') : pipedOutput;
-    const responseOutput = responseTail ? applyTailFilter(fullOutput, responseTail) : fullOutput;
+    const duration = completedAt - task.startedAt;
+    const grepFilteredOutput = responseGrep ? applyLiteralGrepFilter(fullOutput, responseGrep) : fullOutput;
+    const responseOutput = responseTail ? applyTailFilter(grepFilteredOutput, responseTail) : grepFilteredOutput;
+    if (notifyRequestingAgent) {
+      const resultMessage = buildShellCommandAgentResult(command, exitCode, responseOutput, duration);
+      try {
+        await runtimeService.sendCommand(agentId, resultMessage);
+      } catch (notificationError) {
+        log.error(`[${agent.name}] Failed to deliver slash command result to requesting agent:`, notificationError);
+      }
+    }
     res.status(200).json({
       success: true,
       taskId,
       exitCode,
       output: responseOutput,
-      duration: Date.now() - task.startedAt,
+      duration,
       ...(responseOutput.length !== fullOutput.length
         ? { tailApplied: true, fullOutputBytes: Buffer.byteLength(fullOutput, 'utf8') }
         : {}),

@@ -13,6 +13,16 @@ const HAS_SCRIPT = (() => {
   }
 })();
 
+const pluginManagerMock = vi.hoisted(() => ({ get: vi.fn() }));
+const runtimeServiceMock = vi.hoisted(() => ({ sendCommand: vi.fn() }));
+const shellCommandServiceMock = vi.hoisted(() => ({
+  get: vi.fn(),
+  prepareArgs: vi.fn(),
+  prepareExecution: vi.fn(),
+  materializeScript: vi.fn(),
+  openSudoCredentialChannel: vi.fn(),
+}));
+
 // Keep the route layer off the real service graph — exec only needs an agent
 // lookup and secret passthrough.
 vi.mock('../services/index.js', () => ({
@@ -24,9 +34,28 @@ vi.mock('../services/index.js', () => ({
   secretsService: {
     replaceSecrets: vi.fn((command: string) => command),
   },
+  runtimeService: runtimeServiceMock,
 }));
 
-import execRouter, { applyTailFilter, setBroadcast, splitTrailingTailFilter, getRunningTasksSnapshot, _resetCompletedExecTasks } from './exec.js';
+vi.mock('../plugins/index.js', () => ({ pluginManager: pluginManagerMock }));
+vi.mock('../services/plugin-shell-command-service.js', () => {
+  class PluginShellCommandError extends Error {
+    constructor(
+      message: string,
+      public readonly statusCode = 400,
+      public readonly code = 'SHELL_COMMAND_ERROR',
+    ) {
+      super(message);
+    }
+  }
+  return {
+    pluginShellCommandService: shellCommandServiceMock,
+    PluginShellCommandError,
+    shellQuote: (value: string) => `'${value.replace(/'/g, `'\\''`)}'`,
+  };
+});
+
+import execRouter, { applyLiteralGrepFilter, applyTailFilter, buildShellCommandAgentResult, setBroadcast, splitTrailingTailFilter, getRunningTasksSnapshot, _resetCompletedExecTasks } from './exec.js';
 
 describe('splitTrailingTailFilter', () => {
   it('parses the common short form', () => {
@@ -62,6 +91,26 @@ describe('splitTrailingTailFilter', () => {
     expect(splitTrailingTailFilter("ssh host 'make | tail -5'")).toBeNull();
     // plain commands
     expect(splitTrailingTailFilter('npm run build')).toBeNull();
+  });
+});
+
+describe('applyLiteralGrepFilter', () => {
+  it('filters complete lines by a literal value without shell evaluation', () => {
+    expect(applyLiteralGrepFilter('ok\nerror one\nERROR\nerror $(id)\n', 'error')).toBe('error one\nerror $(id)\n');
+    expect(applyLiteralGrepFilter('one\ntwo\n', 'missing')).toBe('');
+  });
+});
+
+describe('buildShellCommandAgentResult', () => {
+  it('creates a bounded completion message for the requesting agent', () => {
+    const message = buildShellCommandAgentResult('/daisy-pcb', 0, `prefix-${'x'.repeat(13_000)}`, 1234);
+    expect(message).toContain('COMMANDER_SLASH_COMMAND_RESULT');
+    expect(message).toContain('Command: /daisy-pcb');
+    expect(message).toContain('Exit code: 0');
+    expect(message).toContain('earlier output omitted');
+    expect(message).toContain('Do not rerun the command automatically');
+    expect(message).not.toContain('prefix-');
+    expect(message.length).toBeLessThan(13_000);
   });
 });
 
@@ -162,6 +211,8 @@ describe('POST /api/exec — tail-resistant execution', () => {
 
   beforeEach(() => {
     broadcasts.length = 0;
+    vi.clearAllMocks();
+    pluginManagerMock.get.mockReturnValue({ id: 'shell-commands', enabled: true });
   });
 
   async function exec(body: Record<string, unknown>) {
@@ -180,6 +231,111 @@ describe('POST /api/exec — tail-resistant execution', () => {
       .map((m) => m.payload.output)
       .join('');
   }
+
+  it('renders an inline sudo request when an agent invokes a sudo slash command', async () => {
+    shellCommandServiceMock.get.mockResolvedValue({
+      id: 'shell-1',
+      name: '/daisy-pcb',
+      summary: 'Flash Daisy PCB',
+      script: 'make daisy-pcb',
+      runAsSudo: true,
+      pty: true,
+      enabled: true,
+    });
+    shellCommandServiceMock.prepareArgs.mockResolvedValue({
+      commandId: 'shell-1',
+      invocation: '/daisy-pcb',
+      args: [],
+      requiresSudo: true,
+      challengeId: 'challenge-1',
+      expiresAt: Date.now() + 600_000,
+    });
+
+    const response = await fetch(`${baseUrl}/api/exec`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentId: 'agent-1',
+        shellCommandId: 'shell-1',
+        shellArgs: [],
+        grep: 'error',
+        tail: 10,
+      }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(202);
+    expect(body).toMatchObject({ success: true, awaitingUserAuthorization: true, command: '/daisy-pcb' });
+    expect(shellCommandServiceMock.prepareArgs).toHaveBeenCalledWith('shell-1', 'agent-1', []);
+    expect(shellCommandServiceMock.prepareExecution).not.toHaveBeenCalled();
+    expect(broadcasts).toContainEqual(expect.objectContaining({
+      type: 'plugin_output',
+      payload: expect.objectContaining({
+        agentId: 'agent-1',
+        output: expect.objectContaining({
+          rendererId: 'shell-command-sudo-request',
+          data: expect.objectContaining({
+            kind: 'shell-command-sudo-request',
+            challengeId: 'challenge-1',
+            grep: 'error',
+            tail: 10,
+          }),
+        }),
+      }),
+    }));
+  });
+
+  it('invokes the requesting agent with the result after user-authorized execution', async () => {
+    const definition = {
+      id: 'shell-1',
+      name: '/daisy-pcb',
+      summary: 'Flash Daisy PCB',
+      script: 'true',
+      runAsSudo: true,
+      pty: false,
+      enabled: true,
+    };
+    shellCommandServiceMock.get.mockResolvedValue(definition);
+    shellCommandServiceMock.prepareExecution.mockResolvedValue({
+      definition,
+      invocation: '/daisy-pcb',
+      args: [],
+      requestedByAgent: true,
+    });
+    shellCommandServiceMock.materializeScript.mockResolvedValue({
+      filePath: '/dev/null',
+      cleanup: vi.fn(async () => undefined),
+    });
+    runtimeServiceMock.sendCommand.mockResolvedValue(undefined);
+
+    const result = await exec({
+      shellCommandId: 'shell-1',
+      shellArgs: [],
+      sudoAuthorization: 'authorized-challenge',
+    });
+
+    expect(result.exitCode).toBe(0);
+    expect(runtimeServiceMock.sendCommand).toHaveBeenCalledWith(
+      'agent-1',
+      expect.stringContaining('Command: /daisy-pcb'),
+    );
+    expect(runtimeServiceMock.sendCommand).toHaveBeenCalledWith(
+      'agent-1',
+      expect.stringContaining('Exit code: 0'),
+    );
+  });
+
+  it('applies structured literal grep then tail while preserving the full stream', async () => {
+    const result = await exec({
+      command: "printf 'ok\\nerror one\\nerror two\\ndone\\n'",
+      grep: 'error',
+      tail: 1,
+    });
+    expect(result.output).toBe('error two\n');
+    expect(result.tailApplied).toBe(true);
+    expect(streamedOutput()).toContain('ok');
+    expect(streamedOutput()).toContain('done');
+  });
 
   it('strips a trailing pipe-tail: full output streams live, response is tailed', async () => {
     const result = await exec({ command: "printf 'l1\\nl2\\nl3\\nl4\\n' | tail -2" });

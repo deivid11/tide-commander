@@ -57,7 +57,7 @@ function responseError(body: unknown, status: number, fallback: string): string 
     : `${fallback} (${status})`;
 }
 
-function usesInsecureRemoteTransport(): boolean {
+export function usesInsecureRemoteTransport(): boolean {
   if (typeof window === 'undefined') return false;
   if (window.location.protocol === 'https:') return false;
   const hostname = window.location.hostname.toLowerCase();
@@ -89,10 +89,11 @@ async function prepareExecution(
   return body.prepared;
 }
 
-function startStreamedExec(
+export function startStreamedExec(
   prepared: PluginShellCommandPrepareResult,
   agentId: string,
   sudoAuthorization?: string,
+  outputFilters: { tail?: number; grep?: string } = {},
 ): void {
   // POST /api/exec intentionally remains open until completion. Do not await it:
   // exec_task_* WebSocket events drive the live Guake widget immediately.
@@ -104,6 +105,8 @@ function startStreamedExec(
       shellCommandId: prepared.commandId,
       shellArgs: prepared.args,
       ...(sudoAuthorization ? { sudoAuthorization } : {}),
+      ...(outputFilters.tail ? { tail: outputFilters.tail } : {}),
+      ...(outputFilters.grep ? { grep: outputFilters.grep } : {}),
     }),
   }).then(async (response) => {
     if (response.ok) return;

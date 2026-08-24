@@ -1,5 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import * as os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createServer, type Server as NetServer } from 'node:net';
@@ -12,7 +13,7 @@ import type {
 
 const COMMAND_RE = /^\/?[a-zA-Z0-9][a-zA-Z0-9_-]*$/;
 const MAX_SCRIPT_BYTES = 128 * 1024;
-const CHALLENGE_TTL_MS = 2 * 60_000;
+const CHALLENGE_TTL_MS = 10 * 60_000;
 const AUTHORIZATION_TTL_MS = 30_000;
 
 interface PersistedShellCommands {
@@ -27,7 +28,8 @@ interface SudoChallenge {
   args: string[];
   expiresAt: number;
   authorized: boolean;
-  /** Ephemeral launch credential; zeroed as soon as /api/exec writes it to sudo stdin. */
+  requestedByAgent: boolean;
+  /** Ephemeral launch credential; zeroed after the per-run sudo channel serves or closes. */
   password?: Buffer;
 }
 
@@ -36,6 +38,7 @@ export interface PreparedShellCommandExecution {
   invocation: string;
   args: string[];
   sudoPassword?: Buffer;
+  requestedByAgent?: boolean;
 }
 
 export class PluginShellCommandError extends Error {
@@ -171,6 +174,7 @@ export class PluginShellCommandService {
   private readonly dataDir: string;
   private readonly stateFile: string;
   private readonly runDir: string;
+  private readonly sudoSocketDir: string;
   private readonly validateSudoPassword: SudoPasswordValidator;
   private commands = new Map<string, PluginShellCommandDefinition>();
   private challenges = new Map<string, SudoChallenge>();
@@ -178,10 +182,18 @@ export class PluginShellCommandService {
   private loadPromise: Promise<void> | null = null;
   private mutationQueue: Promise<void> = Promise.resolve();
 
-  constructor(options: { dataDir?: string; sudoPasswordValidator?: SudoPasswordValidator } = {}) {
+  constructor(options: {
+    dataDir?: string;
+    sudoSocketDir?: string;
+    sudoPasswordValidator?: SudoPasswordValidator;
+  } = {}) {
     this.dataDir = options.dataDir ?? path.join(getDataDir(), 'plugins', 'shell-commands');
     this.stateFile = path.join(this.dataDir, 'commands.json');
     this.runDir = path.join(this.dataDir, 'runs');
+    const runtimeBase = process.env.XDG_RUNTIME_DIR?.trim()
+      || path.join(os.tmpdir(), `tide-commander-${typeof process.getuid === 'function' ? process.getuid() : 'user'}`);
+    this.sudoSocketDir = options.sudoSocketDir
+      ?? path.join(runtimeBase, 'tide-commander', `sudo-${process.pid}`);
     this.validateSudoPassword = options.sudoPasswordValidator ?? defaultSudoPasswordValidator;
   }
 
@@ -252,24 +264,41 @@ export class PluginShellCommandService {
   }
 
   async prepare(id: string, agentId: string, argsText: string): Promise<PluginShellCommandPrepareResult> {
+    return this.createPreparation(id, agentId, parsePluginShellCommandArgs(argsText), false);
+  }
+
+  async prepareArgs(id: string, agentId: string, args: string[]): Promise<PluginShellCommandPrepareResult> {
+    return this.createPreparation(id, agentId, args, true);
+  }
+
+  private async createPreparation(
+    id: string,
+    agentId: string,
+    args: string[],
+    requestedByAgent: boolean,
+  ): Promise<PluginShellCommandPrepareResult> {
     const definition = await this.get(id);
     if (!definition.enabled) throw new PluginShellCommandError('Shell slash command is disabled', 409, 'SHELL_COMMAND_DISABLED');
-    const args = parsePluginShellCommandArgs(argsText);
+    if (args.length > 100 || args.some((argument) => typeof argument !== 'string' || argument.includes('\0') || argument.length > 8_192)) {
+      throw new PluginShellCommandError('Invalid shell command arguments');
+    }
     const invocation = [definition.name, ...args.map((argument) => shellQuote(argument))].join(' ');
     if (!definition.runAsSudo) {
-      return { commandId: id, invocation, args, requiresSudo: false };
+      return { commandId: id, invocation, args: [...args], requiresSudo: false };
     }
     this.pruneChallenges();
     const challengeId = randomUUID();
+    const expiresAt = Date.now() + CHALLENGE_TTL_MS;
     this.challenges.set(challengeId, {
       id: challengeId,
       commandId: id,
       agentId,
-      args,
-      expiresAt: Date.now() + CHALLENGE_TTL_MS,
+      args: [...args],
+      expiresAt,
       authorized: false,
+      requestedByAgent,
     });
-    return { commandId: id, invocation, args, requiresSudo: true, challengeId };
+    return { commandId: id, invocation, args: [...args], requiresSudo: true, challengeId, expiresAt };
   }
 
   async authorizeSudo(challengeId: string, password: string): Promise<void> {
@@ -308,11 +337,19 @@ export class PluginShellCommandService {
     if (args.length > 100 || args.some((argument) => typeof argument !== 'string' || argument.includes('\0') || argument.length > 8_192)) {
       throw new PluginShellCommandError('Invalid shell command arguments');
     }
-    const sudoPassword = definition.runAsSudo
+    const sudoAuthorization = definition.runAsSudo
       ? this.consumeAuthorization(authorizationId, id, agentId, args)
       : undefined;
     const invocation = [definition.name, ...args.map((argument) => shellQuote(argument))].join(' ');
-    return { definition, invocation, args: [...args], ...(sudoPassword ? { sudoPassword } : {}) };
+    return {
+      definition,
+      invocation,
+      args: [...args],
+      ...(sudoAuthorization ? {
+        sudoPassword: sudoAuthorization.password,
+        requestedByAgent: sudoAuthorization.requestedByAgent,
+      } : {}),
+    };
   }
 
   async materializeScript(script: string, sudoEnabled = false): Promise<{
@@ -334,7 +371,7 @@ export class PluginShellCommandService {
       await fs.mkdir(binDir, { mode: 0o700 });
       const askpassPath = path.join(executionDir, 'sudo-askpass.sh');
       const sudoPath = path.join(binDir, 'sudo');
-      const sudoSocketPath = path.join(executionDir, 'sudo.sock');
+      const sudoSocketPath = path.join(this.sudoSocketDir, `${randomUUID()}.sock`);
       // askpass receives only an ephemeral Unix-socket path. The password is
       // delivered by Commander when sudo asks; it never enters argv/env/files.
       await fs.access('/usr/bin/socat').catch(() => {
@@ -374,6 +411,16 @@ export class PluginShellCommandService {
     socketPath: string,
     password: Buffer,
   ): Promise<{ close: () => Promise<void> }> {
+    if (Buffer.byteLength(socketPath) >= 104) {
+      password.fill(0);
+      throw new PluginShellCommandError(
+        'Commander sudo socket path exceeds the host limit',
+        500,
+        'SUDO_SOCKET_PATH_TOO_LONG',
+      );
+    }
+    await fs.mkdir(path.dirname(socketPath), { recursive: true, mode: 0o700 });
+    await fs.chmod(path.dirname(socketPath), 0o700);
     await fs.rm(socketPath, { force: true });
     let served = false;
     let closed = false;
@@ -417,7 +464,7 @@ export class PluginShellCommandService {
     commandId: string,
     agentId: string,
     args: string[],
-  ): Buffer {
+  ): { password: Buffer; requestedByAgent: boolean } {
     this.pruneChallenges();
     const challenge = authorizationId ? this.challenges.get(authorizationId) : undefined;
     if (!challenge || !challenge.authorized || challenge.expiresAt <= Date.now()) {
@@ -430,7 +477,7 @@ export class PluginShellCommandService {
       throw new PluginShellCommandError('Sudo password is required', 428, 'SUDO_PASSWORD_REQUIRED');
     }
     this.challenges.delete(challenge.id);
-    return challenge.password;
+    return { password: challenge.password, requestedByAgent: challenge.requestedByAgent };
   }
 
   private pruneChallenges(): void {
@@ -457,6 +504,8 @@ export class PluginShellCommandService {
         // skip normal cleanup, so purge stale copies before accepting commands.
         await fs.rm(this.runDir, { recursive: true, force: true });
         await fs.mkdir(this.runDir, { recursive: true, mode: 0o700 });
+        await fs.rm(this.sudoSocketDir, { recursive: true, force: true });
+        await fs.mkdir(this.sudoSocketDir, { recursive: true, mode: 0o700 });
         try {
           const raw = JSON.parse(await fs.readFile(this.stateFile, 'utf8')) as Partial<PersistedShellCommands>;
           if (raw.version === 1 && Array.isArray(raw.commands)) {

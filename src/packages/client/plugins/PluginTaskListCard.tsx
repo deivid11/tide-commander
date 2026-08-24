@@ -158,6 +158,10 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
   const completedItems = useMemo(() => visibleItems.filter(isCompletedTask), [visibleItems]);
   const completeAction = data.actions?.complete;
   const reopenAction = data.actions?.reopen;
+  const detailNavigationItems = useMemo(
+    () => [...activeItems, ...completedItems],
+    [activeItems, completedItems],
+  );
 
   const renderTask = (item: PluginTaskItem) => {
     const key = String(item.id);
@@ -191,7 +195,13 @@ export const PluginTaskListCard = memo(function PluginTaskListCard({
           type="button"
           className="plugin-task-row__title"
           disabled={!data.actions?.openDetails}
-          onClick={() => data.actions?.openDetails && openPluginModal(output.pluginId, data.actions.openDetails, item)}
+          onClick={() => {
+            if (!data.actions?.openDetails) return;
+            const modalData = output.pluginId === 'bolba-tasks'
+              ? { task: item, tasks: detailNavigationItems }
+              : item;
+            openPluginModal(output.pluginId, data.actions.openDetails, modalData);
+          }}
           title={item.description || item.title}
         >
           {item.title}

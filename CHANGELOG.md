@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.207.0] - 2026-08-24
+
+### Added
+- **Sudo escalation for shell commands** — `ShellCommandSudoRequestCard` for handling `sudo` password prompts in `shell-commands` plugin (new `SudoRequestCard`, test coverage).
+- **Bolba Tasks navigation helper** — `bolbaTaskNavigation.ts` + `BolbaTasksView.test.ts` for navigating tasks in `BolbaTasksView`.
+
+### Changed
+- **Plugin cards and execution** — `PluginTaskListCard`, `BolbaTasksView`, `shell-commands/execution`/`index` and shared `plugin-types`/`types` refined for sudo flow and navigation.
+- **Exec service hardened** — `routes/exec` (+`exec.test.ts`, 158 lines) and `plugin-shell-command-service` (+tests) improved for shell execution; `execute-slash-commands` skill updated.
+- **Styles/docs** — `_plugins.scss` (+125 lines) and `README.md`/`docs/plugins.md` polished.
+
 ## [1.206.0] - 2026-08-21
 
 ### Added

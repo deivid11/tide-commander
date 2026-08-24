@@ -181,6 +181,19 @@ export interface PluginShellCommandPrepareResult {
   args: string[];
   requiresSudo: boolean;
   challengeId?: string;
+  expiresAt?: number;
+}
+
+export interface PluginShellCommandSudoRequestData {
+  kind: 'shell-command-sudo-request';
+  commandId: string;
+  invocation: string;
+  args: string[];
+  challengeId: string;
+  expiresAt: number;
+  /** Optional response-only filters requested by the agent; execution streaming remains complete. */
+  tail?: number;
+  grep?: string;
 }
 
 export interface PluginShellCommandExecData {
@@ -192,6 +205,7 @@ export interface PluginShellCommandExecData {
 
 export type PluginOutputData =
   | PluginShellCommandExecData
+  | PluginShellCommandSudoRequestData
   | PluginTaskListData
   | PluginProviderUsagesData
   | Record<string, unknown>

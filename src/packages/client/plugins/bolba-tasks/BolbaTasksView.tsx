@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLastSelectedAgentId } from '../../store';
 import { Icon } from '../../components/Icon';
 import { apiUrl, authFetch } from '../../utils/storage';
 import { PluginTaskListCard, isTaskListData } from '../PluginTaskListCard';
 import type { PluginOutputEnvelope, PluginTaskItem } from '../types';
+import { adjacentBolbaTask, resolveBolbaTaskDetailsModalData } from './bolbaTaskNavigation';
 
 function extractEnvelope(body: unknown): PluginOutputEnvelope | null {
   if (!body || typeof body !== 'object') return null;
@@ -188,20 +189,24 @@ function renderEventText(text: string): React.ReactNode {
 }
 
 export function BolbaTaskDetailsModal({ data }: { pluginId: string; data?: unknown; onClose: () => void }) {
-  const initialTask = data && typeof data === 'object' ? data as PluginTaskItem : null;
+  const modalData = resolveBolbaTaskDetailsModalData(data);
+  const [selectedTask, setSelectedTask] = useState<PluginTaskItem | null>(modalData?.task ?? null);
   const [details, setDetails] = useState<BolbaTaskDetailsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const navigationTasks = modalData?.tasks ?? (selectedTask ? [selectedTask] : []);
 
-  const loadDetails = useCallback(async () => {
-    if (!initialTask) return;
+  const loadDetails = useCallback(async (signal?: AbortSignal) => {
+    if (!selectedTask) return;
     setLoading(true);
     setError(null);
     try {
       const response = await authFetch(apiUrl('/api/plugins/bolba-tasks/actions/details'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: initialTask.id }),
+        body: JSON.stringify({ itemId: selectedTask.id }),
+        signal,
       });
       const body = await response.json().catch(() => null) as unknown;
       if (!response.ok) {
@@ -212,20 +217,24 @@ export function BolbaTaskDetailsModal({ data }: { pluginId: string; data?: unkno
       }
       const next = extractDetails(body);
       if (!next) throw new Error('Bolba devolvió un detalle de tarea inválido');
-      setDetails(next);
+      if (!signal?.aborted) setDetails(next);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      if (!signal?.aborted) setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [initialTask?.id]);
+  }, [selectedTask?.id]);
 
   useEffect(() => {
+    const controller = new AbortController();
     setDetails(null);
-    void loadDetails();
+    void loadDetails(controller.signal);
+    const scrollContainer = rootRef.current?.closest('.plugin-modal__body');
+    if (scrollContainer instanceof HTMLElement) scrollContainer.scrollTo({ top: 0 });
+    return () => controller.abort();
   }, [loadDetails]);
 
-  const task = details?.task || initialTask;
+  const task = details?.task || selectedTask;
   if (!task) return <div className="bolba-task-details bolba-task-details--empty">No se seleccionó ninguna tarea.</div>;
   const metadata = task.metadata || {};
   const registeredAt = task.registeredAt || textField(metadata, 'reg') || textField(metadata, 'created_at');
@@ -245,14 +254,35 @@ export function BolbaTaskDetailsModal({ data }: { pluginId: string; data?: unkno
   const gmail = textField(metadata, 'gmail');
   const coti = textField(metadata, 'coti');
   const events = details?.events || [];
+  const navigationIndex = navigationTasks.findIndex((candidate) => String(candidate.id) === String(task.id));
+  const previousTask = adjacentBolbaTask(navigationTasks, task.id, -1);
+  const nextTask = adjacentBolbaTask(navigationTasks, task.id, 1);
+  const navigate = (next: PluginTaskItem | null) => {
+    if (!next) return;
+    setSelectedTask(next);
+    setDetails(null);
+  };
 
   return (
-    <div className="bolba-task-details">
+    <div className="bolba-task-details" ref={rootRef}>
       <header className="bolba-task-details__hero">
-        <div className="bolba-task-details__eyebrow">
-          <span>#{task.id}</span>
-          {task.project && <span>{task.project}</span>}
-          {task.status && <span className={`is-${task.status}`}>{task.status}</span>}
+        <div className="bolba-task-details__hero-top">
+          <div className="bolba-task-details__eyebrow">
+            <span>#{task.id}</span>
+            {task.project && <span>{task.project}</span>}
+            {task.status && <span className={`is-${task.status}`}>{task.status}</span>}
+          </div>
+          {navigationTasks.length > 1 && (
+            <nav className="bolba-task-details__navigation" aria-label="Navegar entre tareas">
+              <button type="button" disabled={!previousTask || loading} onClick={() => navigate(previousTask)} title="Tarea anterior">
+                <Icon name="arrow-left" size={11} /> Anterior
+              </button>
+              <span>{navigationIndex + 1} / {navigationTasks.length}</span>
+              <button type="button" disabled={!nextTask || loading} onClick={() => navigate(nextTask)} title="Tarea siguiente">
+                Siguiente <Icon name="arrow-right" size={11} />
+              </button>
+            </nav>
+          )}
         </div>
         <h2>{task.title}</h2>
         {task.description && <p>{task.description}</p>}

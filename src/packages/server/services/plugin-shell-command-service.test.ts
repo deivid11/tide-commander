@@ -13,7 +13,15 @@ const dirs: string[] = [];
 function service(validate = vi.fn(async () => true)) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-shell-commands-'));
   dirs.push(dataDir);
-  return { service: new PluginShellCommandService({ dataDir, sudoPasswordValidator: validate }), validate, dataDir };
+  return {
+    service: new PluginShellCommandService({
+      dataDir,
+      sudoSocketDir: path.join(dataDir, 'sockets'),
+      sudoPasswordValidator: validate,
+    }),
+    validate,
+    dataDir,
+  };
 }
 
 afterEach(() => {
@@ -65,6 +73,35 @@ describe('PluginShellCommandService', () => {
     });
   });
 
+  it('creates agent-triggered sudo challenges from literal argument arrays', async () => {
+    const { service: commands } = service();
+    const command = await commands.create({
+      name: '/flash',
+      summary: 'Flash board',
+      script: 'sudo flash "$1"',
+      runAsSudo: true,
+    });
+
+    const prepared = await commands.prepareArgs(command.id, 'agent-1', ['pcb; echo unsafe']);
+    expect(prepared).toMatchObject({
+      commandId: command.id,
+      invocation: "/flash 'pcb; echo unsafe'",
+      args: ['pcb; echo unsafe'],
+      requiresSudo: true,
+      challengeId: expect.any(String),
+      expiresAt: expect.any(Number),
+    });
+    await commands.authorizeSudo(prepared.challengeId!, 'secret');
+    const execution = await commands.prepareExecution(
+      command.id,
+      'agent-1',
+      prepared.args,
+      prepared.challengeId,
+    );
+    expect(execution.requestedByAgent).toBe(true);
+    execution.sudoPassword?.fill(0);
+  });
+
   it('requires a matching one-time sudo authorization', async () => {
     const { service: commands, validate } = service();
     const command = await commands.create({
@@ -81,8 +118,9 @@ describe('PluginShellCommandService', () => {
     expect(validate).toHaveBeenCalledWith('secret');
     await expect(commands.prepareExecution(command.id, 'agent-2', prepared.args, prepared.challengeId))
       .rejects.toMatchObject({ code: 'SUDO_AUTHORIZATION_MISMATCH' });
-    await expect(commands.prepareExecution(command.id, 'agent-1', prepared.args, prepared.challengeId))
-      .resolves.toMatchObject({ invocation: "/upgrade 'safe'" });
+    const execution = await commands.prepareExecution(command.id, 'agent-1', prepared.args, prepared.challengeId);
+    expect(execution).toMatchObject({ invocation: "/upgrade 'safe'", requestedByAgent: false });
+    execution.sudoPassword?.fill(0);
     await expect(commands.prepareExecution(command.id, 'agent-1', prepared.args, prepared.challengeId))
       .rejects.toBeInstanceOf(PluginShellCommandError);
   });
@@ -96,6 +134,8 @@ describe('PluginShellCommandService', () => {
     expect(wrapper).toContain('/usr/bin/sudo -A');
     expect(askpass).toContain('/usr/bin/socat');
     expect(materialized.sudoEnv).toMatchObject({ SUDO_ASKPASS_REQUIRE: 'force' });
+    expect(Buffer.byteLength(materialized.sudoSocketPath!)).toBeLessThan(104);
+    expect(materialized.sudoSocketPath).not.toContain(path.dirname(materialized.filePath));
     expect(JSON.stringify(materialized.sudoEnv)).not.toContain('secret');
 
     const password = Buffer.from('secret');

@@ -6,6 +6,7 @@ import {
 } from '../registry';
 import type { PluginShellCommandDefinition } from '../types';
 import { ShellCommandExecCard } from './ShellCommandExecCard';
+import { ShellCommandSudoRequestCard } from './ShellCommandSudoRequestCard';
 import { SHELL_COMMAND_PLUGIN_ID } from './execution';
 
 const commandCleanups = new Map<string, () => void>();
@@ -41,6 +42,11 @@ export function registerShellCommandsPlugin(): void {
     pluginId: SHELL_COMMAND_PLUGIN_ID,
     id: 'shell-command-exec',
     component: ShellCommandExecCard,
+  });
+  registerPluginOutputRenderer({
+    pluginId: SHELL_COMMAND_PLUGIN_ID,
+    id: 'shell-command-sudo-request',
+    component: ShellCommandSudoRequestCard,
   });
   void refreshShellSlashCommands().catch((error) => {
     console.warn('[Command Scripts] Unable to load managed slash commands:', error);
