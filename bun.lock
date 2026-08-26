@@ -7,6 +7,7 @@
         "@capacitor/app": "^8.1.0",
         "@capacitor/haptics": "^8.0.1",
         "@capacitor/local-notifications": "^8.0.1",
+        "@capacitor/push-notifications": "^8.1.2",
         "@codemirror/lang-cpp": "^6.0.3",
         "@codemirror/lang-css": "^6.3.1",
         "@codemirror/lang-html": "^6.4.11",
@@ -196,6 +197,8 @@
     "@capacitor/haptics": ["@capacitor/haptics@8.0.1", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-8v8rowLBMeb3CryqoQvXndwyUsoi4pPXf0qFw7IGA4D32Uk7+K6juN2SjRowqunoovkvvbFmU9TD7JIAz2zmFw=="],
 
     "@capacitor/local-notifications": ["@capacitor/local-notifications@8.0.1", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-BWYg3wTCFQ9lsbE6tyHmJaE2IbxUuKYq4SeMIHQ9ZqVclrlTO6326sPT0sxM61YfR6K3G3fJGvyJqn89LzDk8A=="],
+
+    "@capacitor/push-notifications": ["@capacitor/push-notifications@8.1.2", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-TQl4XxqJfNF+KbSYBFMXYYT5WXUaleVKXlByhh/8+KySMVNjp+l5OqAUoGe/sY1IAnGXEuUeCjA/WLZEVvGwrA=="],
 
     "@chevrotain/types": ["@chevrotain/types@11.1.2", "", {}, "sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw=="],
 

@@ -922,7 +922,7 @@ function AppContent() {
       <WebBundleSyncBanner />
       {/* One-time "updated — view changelog" notice after a self-update reload */}
       <PostUpdateNotice />
-      <OnboardingModal onCreateAgent={spawnModal.open} />
+      <OnboardingModal onCreateAgent={() => spawnModal.open()} />
 
       {/* FPS Meter */}
       <FPSMeter visible={settings.showFPS} position="bottom-right" />
@@ -939,8 +939,8 @@ function AppContent() {
           onOpenCommander={commanderModal.open}
           onOpenControls={controlsModal.open}
           onOpenSkills={skillsModal.open}
-          onSpawnAgent={spawnModal.open}
-          onSpawnBoss={bossSpawnModal.open}
+          onSpawnAgent={() => spawnModal.open()}
+          onSpawnBoss={() => bossSpawnModal.open()}
           onNewBuilding={handleNewBuilding}
           onNewArea={handleNewArea}
         />
@@ -1242,8 +1242,8 @@ function AppContent() {
           onOpenCommander={commanderModal.open}
           onOpenControls={controlsModal.open}
           onOpenSkills={skillsModal.open}
-          onSpawnAgent={spawnModal.open}
-          onSpawnBoss={bossSpawnModal.open}
+          onSpawnAgent={() => spawnModal.open()}
+          onSpawnBoss={() => bossSpawnModal.open()}
           onNewBuilding={handleNewBuilding}
           onNewArea={handleNewArea}
           onOrganizeAll={handleOrganizeAll}
@@ -1625,8 +1625,8 @@ function AppContent() {
         {viewMode !== 'flat' && !agentBarHidden && (
           <AgentBar
             onFocusAgent={handleFocusAgent}
-            onSpawnClick={spawnModal.open}
-            onSpawnBossClick={bossSpawnModal.open}
+            onSpawnClick={() => spawnModal.open()}
+            onSpawnBossClick={() => bossSpawnModal.open()}
             onNewBuildingClick={handleNewBuilding}
             onNewAreaClick={handleNewArea}
           />

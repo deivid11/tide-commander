@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.210.1] - 2026-08-26
+
+### Fixed
+- **Spawn modal crash** — opening the New Agent / Deploy dialog no longer crashes with `Cannot read properties of undefined (reading 'slice')`. Wiring `spawnModal.open` directly as a click handler leaked the DOM event in as the modal's restore-session data; the modal now ignores any value without a valid `sessionId`, and the spawn/boss-spawn triggers no longer forward the event.
+
 ## [1.210.0] - 2026-08-24
 
 ### Added

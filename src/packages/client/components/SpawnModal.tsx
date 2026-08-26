@@ -73,8 +73,18 @@ export function SpawnModal({
   onSpawnEnd,
   spawnPosition,
   spawnAreaId,
-  initialSession,
+  initialSession: initialSessionProp,
 }: SpawnModalProps) {
+  // Guard against non-session values being passed as `initialSession`. This
+  // happens when `spawnModal.open` is wired directly as a DOM handler (e.g.
+  // onClick={spawnModal.open}) — React then passes the SyntheticEvent as the
+  // modal data, which is truthy but has no `sessionId`, crashing the restore
+  // banner (`initialSession.sessionId.slice(...)`). Only treat it as a real
+  // restore session when it actually carries a sessionId.
+  const initialSession =
+    initialSessionProp && typeof initialSessionProp.sessionId === 'string'
+      ? initialSessionProp
+      : undefined;
   const { t } = useTranslation(['terminal', 'common']);
   const skills = useSkillsArray();
   const customClasses = useCustomAgentClassesArray();
