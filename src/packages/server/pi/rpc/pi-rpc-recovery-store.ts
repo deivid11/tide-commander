@@ -24,6 +24,7 @@ export interface PersistedPiRpcProcess {
   tmuxSession: string;
   tmuxLogOffset: number;
   lastRequest?: RunnerRequest;
+  queue?: string[];
 }
 
 function ensureDataDir(): void {

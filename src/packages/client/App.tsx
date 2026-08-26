@@ -50,6 +50,7 @@ import { MobileFabMenu } from './components/MobileFabMenu';
 import { MobileBottomMenu } from './components/MobileBottomMenu';
 import { FloatingActionButtons } from './components/FloatingActionButtons';
 import { AppModals } from './components/AppModals';
+import { openSlashCommandBuilding } from './components/SlashCommandBuildingModal';
 import { RecentsOverlay } from './components/Recents/RecentsOverlay';
 import { recordRecentAgent, recordRecentBuilding } from './components/Spotlight/utils';
 const IframeModal = React.lazy(() => import('./components/IframeModal').then(m => ({ default: m.IframeModal })));
@@ -732,6 +733,8 @@ function AppContent() {
         store.openTestsBuilding(detail.buildingId);
       } else if (building.type === 'http') {
         store.openHttpBuilding(detail.buildingId);
+      } else if (building.type === 'slash-command') {
+        openSlashCommandBuilding(detail.buildingId);
       } else if (building.type === 'terminal' && building.terminalStatus?.url) {
         setTerminalModalBuildingId(detail.buildingId);
       } else {
@@ -898,6 +901,8 @@ function AppContent() {
       store.openTestsBuilding(buildingId);
     } else if (building.type === 'http') {
       store.openHttpBuilding(buildingId);
+    } else if (building.type === 'slash-command') {
+      openSlashCommandBuilding(buildingId);
     } else if (building.type === 'terminal' && building.terminalStatus?.url) {
       setTerminalModalBuildingId(buildingId);
     } else {
@@ -976,7 +981,13 @@ function AppContent() {
                 store.selectAgent(agentId);
                 store.setTerminalOpen(true);
               }}
-              onBuildingClick={(buildingId) => { recordRecentBuilding(buildingId); store.selectBuilding(buildingId); }}
+              onBuildingClick={(buildingId) => {
+                recordRecentBuilding(buildingId);
+                store.selectBuilding(buildingId);
+                if (store.getState().buildings.get(buildingId)?.type === 'slash-command') {
+                  openSlashCommandBuilding(buildingId);
+                }
+              }}
               onBuildingDoubleClick={(buildingId) => {
                 recordRecentBuilding(buildingId);
                 const building = store.getState().buildings.get(buildingId);
@@ -992,6 +1003,8 @@ function AppContent() {
                   store.openTestsBuilding(buildingId);
                 } else if (building?.type === 'http') {
                   store.openHttpBuilding(buildingId);
+                } else if (building?.type === 'slash-command') {
+                  openSlashCommandBuilding(buildingId);
                 } else {
                   buildingModal.open(buildingId);
                 }
@@ -1039,7 +1052,12 @@ function AppContent() {
                 handleFocusAgent(agentId);
               }}
               onKillAgent={handleKillAgent}
-              onSelectBuilding={(buildingId) => store.selectBuilding(buildingId)}
+              onSelectBuilding={(buildingId) => {
+                store.selectBuilding(buildingId);
+                if (store.getState().buildings.get(buildingId)?.type === 'slash-command') {
+                  openSlashCommandBuilding(buildingId);
+                }
+              }}
               onOpenTerminal={(agentId) => {
                 store.selectAgent(agentId);
                 store.setTerminalOpen(true);
@@ -1079,6 +1097,8 @@ function AppContent() {
                   store.openTestsBuilding(buildingId);
                 } else if (building?.type === 'http') {
                   store.openHttpBuilding(buildingId);
+                } else if (building?.type === 'slash-command') {
+                  openSlashCommandBuilding(buildingId);
                 } else if (building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') {
                   // Clear any pending popup timeout
                   if (pendingPopupTimeoutRef.current) {
@@ -1113,6 +1133,8 @@ function AppContent() {
                   store.openTestsBuilding(buildingId);
                 } else if (building?.type === 'http') {
                   store.openHttpBuilding(buildingId);
+                } else if (building?.type === 'slash-command') {
+                  openSlashCommandBuilding(buildingId);
                 } else {
                   buildingModal.open(buildingId);
                 }

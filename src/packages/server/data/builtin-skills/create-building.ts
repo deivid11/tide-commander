@@ -50,7 +50,7 @@ ${BT}name${BT}, ${BT}type${BT}, and ${BT}position${BT} are always required. Styl
 ${BT3}typescript
 {
   name: string,                                       // Display name
-  type: 'server'|'link'|'database'|'docker'|'monitor'|'folder'|'boss'|'terminal'|'tests'|'http',
+  type: 'server'|'link'|'database'|'docker'|'monitor'|'folder'|'boss'|'terminal'|'tests'|'http'|'slash-command',
   position: { x: number, z: number },
   style?: 'server-rack'|'tower'|'dome'|'pyramid'|'desktop'
         | 'filing-cabinet'|'satellite'|'crystal'|'factory'|'command-center',
@@ -63,6 +63,8 @@ ${BT3}typescript
   terminal?: { ... },                                 // Terminal type
   folderPath?: string,                                // Folder + tests + http types — required
   urls?: [{ label, url }],                            // Link type — required
+  icon?: string,                                      // Optional emoji, e.g. "✉️"
+  slashCommand?: { command: string },                 // Slash-command type; full invocation
   commands?: { start, stop, restart, healthCheck, logs },  // Non-PM2 server custom commands
   subordinateBuildingIds?: string[],                  // Boss type
 }
@@ -223,6 +225,14 @@ Requires ${BT}ttyd${BT} installed; ${BT}saveSession: true${BT} also needs ${BT}t
 - ${BT}{"name":"Projects","type":"folder","style":"filing-cabinet","position":{"x":8,"z":-2},"folderPath":"/home/user/projects"}${BT}
 - ${BT}{"name":"Docs","type":"link","style":"tower","position":{"x":10,"z":0},"urls":[{"label":"Internal Wiki","url":"https://wiki.example.com"}]}${BT}
 - ${BT}{"name":"Host Metrics","type":"monitor","style":"satellite","position":{"x":12,"z":4}}${BT}
+
+### Slash-command utility
+
+A slash-command building runs its configured local command when clicked and opens the structured plugin result in a modal. Place it inside the desired area bounds. The command must already exist in ${BT}GET /api/plugins/slash-commands${BT}.
+
+${BT}{"name":"Mis correos Gmail","type":"slash-command","style":"crystal","color":"#ea4335","icon":"✉️","position":{"x":-18.25,"z":18.15},"slashCommand":{"command":"/gmail unread 20"},"scale":0.72}${BT}
+
+Execution endpoint: ${BT}POST /api/buildings/<id>/execute-slash-command${BT} with optional ${BT}{"agentId":"..."}${BT}. It returns ${BT}{"output": PluginOutputEnvelope}${BT} for the interactive modal.
 
 ### Tests / HTTP requests
 

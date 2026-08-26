@@ -53,6 +53,7 @@ import { ThinkingBlock } from './ThinkingBlock';
 import { GrepResultsModal } from './GrepResultsModal';
 import { RenameAgentRequestCard } from '../../plugins/rename-agent/RenameAgentRequestCard';
 import { parseRenameAgentRequest } from '../../plugins/rename-agent/renameAgentRequest';
+import { parseBolbaRecommendationRequest } from '../../plugins/bolba-tasks/bolbaRecommendationRequest';
 import { ShellCommandResultCard } from '../../plugins/shell-commands/ShellCommandResultCard';
 import { parseShellCommandResult } from '../../plugins/shell-commands/shellCommandResult';
 
@@ -1817,6 +1818,10 @@ export const HistoryLine = memo(function HistoryLine({
         </div>
       );
     }
+
+    // Progress is represented by the persisted plugin widget; do not duplicate
+    // its internal AI callback prompt in conversation history.
+    if (parseBolbaRecommendationRequest(displayMessage)) return null;
 
     // Check for [DELEGATED TASK ...] message (subordinate receiving a task)
     const delegatedTaskParsed = parseDelegatedTaskMessage(displayMessage.trim());

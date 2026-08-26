@@ -14,6 +14,7 @@ import { BOSS_CONTEXT_START, BOSS_CONTEXT_END } from '../../../shared/agent-type
 import { getSlashCommandInfo } from '../../utils/slashCommands';
 import type { TaggedItem } from './virtualizedOutputKey';
 import { parseRenameAgentRequest } from '../../plugins/rename-agent/renameAgentRequest';
+import { parseBolbaRecommendationRequest } from '../../plugins/bolba-tasks/bolbaRecommendationRequest';
 import { parseShellCommandResult } from '../../plugins/shell-commands/shellCommandResult';
 
 export interface PromptMarker {
@@ -53,7 +54,7 @@ export function extractPromptPreview(raw: string): string | null {
 
   // Internal plugin orchestration is rendered as a dedicated status card and
   // must not appear as if the user typed a giant prompt.
-  if (parseRenameAgentRequest(text) || parseShellCommandResult(text)) return null;
+  if (parseRenameAgentRequest(text) || parseBolbaRecommendationRequest(text) || parseShellCommandResult(text)) return null;
 
   // Slash commands are actions on the session, not something said to the agent.
   if (getSlashCommandInfo(text) || SLASH_COMMAND_RE.test(text)) return null;

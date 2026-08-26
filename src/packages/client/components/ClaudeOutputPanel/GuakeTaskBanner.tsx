@@ -18,6 +18,7 @@ import { Icon } from '../Icon';
 import { ActivityGlyph } from '../shared/ActivityGlyph';
 import type { Agent } from '../../../shared/types';
 import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
+import { bolbaRecommendationRequestPreview } from '../../plugins/bolba-tasks/bolbaRecommendationRequest';
 import { shellCommandResultPreview } from '../../plugins/shell-commands/shellCommandResult';
 
 interface CurrentTask {
@@ -45,6 +46,7 @@ function pickCurrentTask(agent: Agent): CurrentTask | null {
   return {
     text: shellCommandResultPreview(fallback)
       || renameAgentRequestPreview(fallback)
+      || bolbaRecommendationRequestPreview(fallback)
       || fallback,
   };
 }

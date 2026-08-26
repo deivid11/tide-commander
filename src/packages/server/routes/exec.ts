@@ -39,6 +39,8 @@ interface RunningTask {
   startedAt: number;
   cwd: string;
   pty: boolean;
+  /** Live terminal state used to expose readable (ANSI/redraw-free) output. */
+  renderer?: TerminalRenderer;
   /** tool_use id of the Bash call that issued the curl (when the server could pair it). */
   toolUseId?: string;
 }
@@ -186,6 +188,9 @@ const SNAPSHOT_OUTPUT_TAIL_BYTES = 256 * 1024;
 interface CompletedTaskRecord {
   id: string; agentId: string; command: string; cwd: string; pty: boolean;
   startedAt: number; toolUseId?: string; outputTail: string;
+  /** Readable terminal output retained for agent status reads. */
+  readableOutputTail: string;
+  readableOutputBytes: number;
   exitCode: number | null; completedAt: number;
 }
 const completedTasks: CompletedTaskRecord[] = [];
@@ -194,14 +199,25 @@ const completedTasks: CompletedTaskRecord[] = [];
 const COMPLETED_KEEP_MAX = 40;
 const COMPLETED_KEEP_MS = 60 * 60_000;
 const COMPLETED_OUTPUT_TAIL_BYTES = 32 * 1024;
+const COMPLETED_READABLE_OUTPUT_TAIL_CHARS = 64 * 1024;
+const LIVE_OUTPUT_DEFAULT_TAIL_LINES = 200;
+const LIVE_OUTPUT_MAX_TAIL_LINES = 10_000;
+const LIVE_OUTPUT_MAX_RESPONSE_CHARS = 64 * 1024;
 
 /** Test hook. */
 export function _resetCompletedExecTasks(): void {
   completedTasks.length = 0;
 }
 
+function getReadableRunningTaskOutput(task: RunningTask): string {
+  if (!task.renderer) return task.output.join('');
+  const rendered = task.renderer.getText();
+  return rendered ? `${rendered}\n` : '';
+}
+
 function rememberCompletedTask(t: RunningTask, exitCode: number | null, completedAt: number): void {
   const joined = t.output.join('');
+  const readableOutput = getReadableRunningTaskOutput(t);
   completedTasks.push({
     id: t.id,
     agentId: t.agentId,
@@ -211,6 +227,10 @@ function rememberCompletedTask(t: RunningTask, exitCode: number | null, complete
     startedAt: t.startedAt,
     toolUseId: t.toolUseId,
     outputTail: joined.length > COMPLETED_OUTPUT_TAIL_BYTES ? joined.slice(-COMPLETED_OUTPUT_TAIL_BYTES) : joined,
+    readableOutputTail: readableOutput.length > COMPLETED_READABLE_OUTPUT_TAIL_CHARS
+      ? readableOutput.slice(-COMPLETED_READABLE_OUTPUT_TAIL_CHARS)
+      : readableOutput,
+    readableOutputBytes: Buffer.byteLength(readableOutput, 'utf8'),
     exitCode,
     completedAt,
   });
@@ -553,7 +573,13 @@ router.post('/', async (req: Request, res: Response) => {
           detached: true,
         });
 
-    // Track the task
+    // Collect output. In PTY mode the raw stream (redraws, ANSI) goes to the
+    // renderer — the agent gets the clean rendered text, never the raw noise.
+    let pipedOutput = '';
+    const renderer = usePty ? new TerminalRenderer() : null;
+
+    // Track the task, including its live renderer so agents can inspect a
+    // readable snapshot while the HTTP execution request is still in flight.
     const task: RunningTask = {
       id: taskId,
       agentId,
@@ -563,14 +589,10 @@ router.post('/', async (req: Request, res: Response) => {
       startedAt: Date.now(),
       cwd: workingDir,
       pty: usePty,
+      ...(renderer ? { renderer } : {}),
       toolUseId,
     };
     runningTasks.set(taskId, task);
-
-    // Collect output. In PTY mode the raw stream (redraws, ANSI) goes to the
-    // renderer — the agent gets the clean rendered text, never the raw noise.
-    let pipedOutput = '';
-    const renderer = usePty ? new TerminalRenderer() : null;
     let exitCode: number | null = null;
 
     // Stream stdout (in PTY mode this carries stderr too — one merged stream)
@@ -717,18 +739,113 @@ router.post('/', async (req: Request, res: Response) => {
  */
 router.get('/tasks/:agentId', (req: Request, res: Response) => {
   const agentId = req.params.agentId as string;
+  const now = Date.now();
   const tasks = getRunningTasks(agentId).map(t => ({
     id: t.id,
     command: t.command,
+    cwd: t.cwd,
+    status: 'running' as const,
     startedAt: t.startedAt,
+    elapsedMs: Math.max(0, now - t.startedAt),
     outputLines: t.output.length,
+    outputChunks: t.output.length,
+    outputBytes: Buffer.byteLength(getReadableRunningTaskOutput(t), 'utf8'),
     toolUseId: t.toolUseId,
+    outputEndpoint: `/api/exec/tasks/${encodeURIComponent(agentId)}/${encodeURIComponent(t.id)}/output`,
+    cancelEndpoint: `/api/exec/tasks/${encodeURIComponent(agentId)}/${encodeURIComponent(t.id)}`,
   }));
   res.json({ tasks });
 });
 
 /**
- * DELETE /api/exec/tasks/:taskId - Kill a running task
+ * GET /api/exec/tasks/:agentId/:taskId/output
+ *
+ * Read a bounded, terminal-rendered snapshot while a streamed command is
+ * running. Recently completed tasks remain readable for the same bounded
+ * retention window used by reconnect snapshots.
+ */
+router.get('/tasks/:agentId/:taskId/output', (req: Request, res: Response) => {
+  const agentId = req.params.agentId as string;
+  const taskId = req.params.taskId as string;
+  const requestedTail = req.query.tail === undefined
+    ? LIVE_OUTPUT_DEFAULT_TAIL_LINES
+    : Number(req.query.tail);
+  if (!Number.isFinite(requestedTail) || requestedTail <= 0) {
+    res.status(400).json({ error: 'tail must be a positive number' });
+    return;
+  }
+  const tailLines = Math.min(Math.floor(requestedTail), LIVE_OUTPUT_MAX_TAIL_LINES);
+  const grep = typeof req.query.grep === 'string' ? req.query.grep : undefined;
+  if (grep && (grep.length > 500 || grep.includes('\0'))) {
+    res.status(400).json({ error: 'grep output filter must be 500 characters or fewer' });
+    return;
+  }
+
+  const running = runningTasks.get(taskId);
+  const completed = running
+    ? undefined
+    : [...completedTasks].reverse().find((task) => task.id === taskId && task.agentId === agentId);
+  if ((!running || running.agentId !== agentId) && !completed) {
+    res.status(404).json({ error: `Task not found: ${taskId}` });
+    return;
+  }
+
+  const now = Date.now();
+  const sourceOutput = running ? getReadableRunningTaskOutput(running) : completed!.readableOutputTail;
+  const sourceOutputBytes = running
+    ? Buffer.byteLength(sourceOutput, 'utf8')
+    : completed!.readableOutputBytes;
+  const grepFiltered = grep ? applyLiteralGrepFilter(sourceOutput, grep) : sourceOutput;
+  const tailed = applyTailFilter(grepFiltered, { lines: tailLines });
+  const responseOutput = tailed.length > LIVE_OUTPUT_MAX_RESPONSE_CHARS
+    ? tailed.slice(-LIVE_OUTPUT_MAX_RESPONSE_CHARS)
+    : tailed;
+  const startedAt = running?.startedAt ?? completed!.startedAt;
+  const completedAt = completed?.completedAt;
+  const exitCode = completed?.exitCode;
+  const status = running
+    ? 'running'
+    : exitCode !== null ? 'completed' : 'failed';
+
+  res.json({
+    taskId,
+    agentId,
+    command: running?.command ?? completed!.command,
+    cwd: running?.cwd ?? completed!.cwd,
+    status,
+    startedAt,
+    duration: Math.max(0, (completedAt ?? now) - startedAt),
+    ...(completedAt !== undefined ? { completedAt, exitCode } : {}),
+    output: responseOutput,
+    outputBytes: sourceOutputBytes,
+    tail: tailLines,
+    ...(grep ? { grep } : {}),
+    truncated: responseOutput !== sourceOutput,
+    retainedOutputTruncated: !!completed
+      && Buffer.byteLength(completed.readableOutputTail, 'utf8') < completed.readableOutputBytes,
+  });
+});
+
+/**
+ * DELETE /api/exec/tasks/:agentId/:taskId - Cancel one of the agent's tasks.
+ */
+router.delete('/tasks/:agentId/:taskId', (req: Request, res: Response) => {
+  const agentId = req.params.agentId as string;
+  const taskId = req.params.taskId as string;
+  const task = runningTasks.get(taskId);
+  if (!task || task.agentId !== agentId) {
+    res.status(404).json({ error: `Running task not found: ${taskId}` });
+    return;
+  }
+  if (!killTask(taskId)) {
+    res.status(500).json({ error: `Unable to cancel task: ${taskId}` });
+    return;
+  }
+  res.json({ success: true, taskId, status: 'cancelling' });
+});
+
+/**
+ * DELETE /api/exec/tasks/:taskId - Kill a running task (legacy client route).
  */
 router.delete('/tasks/:taskId', (req: Request, res: Response) => {
   const taskId = req.params.taskId as string;

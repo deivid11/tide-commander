@@ -79,6 +79,38 @@ router.post('/send', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/email/draft — Create an unsent Gmail draft
+router.post('/draft', async (req: Request, res: Response) => {
+  try {
+    const { to, cc, bcc, subject, body, bodyText, attachments, threadId, inReplyTo, agentId, workflowInstanceId } = req.body;
+
+    if (!to || !subject || !body) {
+      res.status(400).json({ error: 'to, subject, and body are required' });
+      return;
+    }
+
+    const result = await gmailClient.sendEmail({
+      to: Array.isArray(to) ? to : [to],
+      cc: cc ? (Array.isArray(cc) ? cc : [cc]) : undefined,
+      bcc: bcc ? (Array.isArray(bcc) ? bcc : [bcc]) : undefined,
+      subject,
+      body,
+      bodyText,
+      attachments,
+      threadId,
+      inReplyTo,
+      agentId,
+      workflowInstanceId,
+      draft: true,
+    });
+
+    res.json({ success: true, draftId: result.draftId, messageId: result.messageId, threadId: result.threadId });
+  } catch (err) {
+    log.error(`Gmail draft error: ${err}`);
+    res.status(500).json({ error: `Failed to create draft: ${err instanceof Error ? err.message : err}` });
+  }
+});
+
 // GET /api/email/recent — Get recent emails
 router.get('/recent', async (req: Request, res: Response) => {
   try {

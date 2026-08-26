@@ -391,6 +391,16 @@ export class ClaudeRunner {
     await withAgentContext(request.agentId, () => this.lifecycle.run(request));
   }
 
+  queueMessage(agentId: string, message: string): boolean {
+    const activeProcess = this.activeProcesses.get(agentId);
+    if (!activeProcess) return false;
+    const queue = this.messageQueue.get(agentId) ?? [];
+    appendQueuedMessage(queue, message);
+    this.messageQueue.set(agentId, queue);
+    log.log(`📋 [QUEUE-EXPLICIT] Agent ${agentId}: scheduled message (${queue[0].length} total chars)`);
+    return true;
+  }
+
   sendMessage(agentId: string, message: string): boolean {
     return withAgentContext(agentId, () => this.sendMessageImpl(agentId, message));
   }

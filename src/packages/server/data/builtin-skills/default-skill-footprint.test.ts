@@ -30,13 +30,15 @@ describe('default skill prompt footprint', () => {
       .map(skill => `## Skill: ${skill.name}\n_${skill.description}_\n${skill.content}`)
       .join('\n---\n');
 
-    expect(rendered.length).toBeLessThan(10_500);
+    expect(rendered.length).toBeLessThan(11_500);
   });
 
   it('retains every mandatory API contract after compaction', () => {
     expect(fullNotifications.content).toContain('POST /api/notify');
     expect(sendMessageToAgent.content).toContain('POST /api/agents/AGENT_ID/message');
     expect(streamingExec.content).toContain('POST /api/exec');
+    expect(streamingExec.content).toContain('GET /api/exec/tasks/YOUR_AGENT_ID');
+    expect(streamingExec.content).toContain('cancelEndpoint');
     expect(executeSlashCommands.content).toContain('GET /api/plugins/slash-commands');
     expect(executeSlashCommands.content).toContain('/execute-sudo-command');
     expect(taskLabel.content).toContain('PATCH /api/agents/YOUR_AGENT_ID');

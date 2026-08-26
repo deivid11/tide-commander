@@ -10,6 +10,7 @@ import { getContextBarColor } from './agentUtils';
 import type { ContextInfo } from './types';
 import { Icon } from '../Icon';
 import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
+import { bolbaRecommendationRequestPreview } from '../../plugins/bolba-tasks/bolbaRecommendationRequest';
 import { shellCommandResultPreview } from '../../plugins/shell-commands/shellCommandResult';
 
 // ============================================================================
@@ -160,7 +161,7 @@ interface LastPromptProps {
 
 export const LastPrompt = memo(function LastPrompt({ text, maxLength = 150 }: LastPromptProps) {
   const { t } = useTranslation(['common']);
-  const displayText = shellCommandResultPreview(text) || renameAgentRequestPreview(text) || text;
+  const displayText = shellCommandResultPreview(text) || renameAgentRequestPreview(text) || bolbaRecommendationRequestPreview(text) || text;
   return (
     <div className="unit-last-prompt">
       <div className="unit-stat-label">{t('unitPanel.lastPrompt')}</div>

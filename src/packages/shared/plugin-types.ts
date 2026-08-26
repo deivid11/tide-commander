@@ -105,6 +105,39 @@ export interface PluginTaskItem {
   metadata?: Record<string, unknown>;
 }
 
+export type PluginRecommendedTaskUrgency = 'critical' | 'high' | 'medium' | 'normal';
+
+export interface PluginRecommendedTask {
+  task: PluginTaskItem;
+  rank: number;
+  score: number;
+  urgency: PluginRecommendedTaskUrgency;
+  reason: string;
+  signals: string[];
+}
+
+export interface PluginRecommendedTasksData {
+  kind: 'bolba-recommended-tasks';
+  agentId: string;
+  requestId: string;
+  status: 'generating' | 'ready' | 'error';
+  title: string;
+  subtitle: string;
+  requestedAt: number;
+  generatedAt?: number;
+  analysisSummary?: string;
+  error?: string;
+  count: number;
+  totalCandidates: number;
+  limit: number;
+  items: PluginRecommendedTask[];
+  actions: {
+    refresh: string;
+    complete: string;
+    openDetails: string;
+  };
+}
+
 export interface PluginTaskListData {
   kind: 'task-list';
   title?: string;
@@ -231,6 +264,7 @@ export type PluginOutputData =
   | PluginShellCommandExecData
   | PluginShellCommandSudoRequestData
   | PluginAgentNameProposalsData
+  | PluginRecommendedTasksData
   | PluginTaskListData
   | PluginProviderUsagesData
   | Record<string, unknown>

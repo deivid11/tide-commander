@@ -44,6 +44,7 @@ describe('extractPromptPreview', () => {
 
   it('skips internal plugin orchestration and result callbacks', () => {
     expect(extractPromptPreview('[RENAME_AGENT_PROPOSALS_REQUEST]\nAnaliza tu conversación…')).toBeNull();
+    expect(extractPromptPreview('[BOLBA_TASK_RECOMMENDATIONS_REQUEST]\nAnaliza las tareas…')).toBeNull();
     expect(extractPromptPreview(`[COMMANDER_SLASH_COMMAND_RESULT]
 Command: /deploy
 Exit code: 0

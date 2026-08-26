@@ -1,8 +1,17 @@
 import type { PluginTaskItem } from '../types';
 
+export interface BolbaTaskCompletionContext {
+  agentId: string;
+  instanceId: string;
+  rendererId: string;
+  action: string;
+  data: unknown;
+}
+
 export interface BolbaTaskDetailsModalData {
   task: PluginTaskItem;
   tasks: PluginTaskItem[];
+  completion?: BolbaTaskCompletionContext;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -25,7 +34,21 @@ export function resolveBolbaTaskDetailsModalData(data: unknown): BolbaTaskDetail
     tasks.findIndex((candidate) => String(candidate.id) === String(task.id)) === index
   ));
   if (!unique.some((task) => String(task.id) === String(selectedTask.id))) unique.unshift(selectedTask);
-  return { task: selectedTask, tasks: unique };
+  const rawCompletion = data.completion;
+  const completion = isRecord(rawCompletion)
+    && typeof rawCompletion.agentId === 'string'
+    && typeof rawCompletion.instanceId === 'string'
+    && typeof rawCompletion.rendererId === 'string'
+    && typeof rawCompletion.action === 'string'
+    ? {
+        agentId: rawCompletion.agentId,
+        instanceId: rawCompletion.instanceId,
+        rendererId: rawCompletion.rendererId,
+        action: rawCompletion.action,
+        data: rawCompletion.data,
+      }
+    : undefined;
+  return { task: selectedTask, tasks: unique, ...(completion ? { completion } : {}) };
 }
 
 export function adjacentBolbaTask(

@@ -35,6 +35,7 @@ import {
   reportShellCommandExecutionError,
 } from '../../plugins/shell-commands/execution';
 import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
+import { bolbaRecommendationRequestPreview } from '../../plugins/bolba-tasks/bolbaRecommendationRequest';
 import { shellCommandResultPreview } from '../../plugins/shell-commands/shellCommandResult';
 
 /**
@@ -400,7 +401,8 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   // truncated preview; click scrolls the conversation to that prompt.
   const promptBubbleText = useMemo(() => {
     const internalPreview = shellCommandResultPreview(lastPrompt?.text)
-      || renameAgentRequestPreview(lastPrompt?.text);
+      || renameAgentRequestPreview(lastPrompt?.text)
+      || bolbaRecommendationRequestPreview(lastPrompt?.text);
     if (internalPreview) return internalPreview;
     const flat = (lastPrompt?.text ?? '').replace(/\s+/g, ' ').trim();
     return flat.length > PROMPT_BUBBLE_MAX_CHARS ? `${flat.slice(0, PROMPT_BUBBLE_MAX_CHARS)}…` : flat;
@@ -817,7 +819,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     if (next && !useTextarea) setForceTextarea(true);
   };
 
-  const handleSendCommand = () => {
+  const handleSendCommand = (queueOnly = false) => {
     if ((!command.trim() && attachedFiles.length === 0 && fileMentions.length === 0) || !selectedAgentId) return;
 
     if (command.trim() === '/clear' && attachedFiles.length === 0) {
@@ -892,7 +894,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     // queued SERVER-side by sendCommand and delivered when the turn ends —
     // no front needs to stay open. The queue bar (server snapshot) offers
     // "Send now" to interrupt instead. Claude injects mid-turn via stdin.
-    store.sendCommand(selectedAgentId, fullCommand);
+    store.sendCommand(selectedAgentId, fullCommand, queueOnly ? { queueOnly: true } : undefined);
     onSendCommand?.();
     setCommand('');
     setForceTextarea(false);
@@ -974,20 +976,12 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     }
 
     if (e.key === 'Enter') {
-      if (e.altKey && e.shiftKey) {
-        const text = command.trim();
-        if (!text || !selectedAgentId) {
-          e.preventDefault();
-          return;
-        }
+      if (e.ctrlKey || (e.altKey && e.shiftKey)) {
         e.preventDefault();
-        // Queue-without-interrupt is server-side now: sending while the agent
-        // is busy queues on the server and delivers at turn end.
-        store.sendCommand(selectedAgentId, text);
-        setCommand('');
-        setForceTextarea(false);
-        setPastedTexts(new Map());
-        resetPastedCount();
+        // Ctrl+Enter schedules the complete composer payload (text, pasted
+        // blocks, uploaded files and @ mentions) behind the active turn.
+        // Keep Alt+Shift+Enter as a backward-compatible alias.
+        handleSendCommand(true);
         return;
       }
 
@@ -1508,6 +1502,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
                   onMouseDown={handleMouseDown}
                   onFocus={handleInputFocus}
                   onBlur={handleInputBlur}
+                  aria-keyshortcuts="Control+Enter"
                 />
               ) : (
                 <input
@@ -1521,6 +1516,7 @@ export const TerminalInputArea = memo(function TerminalInputArea({
                   onMouseDown={handleMouseDown}
                   onFocus={handleInputFocus}
                   onBlur={handleInputBlur}
+                  aria-keyshortcuts="Control+Enter"
                 />
               )}
               <button
@@ -1531,7 +1527,11 @@ export const TerminalInputArea = memo(function TerminalInputArea({
               >
                 <Icon name={isInputExpanded ? 'caret-down' : 'caret-up'} size={12} />
               </button>
-              <button onClick={handleSendCommand} disabled={!command.trim() && attachedFiles.length === 0 && fileMentions.length === 0} title={t('terminal:input.send')}>
+              <button
+                onClick={() => handleSendCommand()}
+                disabled={!command.trim() && attachedFiles.length === 0 && fileMentions.length === 0}
+                title={`${t('terminal:input.send')} · Ctrl+Enter: schedule`}
+              >
                 <Icon name="send" size={14} />
               </button>
               {promptBubbleText && (

@@ -65,6 +65,9 @@ vi.mock('../services/database-service.js', () => ({
   closeConnection: vi.fn(async () => {}),
 }));
 
+const pluginManagerMock = vi.hoisted(() => ({ executeSlashCommand: vi.fn() }));
+vi.mock('../plugins/index.js', () => ({ pluginManager: pluginManagerMock }));
+
 // The router pulls `broadcast` from the WS handler module. We stub the entire
 // websocket/handler module to avoid spinning up a real WebSocketServer.
 vi.mock('../websocket/handler.js', () => ({
@@ -173,6 +176,17 @@ describe('POST /api/buildings — validation', () => {
     expect(body.errors).toEqual(expect.arrayContaining([expect.stringMatching(/database\.connections/)]));
   });
 
+  it('rejects slash-command buildings without a valid slash invocation', async () => {
+    const res = await postJson('/api/buildings', {
+      name: 'Mail', type: 'slash-command', position: { x: 0, z: 0 },
+      slashCommand: { command: 'gmail unread' },
+    });
+    expect(res.status).toBe(400);
+    expect((await res.json()).errors).toEqual(expect.arrayContaining([
+      expect.stringMatching(/slashCommand\.command/),
+    ]));
+  });
+
   it('rejects boss subordinates that do not exist', async () => {
     const res = await postJson('/api/buildings', {
       name: 'Boss', type: 'boss', position: { x: 0, z: 0 },
@@ -201,6 +215,24 @@ describe('POST /api/buildings — happy path', () => {
     const res2 = await postJson('/api/buildings', { ...validServerBody, id: 'i-pick-this' });
     const b2 = await res2.json();
     expect(b2.id).not.toBe('i-pick-this');
+  });
+
+  it('creates an active slash-command building with its custom mail icon', async () => {
+    const res = await postJson('/api/buildings', {
+      name: 'Mis correos Gmail',
+      type: 'slash-command',
+      position: { x: -18, z: 18 },
+      icon: '✉️',
+      slashCommand: { command: '/gmail unread 20' },
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({
+      type: 'slash-command',
+      status: 'running',
+      style: 'crystal',
+      icon: '✉️',
+      slashCommand: { command: '/gmail unread 20' },
+    });
   });
 
   it('strips client-provided createdAt', async () => {
@@ -297,6 +329,26 @@ describe('DELETE /api/buildings/:id', () => {
     const all = await (await fetch(`${baseUrl}/api/buildings`)).json();
     const boss = all.buildings.find((b: any) => b.type === 'boss');
     expect(boss.subordinateBuildingIds).toEqual([]);
+  });
+});
+
+describe('POST /api/buildings/:id/execute-slash-command', () => {
+  it('executes the configured command and returns structured plugin output', async () => {
+    const created = await (await postJson('/api/buildings', {
+      name: 'Mis correos Gmail',
+      type: 'slash-command',
+      position: { x: -18, z: 18 },
+      icon: '✉️',
+      slashCommand: { command: '/gmail unread 20' },
+    })).json();
+    const output = {
+      pluginId: 'gmail-pending', rendererId: 'gmail-pending-list', instanceId: 'mail-1', data: { kind: 'gmail-pending-list', items: [] },
+    };
+    pluginManagerMock.executeSlashCommand.mockResolvedValue(output);
+    const res = await postJson(`/api/buildings/${created.id}/execute-slash-command`, { agentId: 'agent-1' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ output });
+    expect(pluginManagerMock.executeSlashCommand).toHaveBeenCalledWith('agent-1', '/gmail unread 20');
   });
 });
 

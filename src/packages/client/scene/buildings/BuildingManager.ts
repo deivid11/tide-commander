@@ -12,7 +12,7 @@ import { isAreaVisibleInWorkspace, getActiveWorkspaceState } from '../../compone
 // Import from decomposed modules
 import type { BuildingMeshData } from './types';
 import { STATUS_COLORS } from './types';
-import { updateLabel, createGitBadge, updateGitBadge } from './labelUtils';
+import { getBuildingLabelText, updateLabel, createGitBadge, updateGitBadge } from './labelUtils';
 import {
   createBuildingMesh,
   updateIdleAnimations,
@@ -188,7 +188,7 @@ export class BuildingManager {
     const currentLabel = meshData.label;
     const canvas = (currentLabel.material as THREE.SpriteMaterial).map?.image as HTMLCanvasElement;
     if (canvas) {
-      updateLabel(meshData, building.name);
+      updateLabel(meshData, getBuildingLabelText(building));
     }
 
     // Update git indicator badge

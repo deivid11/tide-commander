@@ -928,6 +928,17 @@ body.flat-splitter-dragging {
       }
     }
 
+    &--slash-command {
+      color: color-mix(in srgb, var(--accent-purple) 82%, var(--text-primary));
+      background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+
+      &:hover {
+        color: var(--text-primary);
+        background: color-mix(in srgb, var(--accent-purple) 24%, transparent);
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 38%, transparent);
+      }
+    }
+
     &--active {
       color: var(--text-primary);
       background: color-mix(in srgb, var(--accent-purple) 28%, transparent);
@@ -955,6 +966,15 @@ body.flat-splitter-dragging {
         background: color-mix(in srgb, var(--accent-cyan) 22%, transparent);
       }
     }
+  }
+
+  &__building-emoji {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1;
   }
 
   // ── Detached (reattaching) badge ────────────────────────────────────────

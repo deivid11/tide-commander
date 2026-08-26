@@ -65,6 +65,8 @@ export function BuildingConfigModal({
   const [showLogs, setShowLogs] = useState(false);
   const [folderPath, setFolderPath] = useState('');
   const [scale, setScale] = useState(1.0);
+  const [buildingIcon, setBuildingIcon] = useState('');
+  const [slashCommand, setSlashCommand] = useState('');
 
   // PM2 state
   const [usePM2, setUsePM2] = useState(false);
@@ -126,6 +128,8 @@ export function BuildingConfigModal({
         setUrls(building.urls || []);
         setFolderPath(building.folderPath || '');
         setScale(building.scale || 1.0);
+        setBuildingIcon(building.icon || '');
+        setSlashCommand(building.slashCommand?.command || '');
         setUsePM2(building.pm2?.enabled || false);
         setPm2Script(building.pm2?.script || '');
         setPm2Args(building.pm2?.args || '');
@@ -171,6 +175,8 @@ export function BuildingConfigModal({
         setUrls([]);
         setFolderPath('');
         setScale(1.0);
+        setBuildingIcon('');
+        setSlashCommand('');
         setUsePM2(false);
         setPm2Script('');
         setPm2Args('');
@@ -239,6 +245,10 @@ export function BuildingConfigModal({
       type,
       style,
       color: color || undefined,
+      icon: buildingIcon || undefined,
+      slashCommand: type === 'slash-command' && slashCommand.trim()
+        ? { command: slashCommand.trim() }
+        : undefined,
       position: initialPosition || building?.position || { x: 0, z: 0 },
       cwd: cwd || undefined,
       folderPath: folderPath || undefined,
@@ -395,6 +405,10 @@ export function BuildingConfigModal({
                       if (bt === 'http' && style === 'server-rack') {
                         setStyle('satellite');
                       }
+                      if (bt === 'slash-command' && style === 'server-rack') {
+                        setStyle('crystal');
+                        setBuildingIcon('⚡');
+                      }
                     }}
                     title={BUILDING_TYPES[bt].description}
                   >
@@ -422,6 +436,34 @@ export function BuildingConfigModal({
                 ))}
               </div>
             </div>
+
+            {type === 'slash-command' && (
+              <>
+                <div className="form-section">
+                  <label className="form-label">Slash command</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={slashCommand}
+                    onChange={(event) => setSlashCommand(event.target.value)}
+                    placeholder="/gmail unread 20"
+                    required
+                  />
+                  <div className="form-hint">Clicking the building runs this local command and opens its result in a modal.</div>
+                </div>
+                <div className="form-section">
+                  <label className="form-label">Building icon</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={buildingIcon}
+                    onChange={(event) => setBuildingIcon(event.target.value)}
+                    placeholder="✉️"
+                    maxLength={16}
+                  />
+                </div>
+              </>
+            )}
 
             <div className="form-section">
               <label className="form-label">{t('common:labels.color')}</label>

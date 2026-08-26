@@ -52,6 +52,7 @@ export interface Building2DData {
   style: string;
   status: string;
   color?: string;
+  icon?: string;
   scale: number;
   subordinateBuildingIds?: string[];  // For boss buildings
   gitChangesCount?: number;           // Git pending changes count
@@ -776,6 +777,7 @@ export class Scene2D {
       style: building.style,
       status: building.status,
       color: building.color,
+      icon: building.icon,
       scale: building.scale || 1,
       subordinateBuildingIds: building.subordinateBuildingIds,
       gitChangesCount: building.gitChangesCount,
@@ -802,6 +804,7 @@ export class Scene2D {
     existing.style = building.style;
     existing.status = building.status;
     existing.color = building.color;
+    existing.icon = building.icon;
     existing.scale = building.scale || 1;
     existing.subordinateBuildingIds = building.subordinateBuildingIds;
     existing.gitChangesCount = building.gitChangesCount;

@@ -5,6 +5,7 @@ import { App } from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { initializeTheme } from './utils/themes';
 import { installTooltipLeakFix } from './utils/tooltipLeakFix';
+import { installExternalNavigation } from './utils/external-navigation';
 import { initializePlugins } from './plugins';
 import './styles/main.scss';
 
@@ -15,6 +16,10 @@ initializePlugins();
 // Keep Chromium from stranding a native tooltip above every other app when the
 // window loses focus while one is showing (most visible in the installed app).
 installTooltipLeakFix();
+
+// In the APK, send external links straight to Android. Letting WebView process
+// target=_blank can leave its original GPU surface black when the user returns.
+installExternalNavigation();
 
 // Recover from stale Vite chunk references after the server has been rebuilt
 // while this tab was idle. Vite emits `vite:preloadError` when a hashed

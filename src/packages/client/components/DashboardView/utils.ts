@@ -219,6 +219,8 @@ export function getBuildingTypeIcon(buildingType: string): IconName {
       return 'flask';
     case 'http':
       return 'globe';
+    case 'slash-command':
+      return 'envelope';
     default:
       return 'building-office';
   }

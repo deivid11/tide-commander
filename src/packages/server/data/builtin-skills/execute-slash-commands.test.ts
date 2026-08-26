@@ -14,6 +14,10 @@ describe('Execute Slash Commands built-in skill', () => {
     expect(executeSlashCommands.content).toContain('awaitingUserAuthorization: true');
     expect(executeSlashCommands.content).toContain('secure password component');
     expect(executeSlashCommands.content).toContain('COMMANDER_SLASH_COMMAND_RESULT');
+    expect(executeSlashCommands.content).toContain('GET /api/exec/tasks/YOUR_AGENT_ID');
+    expect(executeSlashCommands.content).toContain('/output?tail=200');
+    expect(executeSlashCommands.content).toContain('cancelEndpoint');
+    expect(executeSlashCommands.content).toContain('HTTP `DELETE`');
     expect(executeSlashCommands.content).toContain('never rerun the command automatically');
     expect(executeSlashCommands.content).toContain('Never ask for, accept, read, or transmit');
   });

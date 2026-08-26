@@ -34,6 +34,7 @@ function makeRunner(overrides: Partial<{
   closesStdin: boolean;
   supportsStdin: boolean;
   sendMessage: boolean;
+  queueMessage: boolean;
   turnState: 'processing' | 'waiting_for_input';
 }> = {}) {
   return {
@@ -41,6 +42,7 @@ function makeRunner(overrides: Partial<{
     closesStdinAfterPrompt: vi.fn(() => overrides.closesStdin ?? true),
     supportsStdin: vi.fn(() => overrides.supportsStdin ?? false),
     sendMessage: vi.fn(() => overrides.sendMessage ?? true),
+    queueMessage: vi.fn(() => overrides.queueMessage ?? true),
     getTurnState: vi.fn(() => overrides.turnState ?? 'processing'),
     stop: vi.fn(async () => {}),
     run: vi.fn(async () => {}),
@@ -100,6 +102,27 @@ describe('runtime-command-execution mid-run stdin-closed', () => {
         lastAssignedTask: 'continua ahi',
         taskCount: 3,
       }),
+    );
+  });
+
+  it('explicitly schedules Ctrl+Enter prompts without immediate delivery', async () => {
+    await api.sendCommand('agent-1', 'haz esto después', undefined, undefined, undefined, { queueOnly: true });
+
+    expect(runner.queueMessage).toHaveBeenCalledWith('agent-1', 'haz esto después');
+    expect(runner.sendMessage).not.toHaveBeenCalled();
+    expect(runner.stop).not.toHaveBeenCalled();
+    expect(runner.run).not.toHaveBeenCalled();
+    expect(notifyCommandStarted).toHaveBeenCalledWith(
+      'agent-1',
+      'haz esto después',
+      { queued: true },
+    );
+    expect(emitOutput).toHaveBeenCalledWith(
+      'agent-1',
+      expect.stringContaining('Scheduled message for Grok will be sent when the agent is free'),
+      false,
+      undefined,
+      expect.stringMatching(/^system-scheduled-queued-/),
     );
   });
 

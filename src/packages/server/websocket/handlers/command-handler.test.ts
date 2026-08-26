@@ -322,6 +322,30 @@ describe('Command Handler', () => {
       expect(runtimeService.sendCommand).toHaveBeenCalledWith('boss-1', 'do stuff', undefined, undefined, undefined, undefined);
     });
 
+    it('forwards Ctrl+Enter queueOnly intent to runtimeService', async () => {
+      vi.mocked(agentService.getAgent).mockReturnValue({
+        id: 'agent-1', name: 'Worker', class: 'scout', status: 'working', provider: 'pi',
+      } as any);
+      vi.mocked(customClassService.getClassInstructions).mockReturnValue('');
+      vi.mocked(skillService.buildSkillPromptContent).mockReturnValue('');
+      vi.mocked(customClassService.getCustomClass).mockReturnValue(undefined);
+
+      await handleSendCommand(
+        mockCtx,
+        { agentId: 'agent-1', command: 'do it after this turn', queueOnly: true },
+        mockBuildBossMessage,
+      );
+
+      expect(runtimeService.sendCommand).toHaveBeenCalledWith(
+        'agent-1',
+        'do it after this turn',
+        undefined,
+        undefined,
+        expect.anything(),
+        { queueOnly: true },
+      );
+    });
+
     it('forwards forceInterrupt to runtimeService for regular agents', async () => {
       vi.mocked(agentService.getAgent).mockReturnValue({
         id: 'agent-1', name: 'Worker', class: 'scout', status: 'working', provider: 'grok',

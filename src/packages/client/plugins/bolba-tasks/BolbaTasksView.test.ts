@@ -4,6 +4,11 @@ import {
   adjacentBolbaTask,
   resolveBolbaTaskDetailsModalData,
 } from './bolbaTaskNavigation';
+import { isRecommendedTasksData } from './RecommendedTasksCard';
+import {
+  bolbaRecommendationRequestPreview,
+  parseBolbaRecommendationRequest,
+} from './bolbaRecommendationRequest';
 
 const tasks: PluginTaskItem[] = [
   { id: 1, title: 'First' },
@@ -27,6 +32,44 @@ describe('Bolba task detail navigation', () => {
     })).toEqual({
       task: selected,
       tasks: [selected, tasks[0], tasks[1]],
+    });
+  });
+
+  it('recognizes and summarizes the internal AI recommendation request', () => {
+    const prompt = '[BOLBA_TASK_RECOMMENDATIONS_REQUEST]\nAnaliza y elige exactamente 7 para completar hoy (2026-08-25).';
+    expect(parseBolbaRecommendationRequest(prompt)).toEqual({ count: 7, day: '2026-08-25' });
+    expect(bolbaRecommendationRequestPreview(prompt)).toBe('Bolba · IA analizando 7 recomendaciones…');
+    expect(parseBolbaRecommendationRequest('Recomienda tareas')).toBeNull();
+  });
+
+  it('recognizes the custom recommendation payload', () => {
+    expect(isRecommendedTasksData({
+      kind: 'bolba-recommended-tasks',
+      agentId: 'agent-1',
+      requestId: 'request-1',
+      status: 'ready',
+      items: [{ task: tasks[0], rank: 1 }],
+    })).toBe(true);
+    expect(isRecommendedTasksData({ kind: 'task-list', items: [] })).toBe(false);
+  });
+
+  it('preserves recommendation completion context for the detail modal', () => {
+    expect(resolveBolbaTaskDetailsModalData({
+      task: tasks[0],
+      tasks,
+      completion: {
+        agentId: 'agent-1',
+        instanceId: 'output-1',
+        rendererId: 'recommended-task-list',
+        action: 'completeRecommended',
+        data: { limit: 7 },
+      },
+    })?.completion).toEqual({
+      agentId: 'agent-1',
+      instanceId: 'output-1',
+      rendererId: 'recommended-task-list',
+      action: 'completeRecommended',
+      data: { limit: 7 },
     });
   });
 

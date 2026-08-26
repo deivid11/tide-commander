@@ -13,6 +13,7 @@ import {
 import { loadConfig } from '../app/sceneConfig';
 import type { ToastType } from '../components/Toast';
 import type { UseModalState } from './index';
+import { openSlashCommandBuilding } from '../components/SlashCommandBuildingModal';
 
 type NavigatorWithDeviceMemory = Navigator & { deviceMemory?: number };
 
@@ -217,6 +218,8 @@ export function useSceneSetup({
           store.openTestsBuilding(buildingId);
         } else if (building?.type === 'http') {
           store.openHttpBuilding(buildingId);
+        } else if (building?.type === 'slash-command') {
+          openSlashCommandBuilding(buildingId);
         } else if (building?.type === 'server' || building?.type === 'boss' || building?.type === 'database') {
           // Clear any pending popup timeout
           if (pendingPopupTimeoutRef.current) {
@@ -300,6 +303,8 @@ export function useSceneSetup({
         } else if (building?.type === 'http') {
           // Open the .http request browser for http buildings
           store.openHttpBuilding(buildingId);
+        } else if (building?.type === 'slash-command') {
+          openSlashCommandBuilding(buildingId);
         } else {
           // Open building config modal for other types
           openBuildingModal(buildingId);

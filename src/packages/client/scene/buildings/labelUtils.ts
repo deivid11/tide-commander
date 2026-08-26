@@ -13,7 +13,7 @@ import type { BuildingMeshData } from './types';
  * Ports are shown in the popup instead.
  */
 export function getBuildingLabelText(building: Building): string {
-  return building.name;
+  return building.icon ? `${building.icon} ${building.name}` : building.name;
 }
 
 /**

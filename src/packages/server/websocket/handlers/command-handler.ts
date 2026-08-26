@@ -311,10 +311,10 @@ export function buildCustomAgentConfig(agentId: string, agentClass: string): { n
  */
 export async function handleSendCommand(
   ctx: HandlerContext,
-  payload: { agentId: string; command: string; forceInterrupt?: boolean },
+  payload: { agentId: string; command: string; forceInterrupt?: boolean; queueOnly?: boolean },
   buildBossMessage: (bossId: string, command: string) => Promise<{ message: string; systemPrompt: string }>
 ): Promise<void> {
-  const { agentId, command, forceInterrupt } = payload;
+  const { agentId, command, forceInterrupt, queueOnly } = payload;
   const agent = agentService.getAgent(agentId);
 
   if (!agent) {
@@ -389,7 +389,11 @@ export async function handleSendCommand(
 
   // Expand [@file:path] and [@folder:path] mentions by injecting file content
   const finalCommand = await expandFileMentions(command, agent.cwd);
-  const sendOpts = forceInterrupt ? { forceInterrupt: true } : undefined;
+  const sendOpts = forceInterrupt
+    ? { forceInterrupt: true }
+    : queueOnly
+      ? { queueOnly: true }
+      : undefined;
 
   // If this is a boss agent, handle differently
   if (agent.isBoss || agent.class === 'boss') {
@@ -409,7 +413,7 @@ async function handleBossCommand(
   command: string,
   agentName: string,
   buildBossMessage: (bossId: string, command: string) => Promise<{ message: string; systemPrompt: string }>,
-  sendOpts?: { forceInterrupt?: boolean }
+  sendOpts?: { forceInterrupt?: boolean; queueOnly?: boolean }
 ): Promise<void> {
   log.log(` Boss ${agentName} received command: "${command.slice(0, 50)}..."`);
 
@@ -448,7 +452,7 @@ async function handleRegularAgentCommand(
   agentId: string,
   command: string,
   agent: { id: string; name: string; class: string; provider?: 'claude' | 'codex' | 'opencode' | 'grok' | 'pi'; contextUsed?: number; contextLimit?: number },
-  sendOpts?: { forceInterrupt?: boolean }
+  sendOpts?: { forceInterrupt?: boolean; queueOnly?: boolean }
 ): Promise<void> {
   // Note: /context, /cost, /compact are intercepted at the handleSendCommand level
   // so they never reach here. This function only handles actual commands to send to the agent.

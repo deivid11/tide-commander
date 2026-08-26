@@ -190,6 +190,101 @@ describe('getRunningTasksSnapshot (WS initial state)', () => {
     _resetCompletedExecTasks();
     expect(getRunningTasksSnapshot()).toEqual([]);
   });
+
+  it('lets an agent discover and read bounded output while a task is still running', async () => {
+    _resetCompletedExecTasks();
+    const done = fetch(`${baseUrl}/api/exec`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentId: 'agent-1',
+        command: "printf 'first\\nsecond\\n'; sleep 1.2; printf 'done\\n'",
+        pty: false,
+      }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    const listResponse = await fetch(`${baseUrl}/api/exec/tasks/agent-1`);
+    expect(listResponse.status).toBe(200);
+    const list = await listResponse.json() as { tasks: Array<Record<string, unknown>> };
+    expect(list.tasks).toHaveLength(1);
+    const taskId = String(list.tasks[0].id);
+    expect(list.tasks[0]).toMatchObject({
+      status: 'running',
+      outputEndpoint: `/api/exec/tasks/agent-1/${taskId}/output`,
+      cancelEndpoint: `/api/exec/tasks/agent-1/${taskId}`,
+    });
+
+    const liveResponse = await fetch(`${baseUrl}/api/exec/tasks/agent-1/${taskId}/output?tail=1`);
+    expect(liveResponse.status).toBe(200);
+    expect(await liveResponse.json()).toMatchObject({
+      taskId,
+      agentId: 'agent-1',
+      status: 'running',
+      output: 'second\n',
+      tail: 1,
+    });
+
+    const filteredResponse = await fetch(`${baseUrl}/api/exec/tasks/agent-1/${taskId}/output?grep=first&tail=10`);
+    expect(filteredResponse.status).toBe(200);
+    expect((await filteredResponse.json()).output).toBe('first\n');
+
+    await done;
+    const completedResponse = await fetch(`${baseUrl}/api/exec/tasks/agent-1/${taskId}/output?tail=2`);
+    expect(completedResponse.status).toBe(200);
+    expect(await completedResponse.json()).toMatchObject({
+      status: 'completed',
+      exitCode: 0,
+      output: 'second\ndone\n',
+    });
+    _resetCompletedExecTasks();
+  });
+
+  (HAS_SCRIPT ? it : it.skip)('returns readable ANSI-free output for a live PTY task', async () => {
+    _resetCompletedExecTasks();
+    const done = fetch(`${baseUrl}/api/exec`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agentId: 'agent-1',
+        command: "printf '\\033[31mpty-live\\033[0m\\n'; sleep 1",
+        pty: true,
+      }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    const list = await (await fetch(`${baseUrl}/api/exec/tasks/agent-1`)).json() as { tasks: Array<{ id: string }> };
+    const taskId = list.tasks[0].id;
+    const current = await (await fetch(`${baseUrl}/api/exec/tasks/agent-1/${taskId}/output?tail=10`)).json();
+    expect(current.status).toBe('running');
+    expect(current.output).toContain('pty-live');
+    expect(current.output).not.toContain('\\u001b');
+    expect(current.output).not.toContain('\x1b');
+    await done;
+    _resetCompletedExecTasks();
+  });
+
+  it('lets only the owning agent cancel a running streamed task', async () => {
+    _resetCompletedExecTasks();
+    const done = fetch(`${baseUrl}/api/exec`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: 'agent-1', command: 'echo cancellable; sleep 10', pty: false }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const list = await (await fetch(`${baseUrl}/api/exec/tasks/agent-1`)).json() as { tasks: Array<{ id: string }> };
+    const taskId = list.tasks[0].id;
+
+    const denied = await fetch(`${baseUrl}/api/exec/tasks/other-agent/${taskId}`, { method: 'DELETE' });
+    expect(denied.status).toBe(404);
+    const cancelled = await fetch(`${baseUrl}/api/exec/tasks/agent-1/${taskId}`, { method: 'DELETE' });
+    expect(cancelled.status).toBe(200);
+    expect(await cancelled.json()).toEqual({ success: true, taskId, status: 'cancelling' });
+
+    const final = await done;
+    expect(final.status).toBe(200);
+    expect((await final.json()).exitCode).toBeNull();
+    _resetCompletedExecTasks();
+  });
 });
 
 describe('POST /api/exec — tail-resistant execution', () => {

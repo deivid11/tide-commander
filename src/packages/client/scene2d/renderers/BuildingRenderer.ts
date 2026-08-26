@@ -150,15 +150,16 @@ export class BuildingRenderer extends BaseRenderer {
     const screenPos = this.camera.worldToScreen(x, z);
     const buildingScreenSize = baseSize * this.camera.getZoom();
     const emojiSize = Math.max(8, buildingScreenSize * 0.55);
+    const emoji = building.icon || styleConfig.emoji;
 
     this.ctx.font = `${emojiSize}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", serif`;
     this.ctx.textAlign = 'center';
     this.ctx.textBaseline = 'middle';
 
     this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-    this.ctx.fillText(styleConfig.emoji, screenPos.x + 1, screenPos.y + 1);
+    this.ctx.fillText(emoji, screenPos.x + 1, screenPos.y + 1);
 
-    this.ctx.fillText(styleConfig.emoji, screenPos.x, screenPos.y);
+    this.ctx.fillText(emoji, screenPos.x, screenPos.y);
 
     const labelScreenPos = this.camera.worldToScreen(x, z + baseSize / 2 + 0.25);
     const fontSize = Math.max(6, buildingScreenSize * 0.22);

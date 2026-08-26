@@ -156,6 +156,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
              building.type === 'folder' ? 'Open Folder' :
              building.type === 'tests' ? 'Open Tests' :
              building.type === 'http' ? 'Open Requests' :
+             building.type === 'slash-command' ? 'Run Command' :
              building.type === 'boss' ? 'View Boss Logs' :
              building.type === 'terminal' ? 'Open Terminal' :
              (building.type === 'server' && building.pm2?.enabled) ? 'View PM2 Logs' :
@@ -164,6 +165,7 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
             building.type === 'folder' ? 'folder' :
             building.type === 'tests' ? 'flask' :
             building.type === 'http' ? 'globe' :
+            building.type === 'slash-command' ? 'envelope' :
             building.type === 'terminal' ? 'terminal' :
             'eye'} size={14} />,
       onClick: () => handleBuildingClick(building.id),
@@ -270,6 +272,8 @@ export function AreaBuildingsPanel({ agentId, onClose }: AreaBuildingsPanelProps
           style: building.style,
           color: building.color,
           scale: building.scale,
+          icon: building.icon,
+          slashCommand: building.slashCommand,
           position: pos,
           cwd: building.cwd,
           folderPath: building.folderPath,

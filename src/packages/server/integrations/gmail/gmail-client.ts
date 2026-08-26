@@ -356,7 +356,8 @@ export async function sendEmail(params: {
   inReplyTo?: string;
   agentId?: string;
   workflowInstanceId?: string;
-}): Promise<{ messageId: string; threadId: string }> {
+  draft?: boolean;
+}): Promise<{ messageId: string; threadId: string; draftId?: string }> {
   if (!gmail) throw new Error('Gmail not authenticated');
 
   // Build MIME message
@@ -434,16 +435,33 @@ export async function sendEmail(params: {
 
   const encodedMessage = Buffer.from(rawEmail).toString('base64url');
 
-  const result = await gmail.users.messages.send({
-    userId: 'me',
-    requestBody: {
-      raw: encodedMessage,
-      threadId: params.threadId,
-    },
-  });
+  let messageId: string;
+  let threadId: string;
+  let draftId: string | undefined;
 
-  const messageId = result.data.id!;
-  const threadId = result.data.threadId!;
+  if (params.draft) {
+    const result = await gmail.users.drafts.create({
+      userId: 'me',
+      requestBody: {
+        message: { raw: encodedMessage, threadId: params.threadId },
+      },
+    });
+    messageId = result.data.message?.id!;
+    threadId = result.data.message?.threadId!;
+    draftId = result.data.id!;
+  } else {
+    const result = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedMessage,
+        threadId: params.threadId,
+      },
+    });
+    messageId = result.data.id!;
+    threadId = result.data.threadId!;
+  }
+
+  if (params.draft) return { messageId, threadId, draftId };
 
   // Log to SQLite
   try {

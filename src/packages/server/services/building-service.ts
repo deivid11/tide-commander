@@ -1268,7 +1268,7 @@ export async function handleBuildingSync(
 // ============================================================================
 
 const VALID_TYPES: ReadonlySet<BuildingType> = new Set<BuildingType>([
-  'server', 'link', 'database', 'docker', 'monitor', 'folder', 'boss', 'terminal', 'tests', 'http',
+  'server', 'link', 'database', 'docker', 'monitor', 'folder', 'boss', 'terminal', 'tests', 'http', 'slash-command',
 ]);
 
 const VALID_STYLES: ReadonlySet<BuildingStyle> = new Set<BuildingStyle>([
@@ -1299,6 +1299,7 @@ const DEFAULT_STYLE_BY_TYPE: Record<BuildingType, BuildingStyle> = {
   terminal: 'desktop',
   tests: 'dome',
   http: 'satellite',
+  'slash-command': 'crystal',
 };
 
 function generateBuildingId(name: string): string {
@@ -1404,6 +1405,18 @@ export function validateBuilding(input: Partial<Building>): ValidationResult {
     errors.push('urls is required (non-empty array) for link buildings');
   }
 
+  if (input.type === 'slash-command') {
+    const command = input.slashCommand?.command;
+    if (typeof command !== 'string' || !/^\/[a-zA-Z0-9][a-zA-Z0-9_-]*(?:\s|$)/.test(command.trim())) {
+      errors.push('slashCommand.command is required and must begin with a slash command name');
+    } else if (command.length > 8_192 || command.includes('\0')) {
+      errors.push('slashCommand.command must be 8192 characters or fewer without null bytes');
+    }
+    if (input.icon !== undefined && (typeof input.icon !== 'string' || input.icon.length > 16 || input.icon.includes('\0'))) {
+      errors.push('icon must be a short string of 16 characters or fewer');
+    }
+  }
+
   return { ok: errors.length === 0, errors };
 }
 
@@ -1440,7 +1453,7 @@ export async function createBuilding(
     id: generateBuildingId(input.name!),
     createdAt: now,
     lastActivity: now,
-    status: 'stopped',
+    status: input.type === 'slash-command' ? 'running' : 'stopped',
     style: input.style || DEFAULT_STYLE_BY_TYPE[input.type!],
   };
 

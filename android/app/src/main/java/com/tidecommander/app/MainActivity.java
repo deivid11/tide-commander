@@ -48,6 +48,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ServerConfigPlugin.class);
         registerPlugin(AppUpdatePlugin.class);
         registerPlugin(FileDownloadPlugin.class);
+        registerPlugin(ExternalNavigationPlugin.class);
 
         super.onCreate(savedInstanceState);
 
@@ -76,22 +77,11 @@ public class MainActivity extends BridgeActivity {
         super.onResume();
         WebSocketForegroundService.isAppInForeground = true;
 
-        // Black-screen-on-resume, surface-level cause: Android can bring the
-        // Activity back with a stale (black) WebView surface even though the
-        // renderer process and JS are alive — no JS-side nudge can fix that
-        // layer. A two-frame visibility bounce forces SurfaceFlinger to drop
-        // and re-attach the surface, and invalidate() repaints. In the healthy
-        // case this lands inside the app-switch transition and is invisible.
-        final WebView webView = getBridge() != null ? getBridge().getWebView() : null;
-        if (webView != null) {
-            webView.post(() -> {
-                webView.setVisibility(View.INVISIBLE);
-                webView.post(() -> {
-                    webView.setVisibility(View.VISIBLE);
-                    webView.invalidate();
-                });
-            });
-        }
+        // Resume timers and invalidate without hiding the WebView. The old
+        // INVISIBLE → VISIBLE bounce could itself strand the hardware surface
+        // invisible/black when another lifecycle transition interrupted its
+        // posted callback (particularly after opening an external link).
+        refreshWebViewSurface();
 
         // Trigger reconnect when app comes back to foreground
         // The WebView will receive this and reconnect the WebSocket
@@ -128,7 +118,37 @@ public class MainActivity extends BridgeActivity {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
             hideSystemUI();
+            // onResume may run before the browser-to-app transition has
+            // reattached our window surface. Repeat once the window owns focus.
+            refreshWebViewSurface();
         }
+    }
+
+    /**
+     * Re-attach/repaint the existing WebView surface after Android returns the
+     * Activity to the foreground. This is deliberately visibility-preserving:
+     * hiding a hardware-accelerated WebView during a lifecycle transition can
+     * leave some Android GPU drivers with a permanently black surface.
+     */
+    private void refreshWebViewSurface() {
+        final WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+        if (webView == null) return;
+        webView.post(() -> {
+            webView.onResume();
+            webView.resumeTimers();
+            webView.setVisibility(View.VISIBLE);
+            webView.requestLayout();
+            webView.invalidate();
+            View root = webView.getRootView();
+            if (root != null) root.invalidate();
+            // The browser-to-app animation can finish after onResume/focus.
+            // A late invalidate catches that race without reloading React.
+            webView.postDelayed(() -> {
+                webView.setVisibility(View.VISIBLE);
+                webView.invalidate();
+                if (root != null) root.invalidate();
+            }, 180);
+        });
     }
 
     /**
@@ -144,27 +164,26 @@ public class MainActivity extends BridgeActivity {
      *
      * We register a WebViewListener whose onRenderProcessGone recreates the
      * Activity — rebuilding a fresh WebView automatically — and returns true so
-     * the app process is NOT killed. Only the system-reclaim case
-     * (!detail.didCrash()) is auto-recreated; a genuine renderer crash is
-     * swallowed (return true) but not looped-on, to avoid a recreate storm.
+     * the app process is NOT killed. Both system reclamation and a genuine
+     * renderer crash require recreation; either leaves the old WebView unusable.
      */
     private void setupWebViewCrashRecovery() {
         getBridge().addWebViewListener(new WebViewListener() {
             @Override
             public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
-                boolean systemReclaimed = detail != null && !detail.didCrash();
                 Log.w("TideCommander",
                     "WebView renderer gone (didCrash=" + (detail != null && detail.didCrash())
-                        + ") — " + (systemReclaimed ? "recreating activity to recover" : "swallowing to avoid crash"));
-                if (systemReclaimed) {
-                    runOnUiThread(() -> {
-                        try {
-                            recreate();
-                        } catch (Exception e) {
-                            Log.e("TideCommander", "Activity recreate after renderer-gone failed", e);
-                        }
-                    });
-                }
+                        + ") — recreating activity to recover");
+                // A crashed renderer is just as unusable as a system-reclaimed
+                // one. Swallowing genuine crashes used to leave a permanent
+                // black WebView until the app was force-killed.
+                runOnUiThread(() -> {
+                    try {
+                        recreate();
+                    } catch (Exception e) {
+                        Log.e("TideCommander", "Activity recreate after renderer-gone failed", e);
+                    }
+                });
                 // Return true = handled, so Android does NOT kill our process.
                 return true;
             }

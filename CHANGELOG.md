@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.210.0] - 2026-08-24
+
+### Added
+- **Recommended Tasks for Bolba** — `RecommendedTasksCard` + `bolbaRecommendationRequest` and `BolbaTasksView`/`bolbaTaskNavigation` polish with expanded `BolbaTasksView.test`; `bolba-tasks` plugin extended.
+- **External navigation support** — `ExternalNavigationPlugin.java` + `external-navigation.ts` and `SlashCommandBuildingModal` for building-aware slash commands.
+- **OpenAPI docs** — `docs/openapi.yaml` added for API documentation.
+
+### Changed
+- **Terminal and prompt polish** — `AgentTerminalPane`, `TerminalInputArea`, `HistoryLine`, `OutputLine`, `GuakeTaskBanner`, `promptMarkers`/`tcApiOutput`, `PinnedAgentsBar` and `useSceneSetup` refined.
+- **Flat view and scene** — `FlatView`, `CommanderView`, `BuildingManager`, `Scene2D`, `BuildingRenderer` and `labelUtils` updated; `App`/`AppModals`/`BuildingConfigModal` wired to new navigation.
+- **Server and plugins** — `claude/runner`, `codex/opencode/pi` runners, `create-building`, `streaming-exec`, `gmail` (`gmail-client`, `gmail-routes`), `building-service`, `runtime-command-execution` (+tests) and `shared/plugin-types`/`building-types` extended; `_plugins.scss` expanded.
+
 ## [1.209.1] - 2026-08-24
 
 ### Fixed

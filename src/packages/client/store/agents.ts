@@ -112,7 +112,7 @@ export interface AgentActions {
     position?: { x: number; z: number }
   ): void;
   createDirectoryAndSpawn(path: string, name: string, agentClass: AgentClass): void;
-  sendCommand(agentId: string, command: string, opts?: { forceInterrupt?: boolean }): void;
+  sendCommand(agentId: string, command: string, opts?: { forceInterrupt?: boolean; queueOnly?: boolean }): void;
   refreshAgentContext(agentId: string): void;
   moveAgentLocal(agentId: string, position: { x: number; y: number; z: number }): void;
   moveAgent(agentId: string, position: { x: number; y: number; z: number }): void;
@@ -646,7 +646,7 @@ export function createAgentActions(
       });
     },
 
-    sendCommand(agentId: string, command: string, opts?: { forceInterrupt?: boolean }): void {
+    sendCommand(agentId: string, command: string, opts?: { forceInterrupt?: boolean; queueOnly?: boolean }): void {
       setState((state) => {
         state.lastPrompts.set(agentId, {
           text: command,
@@ -661,6 +661,7 @@ export function createAgentActions(
           agentId,
           command,
           ...(opts?.forceInterrupt ? { forceInterrupt: true } : {}),
+          ...(opts?.queueOnly ? { queueOnly: true } : {}),
         },
       };
 

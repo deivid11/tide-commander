@@ -6,6 +6,7 @@ import { ContextMenu, type ContextMenuAction } from './ContextMenu';
 import { GlobalTestRunnerModal } from './GlobalTestRunnerModal';
 import { GlobalTestsBuildingModal } from './TestsBuildingModal';
 import { GlobalHttpRequestsBuildingModal } from './HttpRequestsBuildingModal';
+import { SlashCommandBuildingModalHost } from './SlashCommandBuildingModal';
 import { profileRender } from '../utils/profiling';
 import type { UseModalState, UseModalStateWithId, UseContextMenu } from '../hooks';
 import type { SessionFinderOpenData } from './SessionSearchModal';
@@ -164,6 +165,8 @@ export function AppModals({
 
   return (
     <Suspense fallback={null}>
+      <SlashCommandBuildingModalHost />
+
       {/* Toolbox sidebar overlay */}
       <Toolbox
         config={sceneConfig}

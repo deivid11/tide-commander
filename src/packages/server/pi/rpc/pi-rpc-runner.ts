@@ -33,6 +33,7 @@ import {
   type PersistedPiRpcProcess,
 } from './pi-rpc-recovery-store.js';
 import { createLogger } from '../../utils/logger.js';
+import { appendQueuedMessage, prependQueuedMessage } from '../../../shared/message-queue.js';
 
 const log = createLogger('PiRpc');
 const ABORT_SETTLE_TIMEOUT_MS = 4000;
@@ -73,6 +74,7 @@ interface PiRpcAgentState {
   responseBuffer: string;
   stderrTail: string;
   idleWaiters: Array<() => void>;
+  queue: string[];
   tmuxSession?: string;
   tmuxLogFile?: string;
   tmuxTailer?: TmuxFileTailer;
@@ -179,6 +181,7 @@ export class PiRpcRunner implements RuntimeRunner {
         state.manualCompactionPending = false;
         this.releaseIdleWaiters(state);
         this.callbacks.onComplete(agentId, true);
+        this.drainQueue(agentId, state);
         this.persistAll();
       }
     });
@@ -284,6 +287,7 @@ export class PiRpcRunner implements RuntimeRunner {
       responseBuffer: '',
       stderrTail: '',
       idleWaiters: [],
+      queue: [...(entry.queue ?? [])],
       tmuxSession: piRpcTmuxSessionName(entry.agentId),
       tmuxLogFile: piRpcTmuxLogPath(entry.agentId),
       isReconnected: true,
@@ -321,6 +325,7 @@ export class PiRpcRunner implements RuntimeRunner {
         tmuxSession: state.tmuxSession,
         tmuxLogOffset: state.tmuxTailer?.getOffset() ?? 0,
         lastRequest: state.lastRequest,
+        queue: state.queue,
       });
     }
     savePiRpcProcesses(processes);
@@ -573,6 +578,7 @@ export class PiRpcRunner implements RuntimeRunner {
       responseBuffer: '',
       stderrTail: '',
       idleWaiters: [],
+      queue: [],
       tmuxSession,
       tmuxLogFile,
     };
@@ -668,6 +674,24 @@ export class PiRpcRunner implements RuntimeRunner {
     }
     state.lastActivityTime = Date.now();
     this.persistAll();
+  }
+
+  private drainQueue(agentId: string, state: PiRpcAgentState): void {
+    if (state.queue.length === 0 || state.turnState !== 'waiting_for_input') return;
+    const next = state.queue.shift()!;
+    agentService.updateAgent(agentId, { status: 'working', currentTask: next.substring(0, 100) });
+    if (!this.sendMessage(agentId, next)) {
+      prependQueuedMessage(state.queue, next);
+    }
+  }
+
+  queueMessage(agentId: string, message: string): boolean {
+    const state = this.agents.get(agentId);
+    if (!this.isProcessAlive(state)) return false;
+    appendQueuedMessage(state.queue, message);
+    this.persistAll();
+    log.log(`📋 Explicitly queued Pi message for ${agentId.slice(0, 8)} (${state.queue[0].length} total chars)`);
+    return true;
   }
 
   sendMessage(agentId: string, message: string): boolean {
@@ -788,8 +812,17 @@ export class PiRpcRunner implements RuntimeRunner {
     return this.isProcessAlive(state) ? state.turnState : undefined;
   }
 
-  getQueuedMessages(_agentId: string): string[] { return []; }
-  removeQueuedMessage(_agentId: string, _index: number, _expectedText: string): boolean { return false; }
+  getQueuedMessages(agentId: string): string[] {
+    return [...(this.agents.get(agentId)?.queue ?? [])];
+  }
+
+  removeQueuedMessage(agentId: string, index: number, expectedText: string): boolean {
+    const queue = this.agents.get(agentId)?.queue;
+    if (!queue || index < 0 || index >= queue.length || queue[index] !== expectedText) return false;
+    queue.splice(index, 1);
+    this.persistAll();
+    return true;
+  }
 
   async stop(agentId: string, _clearQueue?: boolean): Promise<void> {
     const state = this.agents.get(agentId);

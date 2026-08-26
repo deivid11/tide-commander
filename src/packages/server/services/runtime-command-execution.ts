@@ -25,6 +25,8 @@ export interface SendCommandOptions {
    * via runner.interruptTurn, keeping the thread/session alive.
    */
   forceInterrupt?: boolean;
+  /** Explicitly queue behind an active turn; used by Guake Ctrl+Enter. */
+  queueOnly?: boolean;
 }
 
 interface RuntimeCommandExecutionDeps {
@@ -217,6 +219,36 @@ export function createRuntimeCommandExecution(deps: RuntimeCommandExecutionDeps)
         taskLabel: undefined,
       });
       return;
+    }
+
+    // Ctrl+Enter explicitly schedules a prompt behind the current turn. Do
+    // this before provider-specific steering logic so even stdin-open Claude
+    // and Pi sessions do not receive/interleave the message immediately.
+    const turnState = runner.getTurnState?.(agentId);
+    if (opts?.queueOnly && processRunning && !forceNewSession && turnState !== 'waiting_for_input') {
+      const queued = runner.queueMessage?.(agentId, command) ?? false;
+      if (queued) {
+        log.log(`[sendCommand] Agent ${agentId} (${agent.provider}): explicitly queued prompt (${command.length} chars)`);
+        notifyCommandStarted(agentId, command, { queued: true });
+        emitOutput(
+          agentId,
+          `⏳ [System] Scheduled message for ${providerDisplayName(agent.provider)} will be sent when the agent is free`,
+          false,
+          undefined,
+          `system-scheduled-queued-${Date.now()}`
+        );
+        const isSystemMessage = command.startsWith('[System:');
+        const updateData: Record<string, unknown> = {
+          taskCount: (agent.taskCount || 0) + 1,
+        };
+        if (!isSystemMessage) {
+          updateData.lastAssignedTask = command;
+          updateData.lastAssignedTaskTime = Date.now();
+        }
+        agentService.updateAgent(agentId, updateData);
+        return;
+      }
+      log.warn(`[sendCommand] Agent ${agentId}: explicit queue unavailable; falling back to normal delivery`);
     }
 
     // Backends that close stdin after the initial prompt (Grok, Codex, OpenCode)

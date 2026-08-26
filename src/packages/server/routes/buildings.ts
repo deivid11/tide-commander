@@ -228,6 +228,37 @@ router.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
 
+// POST /api/buildings/:id/execute-slash-command — run the configured plugin
+// command and return its structured output for the browser modal.
+router.post('/:id/execute-slash-command', async (req: Request<{ id: string }>, res: Response) => {
+  const building = buildingService.getBuilding(req.params.id);
+  if (!building) {
+    res.status(404).json({ error: `Building not found: ${req.params.id}` });
+    return;
+  }
+  if (building.type !== 'slash-command' || !building.slashCommand?.command) {
+    res.status(409).json({ error: 'Building is not configured as a slash command' });
+    return;
+  }
+  try {
+    const agentId = typeof req.body?.agentId === 'string' ? req.body.agentId : '';
+    const { pluginManager } = await import('../plugins/index.js');
+    const output = await pluginManager.executeSlashCommand(agentId, building.slashCommand.command);
+    res.json({ output });
+  } catch (error) {
+    const pluginError = error as { statusCode?: unknown; code?: unknown; message?: unknown };
+    if (typeof pluginError.statusCode === 'number') {
+      res.status(pluginError.statusCode).json({
+        error: typeof pluginError.message === 'string' ? pluginError.message : 'Plugin command failed',
+        ...(typeof pluginError.code === 'string' ? { code: pluginError.code } : {}),
+      });
+      return;
+    }
+    log.error(`Slash command failed for building ${building.id}:`, error);
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
 // POST /api/buildings/:id/command — body { command }
 router.post('/:id/command', async (req: Request<{ id: string }>, res: Response) => {
   const command = req.body?.command as BuildingCommand | undefined;

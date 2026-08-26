@@ -19,5 +19,11 @@ Required: \`agentId\`, \`command\`. Optional: \`cwd\` (defaults to your agent di
 
 Response: \`taskId\`, \`exitCode\`, \`output\`, \`duration\` — judge by \`exitCode\` (\`success\` only means it started).
 
+## Read/cancel an active stream
+
+At any time, list your running tasks with \`GET /api/exec/tasks/YOUR_AGENT_ID\`. Match by \`command\`/\`startedAt\`—never guess IDs. Read current ANSI-free output through the item's \`outputEndpoint\`: \`GET /api/exec/tasks/YOUR_AGENT_ID/TASK_ID/output?tail=200\` (optional literal \`grep\`). Check \`status\`, \`duration\`, \`output\`, and final \`exitCode\`.
+
+If the user asks to stop it, \`DELETE\` the item's \`cancelEndpoint\` (\`/api/exec/tasks/YOUR_AGENT_ID/TASK_ID\`). Cancel only your confirmed task; \`status: "cancelling"\` means accepted. Never rerun it automatically.
+
 When in doubt, prefer /api/exec: it costs you nothing, and every silent long Bash call is a spinner the user stares at. Caught yourself running something long directly? Route the next one through the API.`,
 };

@@ -1290,7 +1290,7 @@ class Store
   forkAgent(...args: Parameters<AgentActions['forkAgent']>) { return this.agentActions.forkAgent(...args); }
   createDirectoryAndSpawn(...args: Parameters<AgentActions['createDirectoryAndSpawn']>) { return this.agentActions.createDirectoryAndSpawn(...args); }
   sendCommand(...args: Parameters<AgentActions['sendCommand']>) {
-    const [agentId, command] = args;
+    const [agentId, command, opts] = args;
     // Optimistic echo: paint the user's message immediately instead of waiting
     // for the server's command_started broadcast — on a flaky/zombie socket
     // (mobile) that echo can take minutes, making the send look lost. The
@@ -1298,7 +1298,7 @@ class Store
     // slash commands are skipped because the server intercepts/hides them.
     // Mid-run client-only queue (Enter while Grok/Codex/OpenCode is working)
     // never reaches here — TerminalInputArea enqueues without calling sendCommand.
-    if (!command.trim().startsWith('/')) {
+    if (!command.trim().startsWith('/') && !opts?.queueOnly) {
       this.outputActions.addUserPromptToOutput(agentId, command, { pendingEcho: true });
     }
     return this.agentActions.sendCommand(...args);

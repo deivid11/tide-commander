@@ -5,7 +5,7 @@ import type { DatabaseConfig } from './database-types.js';
 // ============================================================================
 
 // Building types - different kinds of buildings
-export type BuildingType = 'server' | 'link' | 'database' | 'docker' | 'monitor' | 'folder' | 'boss' | 'terminal' | 'tests' | 'http';
+export type BuildingType = 'server' | 'link' | 'database' | 'docker' | 'monitor' | 'folder' | 'boss' | 'terminal' | 'tests' | 'http' | 'slash-command';
 
 export const BUILDING_TYPES: Record<BuildingType, { icon: string; color: string; description: string }> = {
   server: { icon: '🖥️', color: '#4aff9e', description: 'Service with start/stop commands and logs' },
@@ -18,6 +18,7 @@ export const BUILDING_TYPES: Record<BuildingType, { icon: string; color: string;
   terminal: { icon: '💻', color: '#a855f7', description: 'Interactive web terminal via ttyd' },
   tests: { icon: '🧪', color: '#5cb88a', description: 'Test suite browser - scan, search and run the tests of a folder' },
   http: { icon: '🌐', color: '#5ad4d4', description: 'HTTP request tests - browse and fire the requests of a folder of .http files (IntelliJ style)' },
+  'slash-command': { icon: '⚡', color: '#b16cff', description: 'Run a Commander slash command and show its interactive result in a modal' },
 };
 
 // Building status
@@ -215,6 +216,11 @@ export interface TerminalStatus {
 // Building Interface
 // ============================================================================
 
+export interface SlashCommandBuildingConfig {
+  /** Full invocation, including the leading slash and literal arguments. */
+  command: string;
+}
+
 export interface Building {
   id: string;
   name: string;
@@ -266,6 +272,11 @@ export interface Building {
   // Visual customization
   color?: string;
   scale?: number;  // Size multiplier (default: 1.0)
+  /** Optional emoji shown on 2D buildings and before 3D labels. */
+  icon?: string;
+
+  // Slash-command building configuration
+  slashCommand?: SlashCommandBuildingConfig;
 
   // Boss building fields - for managing subordinate buildings
   subordinateBuildingIds?: string[];  // IDs of buildings managed by this boss building

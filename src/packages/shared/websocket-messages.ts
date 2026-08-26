@@ -324,6 +324,8 @@ export interface SendCommandMessage extends WSMessage {
      * queue the message until the agent is free.
      */
     forceInterrupt?: boolean;
+    /** Queue behind the active turn instead of steering/interleaving it. */
+    queueOnly?: boolean;
   };
 }
 

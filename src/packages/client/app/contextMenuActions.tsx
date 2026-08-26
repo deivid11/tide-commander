@@ -302,6 +302,8 @@ export function buildContextMenuActions(
             style: building.style,
             color: building.color,
             scale: building.scale,
+            icon: building.icon,
+            slashCommand: building.slashCommand,
             position: {
               x: building.position.x + 2,
               z: building.position.z + 2,
@@ -319,6 +321,18 @@ export function buildContextMenuActions(
           callbacks.showToast('success', 'Building Cloned', `Created "${cloneData.name}"`);
         },
       });
+      if (building.type === 'slash-command') {
+        actions.push({
+          id: 'run-slash-command',
+          label: 'Run Slash Command',
+          icon: <Icon name="bolt" size={14} />,
+          onClick: () => {
+            window.dispatchEvent(new CustomEvent('tide:open-slash-command-building', {
+              detail: { buildingId: building.id },
+            }));
+          },
+        });
+      }
       if (building.type === 'folder' && building.folderPath) {
         actions.push({
           id: 'open-folder',

@@ -84,6 +84,10 @@ export class ClaudeRunnerRouter implements RuntimeRunner {
     return this.ownerRunner(agentId).sendMessage(agentId, message);
   }
 
+  queueMessage(agentId: string, message: string): boolean {
+    return this.ownerRunner(agentId).queueMessage?.(agentId, message) ?? false;
+  }
+
   async stop(agentId: string, clearQueue?: boolean): Promise<void> {
     // Stop on whichever runner owns it; calling the other is a cheap no-op.
     await this.headless.stop(agentId, clearQueue);

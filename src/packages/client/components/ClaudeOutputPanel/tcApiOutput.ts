@@ -118,7 +118,7 @@ function asStr(v: unknown): string | undefined {
 
 type ListKind = 'agents' | 'skills' | 'areas' | 'buildings';
 
-const BUILDING_TYPES = new Set(['server', 'boss', 'database', 'http', 'tests']);
+const BUILDING_TYPES = new Set(['server', 'boss', 'database', 'http', 'tests', 'slash-command']);
 
 /**
  * Decide what entity an object is, from its keys. Order matters: skills also

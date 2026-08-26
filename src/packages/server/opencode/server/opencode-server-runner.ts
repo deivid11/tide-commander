@@ -490,6 +490,15 @@ export class OpencodeServerRunner implements RuntimeRunner {
     void this.startTurn(agentId, state, next, proc, false);
   }
 
+  queueMessage(agentId: string, message: string): boolean {
+    const state = this.agents.get(agentId);
+    if (!state || !this.process?.isAlive()) return false;
+    appendQueuedMessage(state.queue, message);
+    this.persistAgents();
+    log.log(`📋 Explicitly queued message for ${agentId.slice(0, 8)} (${state.queue[0].length} total chars)`);
+    return true;
+  }
+
   sendMessage(agentId: string, message: string): boolean {
     return withAgentContext(agentId, () => {
       const state = this.agents.get(agentId);

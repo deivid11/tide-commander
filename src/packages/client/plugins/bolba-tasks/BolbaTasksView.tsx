@@ -194,8 +194,12 @@ export function BolbaTaskDetailsModal({ data }: { pluginId: string; data?: unkno
   const [details, setDetails] = useState<BolbaTaskDetailsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [completing, setCompleting] = useState(false);
+  const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(new Set());
+  const [completionError, setCompletionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const navigationTasks = modalData?.tasks ?? (selectedTask ? [selectedTask] : []);
+  const completion = modalData?.completion;
 
   const loadDetails = useCallback(async (signal?: AbortSignal) => {
     if (!selectedTask) return;
@@ -261,6 +265,43 @@ export function BolbaTaskDetailsModal({ data }: { pluginId: string; data?: unkno
     if (!next) return;
     setSelectedTask(next);
     setDetails(null);
+    setCompletionError(null);
+  };
+
+  const completeSelectedTask = async () => {
+    if (!completion || !task || completing || completedTaskIds.has(String(task.id))) return;
+    setCompleting(true);
+    setCompletionError(null);
+    try {
+      const response = await authFetch(apiUrl(
+        `/api/plugins/bolba-tasks/actions/${encodeURIComponent(completion.action)}`,
+      ), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: completion.agentId,
+          instanceId: completion.instanceId,
+          rendererId: completion.rendererId,
+          item: task,
+          itemId: task.id,
+          data: completion.data,
+        }),
+      });
+      const body = await response.json().catch(() => null) as unknown;
+      if (!response.ok) {
+        const message = isRecord(body) && typeof body.error === 'string'
+          ? body.error
+          : `No se pudo completar la tarea (${response.status})`;
+        throw new Error(message);
+      }
+      setCompletedTaskIds((current) => new Set(current).add(String(task.id)));
+      setSelectedTask((current) => current ? { ...current, status: 'done' } : current);
+      setDetails((current) => current ? { ...current, task: { ...current.task, status: 'done' } } : current);
+    } catch (cause) {
+      setCompletionError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setCompleting(false);
+    }
   };
 
   return (
@@ -284,8 +325,25 @@ export function BolbaTaskDetailsModal({ data }: { pluginId: string; data?: unkno
             </nav>
           )}
         </div>
-        <h2>{task.title}</h2>
-        {task.description && <p>{task.description}</p>}
+        <h2>{renderEventText(task.title)}</h2>
+        {task.description && <p>{renderEventText(task.description)}</p>}
+        {completion && (
+          <div className="bolba-task-details__actions">
+            <button
+              type="button"
+              className={completedTaskIds.has(String(task.id)) ? 'is-completed' : undefined}
+              disabled={completing || completedTaskIds.has(String(task.id))}
+              onClick={() => void completeSelectedTask()}
+            >
+              {completing
+                ? <span className="plugin-task-row__spinner" />
+                : <Icon name="check" size={12} />}
+              {completedTaskIds.has(String(task.id)) ? 'Tarea completada' : 'Marcar como completada'}
+            </button>
+            <span>Al completar, la IA recalculará las recomendaciones.</span>
+          </div>
+        )}
+        {completionError && <div className="bolba-task-details__completion-error"><Icon name="warn" size={11} />{completionError}</div>}
       </header>
 
       {loading && (

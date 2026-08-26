@@ -52,6 +52,7 @@ import { ActivityGlyph } from '../shared/ActivityGlyph';
 import { PluginOutputHost } from '../../plugins/PluginOutputHost';
 import { RenameAgentRequestCard } from '../../plugins/rename-agent/RenameAgentRequestCard';
 import { parseRenameAgentRequest } from '../../plugins/rename-agent/renameAgentRequest';
+import { parseBolbaRecommendationRequest } from '../../plugins/bolba-tasks/bolbaRecommendationRequest';
 import { ShellCommandResultCard } from '../../plugins/shell-commands/ShellCommandResultCard';
 import { parseShellCommandResult } from '../../plugins/shell-commands/shellCommandResult';
 
@@ -524,6 +525,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         </div>
       );
     }
+
+    // The recommendation widget already exposes generation progress. Hiding the
+    // internal callback prompt avoids a second, redundant task card below it.
+    if (parseBolbaRecommendationRequest(trimmedText)) return null;
 
     const parsed = parseBossContext(text);
     const parsedInjected = parseInjectedInstructions(parsed.userMessage);

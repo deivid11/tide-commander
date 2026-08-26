@@ -44,6 +44,8 @@ export interface RuntimeRunner {
   stopAll(killProcesses?: boolean, clearQueue?: boolean): Promise<void>;
   isRunning(agentId: string): boolean;
   sendMessage(agentId: string, message: string): boolean;
+  /** Explicitly enqueue behind the active turn without steering/interruption. */
+  queueMessage?(agentId: string, message: string): boolean;
   hasRecentActivity(agentId: string, withinMs: number): boolean;
   onNextActivity(agentId: string, callback: () => void): void;
   /** Whether this runner's backend supports stdin-based follow-up messages */

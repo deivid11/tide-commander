@@ -608,6 +608,27 @@ const ChatView = React.memo(function ChatView({
     return result;
   }, [agentId, buildings]);
 
+  const areaSlashCommandBuildings = useMemo(() => {
+    const area = store.getAreaForAgent(agentId);
+    if (!area) return [];
+    const result: { id: string; name: string; icon?: string; command: string }[] = [];
+    for (const building of buildings.values()) {
+      if (
+        building.type === 'slash-command'
+        && building.slashCommand?.command
+        && store.isPositionInArea(building.position, area)
+      ) {
+        result.push({
+          id: building.id,
+          name: building.name,
+          icon: building.icon,
+          command: building.slashCommand.command,
+        });
+      }
+    }
+    return result;
+  }, [agentId, buildings]);
+
   // Search-mode mirror: paneRef owns the search state, but header buttons
   // need to re-render to reflect the active style when toggled. A counter
   // forces a re-render after we call toggleSearch().
@@ -1694,6 +1715,38 @@ const ChatView = React.memo(function ChatView({
             })}
           </span>
         )}
+        {areaSlashCommandBuildings.length > 0 && (
+          <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area slash commands">
+            {areaSlashCommandBuildings.map((slashBuilding) => (
+              <button
+                key={slashBuilding.id}
+                type="button"
+                className="flat-terminal-wrapper__building-btn flat-terminal-wrapper__building-btn--slash-command"
+                title={`Run ${slashBuilding.name}: ${slashBuilding.command}`}
+                aria-label={`Run ${slashBuilding.name}`}
+                data-building-id={slashBuilding.id}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('tide:open-slash-command-building', {
+                    detail: { buildingId: slashBuilding.id },
+                  }));
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onBuildingContextMenu(slashBuilding.id, { x: e.clientX, y: e.clientY });
+                }}
+              >
+                {slashBuilding.icon ? (
+                  <span className="flat-terminal-wrapper__building-emoji" aria-hidden="true">
+                    {slashBuilding.icon}
+                  </span>
+                ) : (
+                  <Icon name="bolt" size={14} />
+                )}
+              </button>
+            ))}
+          </span>
+        )}
         {areaHttpBuildings.length > 0 && (
           <span className="flat-terminal-wrapper__buildings" role="group" aria-label="Area HTTP requests">
             {areaHttpBuildings.map((hb) => {
@@ -2750,6 +2803,7 @@ export function FlatView({
              building.type === 'folder' ? 'Open Folder' :
              building.type === 'tests' ? 'Open Tests' :
              building.type === 'http' ? 'Open Requests' :
+             building.type === 'slash-command' ? 'Run Command' :
              building.type === 'boss' ? 'View Boss Logs' :
              building.type === 'terminal' ? 'Open Terminal' :
              (building.type === 'server' && building.pm2?.enabled) ? 'View PM2 Logs' :
@@ -2758,6 +2812,7 @@ export function FlatView({
             building.type === 'folder' ? 'folder' :
             building.type === 'tests' ? 'flask' :
             building.type === 'http' ? 'globe' :
+            building.type === 'slash-command' ? 'envelope' :
             building.type === 'terminal' ? 'terminal' :
             'eye'} size={14} />,
       onClick: () => handleOpenBuilding(building.id),
@@ -2858,6 +2913,8 @@ export function FlatView({
           style: building.style,
           color: building.color,
           scale: building.scale,
+          icon: building.icon,
+          slashCommand: building.slashCommand,
           position: { x: building.position.x + 2, z: building.position.z + 2 },
           cwd: building.cwd,
           folderPath: building.folderPath,
@@ -3261,7 +3318,9 @@ export function FlatView({
                                 className={`flat-map-building-chip flat-map-building-chip--${building.status}`}
                                 style={typeColor ? ({ '--building-type-color': typeColor } as React.CSSProperties) : undefined}
                                 onClick={(e) => {
-                                  if (onBuildingPopup) {
+                                  if (building.type === 'slash-command') {
+                                    handleOpenBuilding(building.id);
+                                  } else if (onBuildingPopup) {
                                     // Anchor the popup at the chip's right edge so it
                                     // visually points at what was clicked rather than at
                                     // the cursor's exact pixel.

@@ -62,6 +62,7 @@ import { buildAgentContextMenuActions } from './agentContextMenuActions';
 import { ProviderIcon } from '../ProviderIcon';
 import { ActivityGlyph } from '../shared/ActivityGlyph';
 import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
+import { bolbaRecommendationRequestPreview } from '../../plugins/bolba-tasks/bolbaRecommendationRequest';
 import { shellCommandResultPreview } from '../../plugins/shell-commands/shellCommandResult';
 
 /**
@@ -258,9 +259,11 @@ export const TerminalHeader = memo(function TerminalHeader({
     lastPrompt?.text;
   const lastInput = shellCommandResultPreview(rawLastInput)
     || renameAgentRequestPreview(rawLastInput)
+    || bolbaRecommendationRequestPreview(rawLastInput)
     || rawLastInput;
   const displayTaskLabel = shellCommandResultPreview(selectedAgent.taskLabel)
     || renameAgentRequestPreview(selectedAgent.taskLabel)
+    || bolbaRecommendationRequestPreview(selectedAgent.taskLabel)
     || selectedAgent.taskLabel;
   const mobileHeaderContext = displayTaskLabel || lastInput;
 
