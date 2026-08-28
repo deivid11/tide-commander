@@ -21,6 +21,10 @@ import {
   type GoogleTokenState,
 } from '../google-auth/token-health.js';
 import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 
 // ─── Types ───
 
@@ -58,6 +62,41 @@ export interface CreateFileParams {
   description?: string;
   agentId?: string;
   workflowInstanceId?: string;
+}
+
+export interface FileContentResult {
+  /** Decoded text, or base64 when the bytes aren't valid text (`encoding` says which). */
+  content: string;
+  mimeType: string;
+  /** `utf-8` for text, `base64` for binary. Always set so callers never guess. */
+  encoding: 'utf-8' | 'base64';
+  /** Size of the decoded bytes (not of the base64 string). */
+  bytes: number;
+  name: string;
+}
+
+export interface DownloadFileParams {
+  /**
+   * Where to write the file. Absolute path, or `~/...`. If it points at an existing
+   * directory (or ends with a separator) the Drive file name is used inside it.
+   * Defaults to the OS temp dir.
+   */
+  destPath?: string;
+  /** Export format for native Google Workspace files (Docs/Sheets/Slides). */
+  exportMimeType?: string;
+  /** Fail instead of replacing an existing file at the destination. */
+  overwrite?: boolean;
+}
+
+export interface DownloadFileResult {
+  fileId: string;
+  name: string;
+  /** Absolute path of the file written to disk. */
+  path: string;
+  bytes: number;
+  mimeType: string;
+  /** True when the source was a Google Workspace file and had to be exported. */
+  exported: boolean;
 }
 
 export interface UpdateFileParams {
@@ -430,42 +469,147 @@ export async function getFile(fileId: string): Promise<DriveFile> {
   return mapDriveFile(result.data);
 }
 
-export async function getFileContent(fileId: string, exportMimeType?: string): Promise<{ content: string; mimeType: string }> {
+/**
+ * Maximum payload `getFileContent` will inline into a JSON response.
+ *
+ * Above this the JSON round-trip stops being viable long before Drive does — base64
+ * inflates by 4/3 and Node caps a single string at ~512 MB — so oversized reads are
+ * refused with a pointer to `downloadFile`, which streams to disk instead.
+ */
+const MAX_INLINE_CONTENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Open the raw byte stream for a Drive file, exporting it first if it's a native
+ * Google Workspace doc. Nothing is buffered in memory: callers pipe it to disk or to
+ * an HTTP response, which is what makes multi-hundred-MB files downloadable at all.
+ */
+export async function openDownloadStream(
+  fileId: string,
+  exportMimeType?: string,
+): Promise<{ stream: Readable; name: string; mimeType: string; size?: number; exported: boolean }> {
+  if (!driveApi) throw new Error('Google Drive not configured');
+
+  const meta = await driveApi.files.get({
+    fileId,
+    fields: 'name, mimeType, size',
+    supportsAllDrives: true,
+  });
+
+  const name = meta.data.name || fileId;
+  const sourceMimeType = meta.data.mimeType || 'application/octet-stream';
+
+  if (sourceMimeType.startsWith('application/vnd.google-apps.')) {
+    const exportType = exportMimeType || getDefaultExportType(sourceMimeType);
+    const result = await driveApi.files.export({ fileId, mimeType: exportType }, { responseType: 'stream' });
+    // Exported bytes are generated on the fly, so Drive reports no size up front.
+    return { stream: result.data as unknown as Readable, name, mimeType: exportType, exported: true };
+  }
+
+  const result = await driveApi.files.get(
+    { fileId, alt: 'media', supportsAllDrives: true },
+    { responseType: 'stream' },
+  );
+
+  return {
+    stream: result.data as unknown as Readable,
+    name,
+    mimeType: sourceMimeType,
+    size: meta.data.size ? Number(meta.data.size) : undefined,
+    exported: false,
+  };
+}
+
+/**
+ * Download a Drive file straight to the local filesystem.
+ *
+ * Streams through a `.part` file and renames on success, so an interrupted transfer
+ * never leaves a truncated file sitting at the destination path.
+ */
+export async function downloadFile(fileId: string, params: DownloadFileParams = {}): Promise<DownloadFileResult> {
+  const { stream, name, mimeType, exported } = await openDownloadStream(fileId, params.exportMimeType);
+
+  const targetPath = resolveDestPath(params.destPath, suggestFileName(name, mimeType, exported));
+
+  if (params.overwrite === false && fs.existsSync(targetPath)) {
+    stream.destroy();
+    throw new Error(`Destination already exists: ${targetPath} (pass overwrite=true to replace it)`);
+  }
+
+  await fs.promises.mkdir(path.dirname(targetPath), { recursive: true });
+  const partPath = `${targetPath}.part-${process.pid}-${Date.now()}`;
+
+  try {
+    await pipeline(stream, fs.createWriteStream(partPath));
+    await fs.promises.rename(partPath, targetPath);
+  } catch (err) {
+    await fs.promises.rm(partPath, { force: true }).catch(() => {});
+    throw err;
+  }
+
+  const { size } = await fs.promises.stat(targetPath);
+
+  return { fileId, name, path: targetPath, bytes: size, mimeType, exported };
+}
+
+/**
+ * Read a file's content into memory.
+ *
+ * Binary files come back base64-encoded. The previous version asked googleapis for
+ * `responseType: 'text'`, which ran every byte through a UTF-8 decode — zips, PDFs and
+ * images arrived full of U+FFFD replacement characters, and anything past Node's string
+ * limit threw `Cannot create a string longer than ...`. Use `downloadFile` for anything
+ * large; this endpoint refuses payloads over MAX_INLINE_CONTENT_BYTES.
+ */
+export async function getFileContent(fileId: string, exportMimeType?: string): Promise<FileContentResult> {
   if (!driveApi) throw new Error('Google Drive not configured');
 
   // First, get the file metadata to check its type
   const meta = await driveApi.files.get({
     fileId,
-    fields: 'mimeType, name',
+    fields: 'mimeType, name, size',
     supportsAllDrives: true,
   });
 
   const fileMimeType = meta.data.mimeType || '';
+  const name = meta.data.name || fileId;
+  const declaredSize = meta.data.size ? Number(meta.data.size) : undefined;
 
-  // Google Workspace files (Docs, Sheets, Slides) must be exported
-  if (fileMimeType.startsWith('application/vnd.google-apps.')) {
-    const exportType = exportMimeType || getDefaultExportType(fileMimeType);
-    const result = await driveApi.files.export({
-      fileId,
-      mimeType: exportType,
-    }, { responseType: 'text' });
-
-    return {
-      content: typeof result.data === 'string' ? result.data : String(result.data),
-      mimeType: exportType,
-    };
+  // Refuse before transferring anything — Drive already told us how big this is.
+  if (declaredSize !== undefined && declaredSize > MAX_INLINE_CONTENT_BYTES) {
+    throw new Error(
+      `${name} is ${formatBytes(declaredSize)}, over the ${formatBytes(MAX_INLINE_CONTENT_BYTES)} inline limit. `
+      + `Use GET /api/drive/files/${fileId}/download?destPath=/absolute/path to stream it to disk instead.`,
+    );
   }
 
-  // Regular files: download content
-  const result = await driveApi.files.get({
-    fileId,
-    alt: 'media',
-    supportsAllDrives: true,
-  }, { responseType: 'text' });
+  // Google Workspace files (Docs, Sheets, Slides) must be exported
+  const isGoogleDoc = fileMimeType.startsWith('application/vnd.google-apps.');
+  const resultMimeType = isGoogleDoc ? (exportMimeType || getDefaultExportType(fileMimeType)) : fileMimeType;
+
+  const result = isGoogleDoc
+    ? await driveApi.files.export({ fileId, mimeType: resultMimeType }, { responseType: 'arraybuffer' })
+    : await driveApi.files.get(
+        { fileId, alt: 'media', supportsAllDrives: true },
+        { responseType: 'arraybuffer' },
+      );
+
+  const buffer = toBuffer(result.data);
+
+  if (buffer.length > MAX_INLINE_CONTENT_BYTES) {
+    throw new Error(
+      `${name} is ${formatBytes(buffer.length)}, over the ${formatBytes(MAX_INLINE_CONTENT_BYTES)} inline limit. `
+      + `Use GET /api/drive/files/${fileId}/download?destPath=/absolute/path to stream it to disk instead.`,
+    );
+  }
+
+  const binary = !isTextContent(buffer, resultMimeType);
 
   return {
-    content: typeof result.data === 'string' ? result.data : String(result.data),
-    mimeType: fileMimeType,
+    content: binary ? buffer.toString('base64') : buffer.toString('utf-8'),
+    mimeType: resultMimeType,
+    encoding: binary ? 'base64' : 'utf-8',
+    bytes: buffer.length,
+    name,
   };
 }
 
@@ -943,6 +1087,99 @@ function mapSharedDrive(data: drive_v3.Schema$Drive): SharedDrive {
         }
       : undefined,
   };
+}
+
+/** Normalize whatever googleapis hands back for `responseType: 'arraybuffer'` into a Buffer. */
+function toBuffer(data: unknown): Buffer {
+  if (Buffer.isBuffer(data)) return data;
+  if (data instanceof ArrayBuffer) return Buffer.from(data);
+  if (ArrayBuffer.isView(data)) return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  return Buffer.from(String(data ?? ''), 'utf-8');
+}
+
+/**
+ * Decide whether bytes can be handed back as a UTF-8 string.
+ *
+ * The mime type alone lies often enough (Drive labels plenty of real files
+ * `application/octet-stream`), so the bytes get the final say: a NUL byte or a failed
+ * round-trip through UTF-8 means base64. Getting this wrong is the corruption bug.
+ */
+function isTextContent(buffer: Buffer, mimeType: string): boolean {
+  if (buffer.length === 0) return true;
+
+  const looksTextual = mimeType.startsWith('text/')
+    || /^application\/(json|xml|javascript|x-ndjson|yaml|x-yaml|sql|x-sh)\b/.test(mimeType)
+    || /\+(json|xml)\b/.test(mimeType);
+
+  const sample = buffer.subarray(0, Math.min(buffer.length, 8192));
+  if (sample.includes(0)) return false;
+
+  const decoded = new TextDecoder('utf-8', { fatal: false }).decode(sample);
+  if (decoded.includes('\uFFFD')) return false;
+
+  if (looksTextual) return true;
+
+  // Unlabeled but clean UTF-8 with no control-character noise: treat as text.
+  return !/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(decoded);
+}
+
+/** Pick the filename to write on disk, appending an extension when an export changed the format. */
+function suggestFileName(driveName: string, mimeType: string, exported: boolean): string {
+  const safe = driveName.replace(/[/\\\u0000]/g, '_').trim() || 'drive-file';
+  if (!exported) return safe;
+
+  const ext = EXPORT_EXTENSIONS[mimeType];
+  if (!ext || safe.toLowerCase().endsWith(ext)) return safe;
+  return `${safe}${ext}`;
+}
+
+const EXPORT_EXTENSIONS: Record<string, string> = {
+  'text/plain': '.txt',
+  'text/csv': '.csv',
+  'text/html': '.html',
+  'text/markdown': '.md',
+  'application/pdf': '.pdf',
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/svg+xml': '.svg',
+  'application/rtf': '.rtf',
+  'application/zip': '.zip',
+  'application/epub+zip': '.epub',
+  'application/x-vnd.oasis.opendocument.spreadsheet': '.ods',
+  'application/vnd.oasis.opendocument.text': '.odt',
+  'application/vnd.oasis.opendocument.presentation': '.odp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+};
+
+/**
+ * Resolve the caller's `destPath` into an absolute file path.
+ * A directory (existing, or written with a trailing separator) gets the Drive name appended.
+ */
+function resolveDestPath(destPath: string | undefined, suggestedName: string): string {
+  const raw = (destPath || '').trim();
+  if (!raw) return path.join(os.tmpdir(), suggestedName);
+
+  const expanded = raw === '~' || raw.startsWith('~/') ? path.join(os.homedir(), raw.slice(1)) : raw;
+  const resolved = path.resolve(expanded);
+
+  const isDirectory = /[/\\]$/.test(raw)
+    || (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory());
+
+  return isDirectory ? path.join(resolved, suggestedName) : resolved;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value.toFixed(1)} ${units[unit]}`;
 }
 
 function getDefaultExportType(googleMimeType: string): string {

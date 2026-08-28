@@ -5,6 +5,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { pipeline } from 'stream/promises';
 import * as driveClient from './drive-client.js';
 import { createLogger } from '../../utils/logger.js';
 
@@ -58,6 +59,56 @@ router.get('/files/:fileId/content', async (req: Request<{ fileId: string }>, re
     res.status(500).json({ error: `Failed to read file content: ${err instanceof Error ? err.message : err}` });
   }
 });
+
+// GET|POST /api/drive/files/:fileId/download — Download a file's real bytes.
+//
+// With `destPath`, the server streams Drive -> disk and answers with JSON metadata.
+// Without it, the raw bytes are streamed back to the caller (`curl -o file.zip`).
+// Either way nothing is buffered in memory or squeezed through a JSON string, which is
+// what `GET /content` used to do — corrupting binaries and blowing up on large files.
+async function handleDownload(req: Request<{ fileId: string }>, res: Response): Promise<void> {
+  const body = (req.body || {}) as Record<string, unknown>;
+  const destPath = (req.query.destPath as string | undefined) ?? (body.destPath as string | undefined);
+  const exportAs = (req.query.exportAs as string | undefined) ?? (body.exportAs as string | undefined);
+  const overwrite = req.query.overwrite === 'false' || body.overwrite === false ? false : true;
+
+  try {
+    if (destPath) {
+      const result = await driveClient.downloadFile(req.params.fileId, {
+        destPath,
+        exportMimeType: exportAs,
+        overwrite,
+      });
+      res.json(result);
+      return;
+    }
+
+    // No destination: stream the bytes straight through to the HTTP response.
+    const { stream, name, mimeType, size } = await driveClient.openDownloadStream(req.params.fileId, exportAs);
+
+    res.setHeader('Content-Type', mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+    if (size !== undefined) res.setHeader('Content-Length', String(size));
+
+    try {
+      await pipeline(stream, res);
+    } catch (err) {
+      // Headers are already out, so there is no way to turn this into a JSON error —
+      // destroy the response so the client sees a truncated transfer instead of a
+      // silently short file it would treat as complete.
+      log.error(`Drive download stream error: ${err}`);
+      res.destroy(err instanceof Error ? err : new Error(String(err)));
+    }
+  } catch (err) {
+    log.error(`Drive download error: ${err}`);
+    if (!res.headersSent) {
+      res.status(500).json({ error: `Failed to download file: ${err instanceof Error ? err.message : err}` });
+    }
+  }
+}
+
+router.get('/files/:fileId/download', handleDownload);
+router.post('/files/:fileId/download', handleDownload);
 
 // POST /api/drive/files — Create a new file. Either `content` (UTF-8 string) or `filePath` (absolute host path) is required.
 router.post('/files', async (req: Request, res: Response) => {

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.212.0] - 2026-08-28
+
+### Added
+- **Drive file downloads** — new `GET|POST /api/drive/files/:fileId/download` streams a Drive file straight to the local filesystem (`?destPath=`) or back over HTTP for `curl -o`. No size limit, byte-for-byte identical to the original: a 523 MB zip and a 434 MB video both download intact. Supports `~/` paths, directory destinations (the Drive name is used), automatic parent-directory creation, `exportAs` for native Docs/Sheets/Slides, and `overwrite=false`. Downloads are written through a temporary `.part` file and renamed on success, so an interrupted transfer never leaves a truncated file at the destination.
+
+### Fixed
+- **Corrupted binary reads from Google Drive** — `GET /api/drive/files/:fileId/content` decoded every file as UTF-8 before packing it into JSON, so zips, PDFs, images and installers came back full of U+FFFD replacement characters, and files past Node's string limit failed outright with `Cannot create a string longer than 0x1fffffe8 characters`. Content is now read as bytes: binaries are returned base64-encoded with an explicit `encoding` field (`utf-8` or `base64`), text/binary is decided from the bytes rather than the often-wrong MIME label, and files over 10 MB are refused up front with an error pointing at the new download endpoint instead of transferring anything.
+
+### Changed
+- **Google Drive skill** — documents the download endpoint and the `encoding` field, and directs agents to use `/download` rather than `/content` for binaries and large files.
+
 ## [1.211.0] - 2026-08-26
 
 ### Added

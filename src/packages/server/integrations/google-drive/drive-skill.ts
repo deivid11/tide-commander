@@ -26,11 +26,13 @@ Query params: \`folderId\`, \`mimeType\`, \`maxResults\`, \`pageToken\`, \`order
 curl -s "http://localhost:5174/api/drive/files/FILE_ID"
 \`\`\`
 
-## Read File Content
+## Read File Content (small text files)
 
 \`\`\`bash
 curl -s "http://localhost:5174/api/drive/files/FILE_ID/content"
 \`\`\`
+
+Response: \`{ content, mimeType, encoding, bytes, name }\`. \`encoding\` is \`utf-8\` for text, \`base64\` for binary — always check it before using \`content\`.
 
 For Google Docs/Sheets/Slides, content is automatically exported as text. Override with \`?exportAs=text/html\` or \`?exportAs=application/pdf\`.
 
@@ -38,6 +40,31 @@ Export format defaults:
 - Google Docs -> text/plain
 - Google Sheets -> text/csv
 - Google Slides -> text/plain
+
+Files over 10 MB are rejected with an error pointing at the download endpoint. **For any binary (zip, pdf, image, installer, video) or anything large, use \`/download\` below — do not use this endpoint.**
+
+## Download a File to Disk (binaries and large files)
+
+\`\`\`bash
+curl -s "http://localhost:5174/api/drive/files/FILE_ID/download?destPath=/home/user/downloads/"
+\`\`\`
+
+Streams the file straight from Drive to the local filesystem — no size limit, no encoding, byte-for-byte identical to the original. Works for 500 MB zips just as well as for a small PDF.
+
+Query params (also accepted as JSON body fields via \`POST\` to the same URL):
+- \`destPath\` — where to write it. An absolute path (\`/tmp/build.zip\`), a \`~/\` path, or a directory (existing, or ending in \`/\`) in which case the Drive file name is used. Omit it to stream the bytes back over HTTP instead (see below). Missing parent directories are created.
+- \`exportAs\` — export format for native Google Docs/Sheets/Slides (e.g. \`application/pdf\`, \`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\`). Ignored for regular files.
+- \`overwrite=false\` — fail instead of replacing an existing file at the destination.
+
+Response: \`{ fileId, name, path, bytes, mimeType, exported }\` — \`path\` is the absolute path written.
+
+To pipe the bytes yourself instead of writing them server-side, omit \`destPath\` and let curl save them:
+
+\`\`\`bash
+curl -s "http://localhost:5174/api/drive/files/FILE_ID/download" -o /home/user/downloads/Componentes.zip
+\`\`\`
+
+The download is written through a temporary \`.part\` file and renamed on success, so an interrupted transfer never leaves a truncated file at \`destPath\`. Verify large downloads with \`ls -l\` or a checksum against the \`size\` reported by \`GET /files/FILE_ID\`.
 
 ## Create a File
 
@@ -244,6 +271,7 @@ To list files across every Shared Drive the user has access to, set \`includeIte
 ## Notes
 - Auth headers are added automatically by the system.
 - Google Workspace files (Docs, Sheets, Slides) are exported to text when reading content.
+- Binary files (zip, pdf, images, installers) must go through \`/download\`, not \`/content\`.
 - File IDs can be found in Google Drive URLs or from list/search results.
 - Use \`folderId\` to scope operations to a specific folder.
 - Shared Drives (formerly Team Drives) are distinct from \"My Drive\" folders and require the \`driveId\` param for targeted queries.
