@@ -11,6 +11,9 @@ import {
   _resetSuffixWalkCacheForTests,
   _resetAreaDirCacheForTests,
   _setAreaLoaderForTests,
+  rewriteHtmlPreviewCss,
+  rewriteHtmlPreviewScript,
+  rewriteHtmlPreviewDocument,
 } from './files';
 
 describe('parseByteRange', () => {
@@ -53,6 +56,52 @@ describe('parseByteRange', () => {
 
   it('ignores ranges against an empty file', () => {
     expect(parseByteRange('bytes=0-', 0)).toBeNull();
+  });
+});
+
+describe('HTML preview dependency rewriting', () => {
+  const source = '/workspace/site/index.html';
+  const root = '/workspace/site';
+
+  it('rewrites linked CSS, scripts, images and root-relative assets with auth', () => {
+    const html = rewriteHtmlPreviewDocument(
+      '<html><head><link rel="stylesheet" href="css/app.css"></head><body><img src="/assets/logo.png"><script src="js/app.js"></script></body></html>',
+      source,
+      root,
+      'secret token',
+    );
+
+    expect(html).toContain('path=%2Fworkspace%2Fsite%2Fcss%2Fapp.css');
+    expect(html).toContain('path=%2Fworkspace%2Fsite%2Fassets%2Flogo.png');
+    expect(html).toContain('path=%2Fworkspace%2Fsite%2Fjs%2Fapp.js');
+    expect(html).toContain('token=secret+token');
+    expect(html).toContain('tide-html-preview-escape');
+  });
+
+  it('preserves external/data URLs and rewrites CSS url dependencies', () => {
+    const css = rewriteHtmlPreviewCss(
+      '.hero{background:url("../img/hero.png")} .remote{background:url(https://cdn.test/x.png)}',
+      '/workspace/site/css/app.css',
+      root,
+      'abc',
+    );
+
+    expect(css).toContain('path=%2Fworkspace%2Fsite%2Fimg%2Fhero.png');
+    expect(css).toContain('url(https://cdn.test/x.png)');
+  });
+
+  it('rewrites local ES module imports without touching packages or remote modules', () => {
+    const script = rewriteHtmlPreviewScript(
+      'import x from "./x.js"; import React from "react"; import("../lazy.js");',
+      '/workspace/site/js/app.js',
+      root,
+      'abc',
+    );
+
+    expect(script).toContain('path=%2Fworkspace%2Fsite%2Fjs%2Fx.js');
+    // Bare package specifiers are not filesystem-relative and must stay intact.
+    expect(script).toContain('from "react"');
+    expect(script).toContain('path=%2Fworkspace%2Fsite%2Flazy.js');
   });
 });
 

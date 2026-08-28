@@ -5,6 +5,8 @@ import {
   whatsappTriggerHandler,
   humanizeWhatsAppJid,
   humanizeGroupJid,
+  normalizeBaileysMessage,
+  buildWhatsAppRawEvent,
   type NormalizedWhatsAppMessage,
 } from './whatsapp-trigger-handler.js';
 import type { ExternalEvent, TriggerDefinition } from '../../../shared/integration-types.js';
@@ -52,6 +54,56 @@ describe('sanitizeFromName', () => {
 
   it('handles group-participant JID without breaking', () => {
     expect(sanitizeFromName('Carlos', '5215587654321@s.whatsapp.net')).toBe('Carlos');
+  });
+});
+
+describe('WhatsApp group participant normalization', () => {
+  it('uses whatsapp-api author as the sender while retaining the group chat id', () => {
+    const message = normalizeBaileysMessage('session-1', 'message', {
+      id: 'msg-1',
+      from: '120363426536125334@g.us',
+      body: 'hola equipo',
+      timestamp: 1_780_000_000,
+      fromMe: false,
+      author: '31766249259027@lid',
+      authorAlt: '5215512345678@s.whatsapp.net',
+      mentionedIds: ['5215599999999@c.us', '5215599999999@c.us'],
+      chat: {
+        id: '120363426536125334@g.us',
+        isGroup: true,
+        name: 'Equipo',
+      },
+    }, undefined, 'http://localhost:3000');
+
+    expect(message).toMatchObject({
+      from: '31766249259027@lid',
+      participantJid: '31766249259027@lid',
+      participantAltJid: '5215512345678@s.whatsapp.net',
+      chatId: '120363426536125334@g.us',
+      isGroup: true,
+      groupName: 'Equipo',
+      mentionedIds: ['5215599999999@c.us'],
+    });
+  });
+
+  it('preserves author, participant and mentionedIds in raw_event shape for existing consumers', () => {
+    const raw = buildWhatsAppRawEvent({
+      sessionId: 'session-1',
+      from: '5215512345678@c.us',
+      participantJid: '5215512345678@c.us',
+      participantAltJid: '5215512345678@s.whatsapp.net',
+      mentionedIds: ['5215599999999@c.us'],
+      body: 'hola',
+      timestamp: Date.now(),
+      isGroup: true,
+      direction: 'inbound',
+      chatId: '120363426536125334@g.us',
+    });
+
+    expect(raw.author).toBe('5215512345678@c.us');
+    expect(raw.participant).toBe('5215512345678@c.us');
+    expect(raw.authorAlt).toBe('5215512345678@s.whatsapp.net');
+    expect(raw.mentionedIds).toEqual(['5215599999999@c.us']);
   });
 });
 

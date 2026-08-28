@@ -93,6 +93,10 @@ export interface WhatsAppMessageEvent {
   groupName?: string;
   fromJid: string;
   fromName?: string;
+  /** Actual participant who authored a group message. */
+  participantJid?: string;
+  /** Alternate participant identity, usually a phone JID paired with an opaque LID. */
+  participantAltJid?: string;
   direction: MessageDirection;
   body: string;
   messageType: WhatsAppMessageType;

@@ -73,6 +73,8 @@ router.get('/whatsapp', (req: Request, res: Response) => {
   const result = queryWhatsAppMessages({
     sessionId: qs(req.query.sessionId),
     chatId: qs(req.query.chatId),
+    participantJid: qs(req.query.participantJid),
+    participantAltJid: qs(req.query.participantAltJid),
     direction: qs(req.query.direction),
     messageType: qs(req.query.messageType),
     workflowInstanceId: qs(req.query.workflowInstanceId),

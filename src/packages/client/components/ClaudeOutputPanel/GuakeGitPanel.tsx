@@ -38,6 +38,7 @@ import { useToast } from '../Toast';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
 import { PdfJsViewer } from '../shared/PdfJsViewer';
 import { ZoomableImage } from '../shared/ZoomableImage';
+import { revealInFileExplorer } from '../../api/files';
 
 const StlViewer = React.lazy(async () => {
   const module = await import('../shared/StlViewer');
@@ -216,6 +217,13 @@ function isPositionInArea(pos: { x: number; z: number }, area: { center: { x: nu
 /** Returns true for statuses that have a previous git version to diff against */
 function hasDiff(status: GitFileStatusType): boolean {
   return status === 'modified' || status === 'renamed' || status === 'deleted' || status === 'conflict';
+}
+
+/** Parent path for deleted git entries that no longer exist on disk. */
+function parentPath(filePath: string): string {
+  const clean = filePath.replace(/[\\/]+$/, '');
+  const separator = Math.max(clean.lastIndexOf('/'), clean.lastIndexOf('\\'));
+  return separator > 0 ? clean.slice(0, separator) : clean;
 }
 
 /** Recursively collect every changed file under a git-tree (Changes tab) directory node. */
@@ -1244,6 +1252,18 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
   }, []);
   const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
+  const revealPath = useCallback(async (targetPath: string) => {
+    try {
+      await revealInFileExplorer(targetPath);
+    } catch (error) {
+      showToast(
+        'error',
+        'Reveal Failed',
+        error instanceof Error ? error.message : 'Could not open the system file explorer',
+      );
+    }
+  }, [showToast]);
+
   // Delete file with confirmation dialog
   const executeDelete = useCallback(async (pending: { path: string; name: string; status: GitFileStatusType; repoDir: string }) => {
     try {
@@ -1404,6 +1424,14 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       icon: <Icon name={hasDiff(file.status) ? 'git-diff' : 'file-text'} size={14} />,
       onClick: () => handleFileClick(file, repoDir),
     });
+    actions.push({
+      id: 'reveal-folder',
+      label: 'Reveal in Folder',
+      icon: <Icon name="folder-open" size={14} />,
+      // Deleted entries cannot be selected because they no longer exist; open
+      // their containing directory instead. Existing files are selected.
+      onClick: () => { void revealPath(file.status === 'deleted' ? parentPath(fullPath) : fullPath); },
+    });
 
     actions.push({ id: 'div1', label: '', divider: true, onClick: () => {} });
 
@@ -1475,7 +1503,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     }
 
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
-  }, [handleFileClick]);
+  }, [handleFileClick, revealPath]);
 
   // Context menu for a folder node in the Changes-tab tree view.
   // Offers "Discard Changes" (all changed files under the folder) and
@@ -1498,6 +1526,12 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
       label: 'Copy Full Path',
       icon: <Icon name="pin" size={14} />,
       onClick: () => { navigator.clipboard.writeText(folderPath); },
+    });
+    actions.push({
+      id: 'reveal-folder',
+      label: 'Reveal in Folder',
+      icon: <Icon name="folder-open" size={14} />,
+      onClick: () => { void revealPath(folderPath); },
     });
 
     actions.push({
@@ -1528,7 +1562,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     });
 
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
-  }, []);
+  }, [revealPath]);
 
   // Context menu for explorer tree nodes
   const handleExplorerContextMenu = useCallback((e: React.MouseEvent, node: TreeNode) => {
@@ -1566,6 +1600,12 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
         onClick: () => { navigator.clipboard.writeText(relPath); },
       });
     }
+    actions.push({
+      id: 'reveal-folder',
+      label: 'Reveal in Folder',
+      icon: <Icon name="folder-open" size={14} />,
+      onClick: () => { void revealPath(node.path); },
+    });
 
     actions.push({ id: 'div-download', label: '', divider: true, onClick: () => {} });
     actions.push({
@@ -1627,7 +1667,7 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
     }
 
     setContextMenu({ isOpen: true, position: { x: e.clientX, y: e.clientY }, actions });
-  }, [handleExplorerFileSelect, explorerFolder]);
+  }, [handleExplorerFileSelect, explorerFolder, revealPath]);
 
   const totalFiles = repos.reduce((sum, r) => sum + r.totalFiles, 0);
 
@@ -2329,6 +2369,12 @@ export function GuakeGitPanel({ agentId, agents, onClose, branchInfoMap, fetchRe
                                   label: 'Copy Full Path',
                                   icon: <Icon name="pin" size={14} />,
                                   onClick: () => { navigator.clipboard.writeText(dir); },
+                                },
+                                {
+                                  id: 'reveal-folder',
+                                  label: 'Reveal in Folder',
+                                  icon: <Icon name="folder-open" size={14} />,
+                                  onClick: () => { void revealPath(dir); },
                                 },
                                 {
                                   id: 'download',

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.211.0] - 2026-08-26
+
+### Added
+- **WhatsApp participant JID hardening** — migrations `009_whatsapp_participant_jid` / `010_whatsapp_participant_alt_jid`, `whatsapp-client`/`whatsapp-routes`/`whatsapp-trigger-handler` (+tests `whatsapp-trigger-handler.test`, `whatsapp-send-mentions.test`) with `event-queries` and `event-types` for alt JID handling.
+- **File viewer and slash visibility** — `FileViewerModal` + `_file-viewer.scss` polish, `slashCommandOutputVisibility` (+tests) for conditional slash output, plus `event-routes`/`files` (+`files.test`) with migrations.
+
+### Changed
+- **Guake terminal and flat view** — `AgentTerminalPane`, `GuakeGitPanel`, `TerminalHeader`, `SplitTerminalLayout`, `FlatView` and `storage` refined; `App` wiring for file viewer.
+- **Server and conversation** — `conversation-history` skill and `FlatView` utils updated.
+
 ## [1.210.1] - 2026-08-26
 
 ### Fixed

@@ -80,6 +80,7 @@ import { TerminalInputArea } from './TerminalInputArea';
 import { PinnedAgentsBar } from './PinnedAgentsBar';
 import { useAgentDockPosition } from './agentDockPosition';
 import { VirtualizedOutputList } from './VirtualizedOutputList';
+import { filterSlashCommandOutputs } from './slashCommandOutputVisibility';
 // AgentPromptCard import removed — interactive prompt UI now renders inline
 // in the matching tool_use chip via AskQuestionInput / ExitPlanModeInput
 // when a pending agent-prompt is present.
@@ -217,6 +218,8 @@ export interface AgentTerminalPaneProps {
   viewMode: ViewMode;
   /** Whether the terminal is open/visible */
   isOpen: boolean;
+  /** Show structured output cards produced by plugin slash commands. */
+  showSlashCommandOutputs?: boolean;
 
   // ── Modal callbacks (parent owns modals) ──
   onImageClick: (url: string, name: string) => void;
@@ -298,6 +301,7 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     agent,
     viewMode,
     isOpen,
+    showSlashCommandOutputs = true,
     onImageClick,
     onFileClick,
     onBashClick,
@@ -620,7 +624,11 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
     return enrichHistory(history);
   }, [historyLoader.history, pendingAgentPrompts]);
 
-  const filteredOutputs = useFilteredOutputsWithLogging({ outputs: displayOutputs, viewMode });
+  const modeFilteredOutputs = useFilteredOutputsWithLogging({ outputs: displayOutputs, viewMode });
+  const filteredOutputs = useMemo(
+    () => filterSlashCommandOutputs(modeFilteredOutputs, showSlashCommandOutputs),
+    [modeFilteredOutputs, showSlashCommandOutputs],
+  );
 
   // ── History freeze while reading scrolled-up ──
   // Mid-turn session refreshes swap live rows for their persisted twins

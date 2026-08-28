@@ -327,6 +327,16 @@ const ChatView = React.memo(function ChatView({
   const classicTuiAvailable =
     !!settings.interactiveMode && (agent?.provider ?? 'claude') === 'claude' && !!agent?.sessionId;
   const [classicTuiOpen, setClassicTuiOpen] = useState(false);
+  const [showSlashCommandOutputs, setShowSlashCommandOutputs] = useState(() =>
+    getStorageBoolean(STORAGE_KEYS.SLASH_COMMAND_OUTPUTS_VISIBLE, true)
+  );
+  const toggleSlashCommandOutputs = useCallback(() => {
+    setShowSlashCommandOutputs((visible) => {
+      const next = !visible;
+      setStorageBoolean(STORAGE_KEYS.SLASH_COMMAND_OUTPUTS_VISIBLE, next);
+      return next;
+    });
+  }, []);
   // Anchor for the view-mode dropdown (null = closed).
   const [viewModeMenu, setViewModeMenu] = useState<{ x: number; y: number } | null>(null);
 
@@ -1004,6 +1014,16 @@ const ChatView = React.memo(function ChatView({
             </button>
             <button
               type="button"
+              className={`flat-terminal-wrapper__action-btn ${showSlashCommandOutputs ? 'flat-terminal-wrapper__action-btn--active' : ''}`}
+              onClick={toggleSlashCommandOutputs}
+              title={showSlashCommandOutputs ? 'Hide slash command output' : 'Show slash command output'}
+              aria-label={showSlashCommandOutputs ? 'Hide slash command output' : 'Show slash command output'}
+              aria-pressed={showSlashCommandOutputs}
+            >
+              <Icon name={showSlashCommandOutputs ? 'eye' : 'eye-closed'} size={14} />
+            </button>
+            <button
+              type="button"
               className={`flat-terminal-wrapper__action-btn flat-terminal-wrapper__action-btn--danger ${isClearArmed ? 'flat-terminal-wrapper__action-btn--confirm' : ''}`}
               onClick={() =>
                 clearConfirm.handleClick(CLEAR_CONFIRM_ID, () => {
@@ -1179,6 +1199,15 @@ const ChatView = React.memo(function ChatView({
               <button
                 type="button"
                 role="menuitem"
+                className={`flat-chat-actions-sheet__item ${showSlashCommandOutputs ? 'is-active' : ''}`}
+                onClick={() => { toggleSlashCommandOutputs(); closeActionsSheet(); }}
+              >
+                <Icon name={showSlashCommandOutputs ? 'eye' : 'eye-closed'} size={20} />
+                <span>Slash output</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
                 className={`flat-chat-actions-sheet__item ${gitPanelOpen ? 'is-active' : ''}`}
                 onClick={() => { toggleGitPanel(); closeActionsSheet(); }}
               >
@@ -1268,6 +1297,7 @@ const ChatView = React.memo(function ChatView({
           agent={displayedAgent}
           viewMode={terminalViewMode}
           isOpen={true}
+          showSlashCommandOutputs={showSlashCommandOutputs}
           onImageClick={onImageClick}
           onFileClick={onFileClick}
           onBashClick={onBashClick}

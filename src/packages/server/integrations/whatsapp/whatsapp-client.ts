@@ -112,11 +112,20 @@ export class WhatsAppClient {
 
   // ─── Messaging ───
 
-  async sendMessage(sessionId: string, to: string, message: string): Promise<WhatsAppSendResult> {
+  async sendMessage(
+    sessionId: string,
+    to: string,
+    message: string,
+    options?: { mentions?: string[] },
+  ): Promise<WhatsAppSendResult> {
     return this.request<WhatsAppSendResult>(
       'POST',
       `/api/sessions/${encodeURIComponent(sessionId)}/send-message`,
-      { to, message },
+      {
+        to,
+        message,
+        ...(options?.mentions?.length ? { mentions: options.mentions } : {}),
+      },
     );
   }
 

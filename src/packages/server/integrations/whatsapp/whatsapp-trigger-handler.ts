@@ -42,6 +42,12 @@ export interface NormalizedWhatsAppMessage {
   sessionId: string;
   from: string;
   fromName?: string;
+  /** Actual author of a group message. Unlike `chatId`, this is a person JID. */
+  participantJid?: string;
+  /** Alternate author JID (usually phone JID when `participantJid` uses addressingMode `lid`). */
+  participantAltJid?: string;
+  /** JIDs explicitly mentioned by the message, preserved from the upstream webhook. */
+  mentionedIds?: string[];
   body: string;
   timestamp: number;
   isGroup: boolean;
@@ -86,6 +92,17 @@ export interface NormalizedWhatsAppMessage {
 // registers its callback here, so subscribers stay attached even when the bridge
 // restarts (e.g. on config change).
 const triggerSubscribers = new Set<(msg: NormalizedWhatsAppMessage) => void>();
+
+export function buildWhatsAppRawEvent(payload: NormalizedWhatsAppMessage): Record<string, unknown> {
+  return {
+    ...payload,
+    ...(payload.participantJid
+      ? { author: payload.participantJid, participant: payload.participantJid }
+      : {}),
+    ...(payload.participantAltJid ? { authorAlt: payload.participantAltJid } : {}),
+    ...(payload.mentionedIds ? { mentionedIds: payload.mentionedIds } : {}),
+  };
+}
 
 function notifyTriggerSubscribers(payload: NormalizedWhatsAppMessage): void {
   for (const cb of triggerSubscribers) {
@@ -193,6 +210,10 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
 
   function persist(payload: NormalizedWhatsAppMessage): void {
     try {
+      // Keep the bridge's original field names in raw_event for downstream
+      // consumers (including omni), while the normalized/DB field remains
+      // `participantJid`. Older readers already look for author/participant.
+      const rawEvent = buildWhatsAppRawEvent(payload);
       ctx.eventDb.logWhatsAppMessage({
         sessionId: payload.sessionId,
         messageId: payload.messageId,
@@ -201,6 +222,8 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
         groupName: payload.groupName,
         fromJid: payload.from,
         fromName: payload.fromName,
+        participantJid: payload.participantJid,
+        participantAltJid: payload.participantAltJid,
         direction: payload.direction,
         body: payload.body,
         messageType: payload.mediaType ?? 'text',
@@ -209,7 +232,7 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
         mediaFilename: payload.mediaFilename,
         mediaPath: payload.mediaPath,
         audioTranscription: payload.audioTranscription,
-        rawEvent: payload,
+        rawEvent,
         timestamp: payload.timestamp,
         receivedAt: Date.now(),
       });
@@ -415,7 +438,7 @@ export function createWhatsAppTriggerHandler(ctx: IntegrationContext): WhatsAppM
  * Be defensive — Baileys versions and the upstream wrapper vary in field naming.
  * Returns `null` for payloads we cannot make sense of (caller drops them).
  */
-function normalizeBaileysMessage(
+export function normalizeBaileysMessage(
   sessionId: string,
   eventName: string,
   data: unknown,
@@ -431,6 +454,7 @@ function normalizeBaileysMessage(
   // Try the wrapped form first, fall back to Baileys structure.
 
   const key = (d.key && typeof d.key === 'object' ? (d.key as Record<string, unknown>) : undefined);
+  const chat = (d.chat && typeof d.chat === 'object' ? (d.chat as Record<string, unknown>) : undefined);
   const message = (d.message && typeof d.message === 'object'
     ? (d.message as Record<string, unknown>)
     : undefined);
@@ -447,13 +471,27 @@ function normalizeBaileysMessage(
     pickString(d.remoteJid) ??
     pickString(d.chatId) ??
     (key ? pickString(key.remoteJid) : undefined) ??
+    (chat ? pickString(chat.id) : undefined) ??
     pickString(d.from);
+  // whatsapp-api's webhookHandler sends the real group sender as `author`;
+  // raw Baileys payloads use `participant`/`key.participant`. Accept all forms.
   const participant =
+    pickString(d.author) ??
     pickString(d.participant) ??
     (key ? pickString(key.participant) : undefined);
 
   if (!remoteJid && !participant) return null;
-  const isGroup = (remoteJid?.endsWith('@g.us') ?? false) || pickBoolean(d.isGroup) === true;
+  const isGroup = (remoteJid?.endsWith('@g.us') ?? false)
+    || pickBoolean(d.isGroup) === true
+    || (chat ? pickBoolean(chat.isGroup) === true : false);
+  const participantJid = isGroup ? participant : undefined;
+  // In LID addressing mode Baileys exposes the opaque author in `participant`
+  // and its phone-based counterpart in `participantAlt`. The bridge flattens
+  // that second value as `authorAlt`.
+  const participantAltJid = isGroup
+    ? (pickString(d.authorAlt) ?? pickString(d.participantAlt))
+    : undefined;
+  const mentionedIds = pickStringArray(d.mentionedIds);
 
   // For groups, prefer the actual sender (participant). For DMs, the remote jid
   // IS the sender. If we're outbound, the "from" still refers to the chat for
@@ -496,7 +534,10 @@ function normalizeBaileysMessage(
 
   // Group name — only meaningful when isGroup is true
   const groupName = isGroup
-    ? (pickString(d.groupName) ?? pickString(d.subject) ?? pickString(d.chatName))
+    ? (pickString(d.groupName)
+      ?? pickString(d.subject)
+      ?? pickString(d.chatName)
+      ?? (chat ? pickString(chat.name) : undefined))
     : undefined;
 
   // Body / media extraction
@@ -523,6 +564,9 @@ function normalizeBaileysMessage(
     sessionId,
     from,
     fromName,
+    participantJid,
+    participantAltJid,
+    mentionedIds,
     body: body ?? '',
     timestamp,
     isGroup,
@@ -760,6 +804,12 @@ function classifyFlatType(type: string | undefined): MediaType {
 
 function pickString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function pickStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const strings = value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0);
+  return strings.length > 0 ? [...new Set(strings)] : undefined;
 }
 
 function pickBoolean(value: unknown): boolean | undefined {

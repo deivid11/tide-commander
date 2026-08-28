@@ -28,6 +28,15 @@
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+  &.file-viewer-modal--html-fullscreen {
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    border: 0;
+    border-radius: 0;
+  }
 }
 
 .file-viewer-header {
@@ -273,9 +282,25 @@
     overflow: hidden;
   }
 
-  &:has(> .stl-viewer) {
+  &:has(> .stl-viewer),
+  &:has(> .file-viewer-html-preview) {
     overflow: hidden;
   }
+}
+
+.file-viewer-html-toggle.active,
+.file-viewer-modal--html-rendered .file-viewer-reveal-explorer-btn.active {
+  color: var(--accent-cyan);
+  border-color: color-mix(in srgb, var(--accent-cyan) 55%, transparent);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+}
+
+.file-viewer-html-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
 }
 
 // Interactive Three.js STL preview

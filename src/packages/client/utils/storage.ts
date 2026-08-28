@@ -33,6 +33,7 @@ export const STORAGE_KEYS = {
   ADVANCED_VIEW: 'guake-advanced-view', // Legacy key
   TERMINAL_HEIGHT: 'guake-terminal-height',
   TERMINAL_FULLSCREEN: 'guake-terminal-fullscreen',
+  SLASH_COMMAND_OUTPUTS_VISIBLE: 'guake-slash-command-outputs-visible',
   INPUT_TEXT_PREFIX: 'guake-input-',
   PASTED_TEXTS_PREFIX: 'guake-pasted-',
   ATTACHED_FILES_PREFIX: 'guake-attached-files-',

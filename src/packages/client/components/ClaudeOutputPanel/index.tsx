@@ -430,6 +430,16 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   const [isFullscreen, setIsFullscreen] = useState(() =>
     getStorageBoolean(STORAGE_KEYS.TERMINAL_FULLSCREEN, false)
   );
+  const [showSlashCommandOutputs, setShowSlashCommandOutputs] = useState(() =>
+    getStorageBoolean(STORAGE_KEYS.SLASH_COMMAND_OUTPUTS_VISIBLE, true)
+  );
+  const toggleSlashCommandOutputs = useCallback(() => {
+    setShowSlashCommandOutputs((visible) => {
+      const next = !visible;
+      setStorageBoolean(STORAGE_KEYS.SLASH_COMMAND_OUTPUTS_VISIBLE, next);
+      return next;
+    });
+  }, []);
 
   // Modal states
   const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
@@ -1545,6 +1555,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
           searchMode={paneRef.current?.search.searchMode ?? false}
           toggleSearch={paneRef.current?.search.toggleSearch ?? (() => {})}
           closeSearch={paneRef.current?.search.closeSearch ?? (() => {})}
+          showSlashCommandOutputs={showSlashCommandOutputs}
+          toggleSlashCommandOutputs={toggleSlashCommandOutputs}
           debugPanelOpen={debugPanelOpen}
           setDebugPanelOpen={setDebugPanelOpen}
           gitPanelOpen={gitPanelOpen}
@@ -1615,6 +1627,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
             paneRef={paneRef}
             viewMode={viewMode}
             isOpen={isOpen}
+            showSlashCommandOutputs={showSlashCommandOutputs}
             onImageClick={handleImageClick}
             onFileClick={handleFileClick}
             onBashClick={handleBashClick}

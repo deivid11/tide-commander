@@ -120,6 +120,8 @@ export interface TerminalHeaderProps {
   searchMode: boolean;
   toggleSearch: () => void;
   closeSearch: () => void;
+  showSlashCommandOutputs: boolean;
+  toggleSlashCommandOutputs: () => void;
   debugPanelOpen: boolean;
   setDebugPanelOpen: (open: boolean) => void;
   outputsLength: number;
@@ -176,6 +178,8 @@ export const TerminalHeader = memo(function TerminalHeader({
   searchMode,
   toggleSearch,
   closeSearch,
+  showSlashCommandOutputs,
+  toggleSlashCommandOutputs,
   debugPanelOpen,
   setDebugPanelOpen,
   outputsLength,
@@ -527,6 +531,14 @@ export const TerminalHeader = memo(function TerminalHeader({
             <span className="guake-action-icon"><Icon name="search" size={16} /></span>
           </button>
           <button
+            className={`guake-icon-action guake-slash-output-toggle ${showSlashCommandOutputs ? 'active' : ''}`}
+            onClick={toggleSlashCommandOutputs}
+            aria-pressed={showSlashCommandOutputs}
+            title={showSlashCommandOutputs ? 'Hide slash command output' : 'Show slash command output'}
+          >
+            <span className="guake-action-icon"><Icon name={showSlashCommandOutputs ? 'eye' : 'eye-closed'} size={16} /></span>
+          </button>
+          <button
             className={`guake-icon-action danger${isClearContextPending ? ' confirm-pending' : ''}`}
             onClick={() => clearContextConfirm.handleClick(clearContextConfirmId, onClearContextDirect)}
             title={isClearContextPending ? t('terminal:header.clearContextConfirm', { defaultValue: 'Click again to confirm' }) : t('terminal:header.clearContext')}
@@ -663,6 +675,14 @@ export const TerminalHeader = memo(function TerminalHeader({
                 >
                   <span className="guake-mobile-menu-icon"><Icon name={searchMode ? 'cross' : 'search'} size={16} /></span>
                   {t('terminal:header.search')}
+                </button>
+                <button
+                  className={`guake-mobile-menu-item ${showSlashCommandOutputs ? 'active' : ''}`}
+                  onClick={() => { toggleSlashCommandOutputs(); closeMobileMenu(); }}
+                  aria-pressed={showSlashCommandOutputs}
+                >
+                  <span className="guake-mobile-menu-icon"><Icon name={showSlashCommandOutputs ? 'eye' : 'eye-closed'} size={16} /></span>
+                  {showSlashCommandOutputs ? 'Hide slash command output' : 'Show slash command output'}
                 </button>
                 {setOverviewPanelOpen && (
                   <button

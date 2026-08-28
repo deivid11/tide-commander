@@ -212,6 +212,8 @@ interface WhatsAppMessageRow {
   group_name: string | null;
   from_jid: string;
   from_name: string | null;
+  participant_jid: string | null;
+  participant_alt_jid: string | null;
   direction: string;
   body: string;
   message_type: string;
@@ -237,6 +239,8 @@ function whatsappRowToEvent(row: WhatsAppMessageRow): WhatsAppMessageEvent {
     groupName: row.group_name ?? undefined,
     fromJid: row.from_jid,
     fromName: row.from_name ?? undefined,
+    participantJid: row.participant_jid ?? undefined,
+    participantAltJid: row.participant_alt_jid ?? undefined,
     direction: row.direction as WhatsAppMessageEvent['direction'],
     body: row.body,
     messageType: row.message_type as WhatsAppMessageEvent['messageType'],
@@ -256,10 +260,10 @@ function whatsappRowToEvent(row: WhatsAppMessageRow): WhatsAppMessageEvent {
 const WHATSAPP_INSERT_SQL = `
   INSERT OR IGNORE INTO whatsapp_messages (
     session_id, message_id, chat_id, is_group, group_name,
-    from_jid, from_name, direction, body, message_type,
+    from_jid, from_name, participant_jid, participant_alt_jid, direction, body, message_type,
     media_mimetype, media_size, media_filename, media_path, audio_transcription,
     agent_id, workflow_instance_id, raw_event, timestamp, received_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 export function logWhatsAppMessage(msg: WhatsAppMessageEvent): number {
@@ -272,6 +276,8 @@ export function logWhatsAppMessage(msg: WhatsAppMessageEvent): number {
     msg.groupName ?? null,
     msg.fromJid,
     msg.fromName ?? null,
+    msg.participantJid ?? null,
+    msg.participantAltJid ?? null,
     msg.direction,
     msg.body,
     msg.messageType,
@@ -1157,6 +1163,8 @@ export function querySlackMessages(opts: {
 export function queryWhatsAppMessages(opts: {
   sessionId?: string;
   chatId?: string;
+  participantJid?: string;
+  participantAltJid?: string;
   direction?: string;
   messageType?: string;
   workflowInstanceId?: string;
@@ -1169,6 +1177,8 @@ export function queryWhatsAppMessages(opts: {
 
   if (opts.sessionId) { conditions.push('session_id = ?'); params.push(opts.sessionId); }
   if (opts.chatId) { conditions.push('chat_id = ?'); params.push(opts.chatId); }
+  if (opts.participantJid) { conditions.push('participant_jid = ?'); params.push(opts.participantJid); }
+  if (opts.participantAltJid) { conditions.push('participant_alt_jid = ?'); params.push(opts.participantAltJid); }
   if (opts.direction) { conditions.push('direction = ?'); params.push(opts.direction); }
   if (opts.messageType) { conditions.push('message_type = ?'); params.push(opts.messageType); }
   if (opts.workflowInstanceId) { conditions.push('workflow_instance_id = ?'); params.push(opts.workflowInstanceId); }
@@ -1448,8 +1458,8 @@ export function queryConversationHistory(opts: {
     const conditions: string[] = [];
     const params: unknown[] = [];
     if (opts.contact) {
-      conditions.push('(chat_id = ? OR group_name LIKE ? OR from_name LIKE ?)');
-      params.push(opts.contact, `%${opts.contact}%`, `%${opts.contact}%`);
+      conditions.push('(chat_id = ? OR group_name LIKE ? OR from_name LIKE ? OR participant_jid = ? OR participant_alt_jid = ?)');
+      params.push(opts.contact, `%${opts.contact}%`, `%${opts.contact}%`, opts.contact, opts.contact);
     }
     if (opts.agentId) { conditions.push('agent_id = ?'); params.push(opts.agentId); }
     if (opts.since !== undefined) { conditions.push('timestamp >= ?'); params.push(opts.since); }
@@ -1466,7 +1476,7 @@ export function queryConversationHistory(opts: {
         conversationId: r.chat_id,
         conversationName: r.group_name ?? undefined,
         isGroup: r.is_group === 1,
-        sender: r.from_name ?? r.from_jid,
+        sender: r.from_name ?? r.participant_alt_jid ?? r.participant_jid ?? r.from_jid,
         direction: r.direction,
         text: whatsappBodyToText(r),
         messageType: r.message_type,

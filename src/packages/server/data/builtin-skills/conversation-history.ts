@@ -28,7 +28,7 @@ All endpoints live under \`/api/events/\` and use the standard \`X-Auth-Token\` 
 | Param | Meaning |
 |---|---|
 | \`source\` | \`slack\` \\| \`whatsapp\` \\| \`both\` (default \`both\`) |
-| \`contact\` | Filter by channel/chat/contact — exact id **or** partial name match (Slack channel_id/channel_name/user_name, WhatsApp chat_id/group_name/from_name) |
+| \`contact\` | Filter by channel/chat/contact — exact id **or** partial name match (Slack channel_id/channel_name/user_name, WhatsApp chat_id/group_name/from_name/participant_jid/participant_alt_jid) |
 | \`limit\` | Max messages across both sources (default 50, capped 500) |
 | \`since\` | Lower time bound — **epoch milliseconds**, inclusive |
 | \`until\` | Upper time bound — **epoch milliseconds**, inclusive |
@@ -80,7 +80,8 @@ ${BT3}bash
 # Slack — filter by channelId / threadTs / agentId / since / limit (fields: channelId, userName, text, receivedAt, ...)
 curl -s -H "X-Auth-Token: abcd" "http://localhost:5174/api/events/slack?channelId=D0AU1SH1AV8&limit=30" | jq '.messages'
 
-# WhatsApp — filter by sessionId / chatId / direction / messageType / since / limit (fields: chatId, fromName, body, timestamp, messageType, ...)
+# WhatsApp — filter by sessionId / chatId / participantJid / participantAltJid / direction / messageType / since / limit
+# Group rows expose participantJid and participantAltJid; rawEvent keeps author/participant/authorAlt/mentionedIds.
 curl -s -H "X-Auth-Token: abcd" "http://localhost:5174/api/events/whatsapp?chatId=120363426536125334@g.us&limit=30" | jq '.messages'
 ${BT3}
 

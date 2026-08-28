@@ -21,6 +21,8 @@ Send WhatsApp messages and inspect Baileys sessions through the local Tide Comma
 - At least one Baileys session is paired and \`CONNECTED\` (use the QR pairing flow from the Tide Commander UI).
 - A \`defaultSessionId\` is set in config, OR pass an explicit \`sessionId\` on every send.
 
+**Mandatory mention rule:** if the user asks to tag or mention someone in a WhatsApp group, never send only visible \`@Name\` text. Resolve that participant's JID and include it in the \`mentions\` array of \`/send-message\`; otherwise WhatsApp will not create a real mention or notification. Prefer the exact \`whatsapp.from\` / \`participantJid\` from that person's inbound group message. If needed, resolve a saved name through \`GET /api/whatsapp/sessions/<sessionId>/contacts\` (rows expose \`id\`, optional \`lid\`, \`name\`, and \`pushname\`).
+
 ---
 
 ## Quick Recipes (most common cases)
@@ -84,6 +86,15 @@ Body fields:
   - **Full JID**, e.g. \`5215532967210@s.whatsapp.net\` for an individual or \`120363xxxxxxxxx@g.us\` for a group.
 - \`message\` (required) — UTF-8 text. Standard WhatsApp formatting works (\`*bold*\`, \`_italic_\`, \`~strike~\`, \`\\\`\\\`\\\`code\\\`\\\`\\\`\`).
 - \`sessionId\` (optional) — pick a specific paired session. If omitted, the configured \`defaultSessionId\` is used. If neither is present, the call fails with 400.
+- \`mentions\` (optional) — array of participant JIDs that creates **real WhatsApp mentions**, especially in groups. Writing \`@Name\` in \`message\` without this array is only plain text and does not notify the person. Use the canonical participant JID observed in an inbound group event (\`whatsapp.from\` / \`participantJid\`), for example \`5215512345678@s.whatsapp.net\` or \`153996203434060@lid\`. Include a visible \`@...\` token in the message too.
+
+Real group mention example:
+
+\`\`\`bash
+curl -s -X POST -H "X-Auth-Token: abcd" http://localhost:5174/api/whatsapp/send-message \\
+  -H "Content-Type: application/json" \\
+  -d '{"to":"120363xxxxxxxxx@g.us","message":"Hola @5215512345678, ¿nos ayudas?","mentions":["5215512345678@s.whatsapp.net"]}'
+\`\`\`
 
 Response: \`{"success":true,"sessionId":"main","result":{"messageId":"3EB0...","success":true}}\`.
 

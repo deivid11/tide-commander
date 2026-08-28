@@ -14,7 +14,7 @@ import type {
   WhatsAppMessageType,
 } from '../../../shared/event-types.js';
 import { createLogger } from '../../utils/logger.js';
-import { WhatsAppClient } from './whatsapp-client.js';
+import { WhatsAppClient, type WhatsAppContact } from './whatsapp-client.js';
 import {
   loadConfig,
   updateConfig,
@@ -37,6 +37,82 @@ import {
 } from '../../services/whatsapp-notification-config-service.js';
 
 const log = createLogger('WhatsAppRoutes');
+
+export function parseWhatsAppMentions(value: unknown): string[] | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value)) throw new Error('mentions must be an array of WhatsApp JIDs');
+  if (value.length > 50) throw new Error('mentions cannot contain more than 50 JIDs');
+  const mentions: string[] = [];
+  for (const entry of value) {
+    if (typeof entry !== 'string' || !entry.trim()) {
+      throw new Error('mentions must contain only non-empty WhatsApp JIDs');
+    }
+    const jid = entry.trim();
+    if (!mentions.includes(jid)) mentions.push(jid);
+  }
+  return mentions.length ? mentions : undefined;
+}
+
+function normalizeMentionText(value: string): string {
+  return value
+    .normalize('NFKC')
+    .replace(/[\u2066-\u2069]/g, '')
+    .toLocaleLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function containsMentionLabel(message: string, label: string): boolean {
+  const haystack = normalizeMentionText(message);
+  const needle = `@${normalizeMentionText(label)}`;
+  if (needle.length <= 1) return false;
+  let offset = 0;
+  while (offset < haystack.length) {
+    const index = haystack.indexOf(needle, offset);
+    if (index < 0) return false;
+    const before = index > 0 ? haystack[index - 1] : '';
+    const after = haystack[index + needle.length] ?? '';
+    const startsAtBoundary = !before || /\s/.test(before);
+    const endsAtBoundary = !after || !/[\p{L}\p{N}_]/u.test(after);
+    if (startsAtBoundary && endsAtBoundary) return true;
+    offset = index + needle.length;
+  }
+  return false;
+}
+
+export function hasVisibleWhatsAppMention(message: string): boolean {
+  const normalized = normalizeMentionText(message);
+  return /(^|\s)@[\p{L}\p{N}]/u.test(normalized);
+}
+
+export function resolveWhatsAppMentionJids(
+  message: string,
+  contacts: WhatsAppContact[],
+): string[] {
+  const labels = new Map<string, { label: string; contacts: WhatsAppContact[] }>();
+  for (const contact of contacts) {
+    const aliases = [contact.name, contact.pushname, contact.number];
+    for (const alias of aliases) {
+      if (!alias?.trim()) continue;
+      const key = normalizeMentionText(alias);
+      const entry = labels.get(key) ?? { label: alias.trim(), contacts: [] };
+      entry.contacts.push(contact);
+      labels.set(key, entry);
+    }
+  }
+
+  const resolved: string[] = [];
+  const sortedLabels = [...labels.values()].sort((a, b) => b.label.length - a.label.length);
+  for (const entry of sortedLabels) {
+    if (!containsMentionLabel(message, entry.label)) continue;
+    const preferred = entry.contacts.find((contact) => contact.lid)
+      ?? entry.contacts.find((contact) => contact.id.endsWith('@lid'))
+      ?? entry.contacts[0];
+    const jid = preferred.lid?.trim() || preferred.id?.trim();
+    if (jid && !jid.endsWith('@g.us') && !resolved.includes(jid)) resolved.push(jid);
+  }
+  return resolved;
+}
 
 /** Build the router. Closes over the integration context for secret access. */
 export function createWhatsAppRoutes(ctx: IntegrationContext): Router {
@@ -320,11 +396,23 @@ export function createWhatsAppRoutes(ctx: IntegrationContext): Router {
 
   // ─── POST /send-message — Send a text message via Baileys ───
   router.post('/send-message', async (req: Request, res: Response) => {
-    const body = (req.body ?? {}) as { sessionId?: unknown; to?: unknown; message?: unknown };
+    const body = (req.body ?? {}) as {
+      sessionId?: unknown;
+      to?: unknown;
+      message?: unknown;
+      mentions?: unknown;
+    };
     const to = typeof body.to === 'string' ? body.to.trim() : '';
     const message = typeof body.message === 'string' ? body.message : '';
     if (!to || !message) {
       res.status(400).json({ error: 'to and message are required' });
+      return;
+    }
+    let mentions: string[] | undefined;
+    try {
+      mentions = parseWhatsAppMentions(body.mentions);
+    } catch (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
       return;
     }
 
@@ -345,8 +433,25 @@ export function createWhatsAppRoutes(ctx: IntegrationContext): Router {
     }
 
     try {
-      const result = await built.client.sendMessage(sessionId, to, message);
-      res.json({ success: true, sessionId, result });
+      if (!mentions?.length && to.endsWith('@g.us') && hasVisibleWhatsAppMention(message)) {
+        let contacts = await built.client.getContacts(sessionId);
+        mentions = resolveWhatsAppMentionJids(message, contacts);
+        if (!mentions.length) {
+          await built.client.syncContacts(sessionId);
+          contacts = await built.client.getContacts(sessionId);
+          mentions = resolveWhatsAppMentionJids(message, contacts);
+        }
+        if (!mentions.length) {
+          res.status(400).json({
+            error: 'Could not resolve the visible WhatsApp @mention. Pass the participant JID in mentions.',
+          });
+          return;
+        }
+        log.log(`Resolved ${mentions.length} WhatsApp mention(s) from visible labels`);
+      }
+
+      const result = await built.client.sendMessage(sessionId, to, message, { mentions });
+      res.json({ success: true, sessionId, mentions: mentions ?? [], result });
     } catch (err) {
       log.error(`WhatsApp sendMessage error: ${err}`);
       res.status(502).json({ error: err instanceof Error ? err.message : String(err) });

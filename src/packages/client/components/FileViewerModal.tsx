@@ -209,6 +209,7 @@ function reconstructOriginalFromUnifiedDiff(currentContent: string, diffText: st
 
 
 const MARKDOWN_EXTENSIONS = ['.md', '.mdx', '.markdown'];
+const HTML_EXTENSIONS = ['.html', '.htm'];
 const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.svg'];
 const PDF_EXTENSIONS = ['.pdf'];
 const STL_EXTENSIONS = ['.stl'];
@@ -279,12 +280,15 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const [copyAllStatus, setCopyAllStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [pdfStatus, setPdfStatus] = useState<'idle' | 'working' | 'error'>('idle');
   const [revealStatus, setRevealStatus] = useState<'idle' | 'opening' | 'success' | 'error'>('idle');
+  const [renderHtml, setRenderHtml] = useState(false);
+  const [htmlFullscreen, setHtmlFullscreen] = useState(false);
   const [fetchedUnifiedDiff, setFetchedUnifiedDiff] = useState<string | null>(null);
   const [fetchedOriginalContent, setFetchedOriginalContent] = useState<string | null>(null);
   const [languageReady, setLanguageReady] = useState(false);
   const markdownContentRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const htmlPreviewRef = useRef<HTMLIFrameElement>(null);
   // In-modal navigation trail: the editable path box, Back/Forward/Up and every
   // click on a directory entry all push through here, so the modal browses like
   // a file manager instead of being a dead end on whatever it was opened with.
@@ -345,6 +349,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
   useEffect(() => {
     if (isOpen && effectivePath) {
+      setRenderHtml(false);
+      setHtmlFullscreen(false);
       setResolvedCandidates([]);
       setDirectoryEntries([]);
       setDirectoryPath(null);
@@ -354,6 +360,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     } else {
       setFileData(null);
       setError(null);
+      setRenderHtml(false);
+      setHtmlFullscreen(false);
       setResolvedCandidates([]);
       setDirectoryEntries([]);
       setDirectoryPath(null);
@@ -439,7 +447,11 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        onClose();
+        if (htmlFullscreen) {
+          setHtmlFullscreen(false);
+        } else {
+          onClose();
+        }
         return;
       }
       // Alt+arrows mirror a browser/file manager. Alt (not bare arrows) so the
@@ -488,7 +500,21 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     // Use capture phase to intercept before other handlers
     window.addEventListener('keydown', handleGlobalKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleGlobalKeyDown, { capture: true });
-  }, [isOpen, onClose, goBack, goForward, goUp]);
+  }, [isOpen, onClose, goBack, goForward, goUp, htmlFullscreen]);
+
+  // Keyboard events inside a sandboxed iframe do not bubble to React. The
+  // preview document posts Escape so fullscreen exits before the modal closes.
+  useEffect(() => {
+    if (!isOpen || !renderHtml) return;
+    const handlePreviewMessage = (event: MessageEvent) => {
+      if (event.source !== htmlPreviewRef.current?.contentWindow) return;
+      if (event.data?.type !== 'tide-html-preview-escape') return;
+      if (htmlFullscreen) setHtmlFullscreen(false);
+      else onClose();
+    };
+    window.addEventListener('message', handlePreviewMessage);
+    return () => window.removeEventListener('message', handlePreviewMessage);
+  }, [isOpen, renderHtml, htmlFullscreen, onClose]);
 
   // Compute original content by reversing the edit operation where possible.
   const originalContent = useMemo(() => {
@@ -1148,6 +1174,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
   const displayedPath = fileData?.path || effectivePath;
   const isMarkdown = fileData && MARKDOWN_EXTENSIONS.includes(fileData.extension);
+  const isHtml = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, HTML_EXTENSIONS));
   const isSvg = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, ['.svg']));
   const isImage = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, IMAGE_EXTENSIONS));
   const isPdf = Boolean(fileData && hasFileExtension(fileData.extension, displayedPath, PDF_EXTENSIONS));
@@ -1185,6 +1212,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const videoDownloadUrl = isVideo
     ? apiUrl(`/api/files/binary?path=${encodeURIComponent(binaryPath)}${baseDirParam}&download=true`)
     : null;
+  const htmlPreviewUrl = isHtml
+    ? apiUrl(`/api/files/html-preview?path=${encodeURIComponent(binaryPath)}${searchRoot ? `&root=${encodeURIComponent(searchRoot)}` : ''}${authToken ? `&token=${encodeURIComponent(authToken)}` : ''}`)
+    : null;
   // Every format rendered by a dedicated viewer instead of the text/code panes:
   // they have no line count, nothing to copy as text and their own download path.
   const hasBinaryPreview = isImage || isPdf || isStl || isFcStd || isGlb || isGcode || isAudio || isVideo || isArchive || showGrid || isDocument;
@@ -1212,7 +1242,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         onClick={handleOverlayClick}
         tabIndex={-1}
       >
-        <div className="file-viewer-modal">
+        <div className={`file-viewer-modal${htmlFullscreen ? ' file-viewer-modal--html-fullscreen' : ''}${renderHtml ? ' file-viewer-modal--html-rendered' : ''}`}>
         <div className="file-viewer-header">
           <div className="file-viewer-title">
             <span className="file-viewer-action" style={{ color: getActionColor() }}>
@@ -1265,6 +1295,35 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                   <Icon name="folder-open" size={14} />
                 )}
               </button>
+            )}
+            {isHtml && fileData && (
+              <>
+                <button
+                  type="button"
+                  className={`file-viewer-copy-html-btn file-viewer-html-toggle${renderHtml ? ' active' : ''}`}
+                  onClick={() => {
+                    setRenderHtml((current) => {
+                      if (current) setHtmlFullscreen(false);
+                      return !current;
+                    });
+                  }}
+                  title={renderHtml ? 'Show HTML source' : 'Render HTML with linked CSS, scripts and assets'}
+                >
+                  <Icon name={renderHtml ? 'file-code' : 'monitor'} size={12} />
+                  {renderHtml ? 'Source' : 'Rendered HTML'}
+                </button>
+                {renderHtml && (
+                  <button
+                    type="button"
+                    className={`file-viewer-reveal-explorer-btn${htmlFullscreen ? ' active' : ''}`}
+                    onClick={() => setHtmlFullscreen((current) => !current)}
+                    title={htmlFullscreen ? 'Exit full screen (Esc)' : 'View rendered HTML full screen'}
+                    aria-label={htmlFullscreen ? 'Exit rendered HTML full screen' : 'View rendered HTML full screen'}
+                  >
+                    <Icon name="fullscreen" size={14} />
+                  </button>
+                )}
+              </>
             )}
             {isMarkdown && fileData && !showDiffView && !showUnifiedDiffView && !showHighlightView && (
               <>
@@ -1527,7 +1586,15 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
           )}
 
           {fileData && !loading && !error && (
-            isImage && imageUrl ? (
+            isHtml && renderHtml && htmlPreviewUrl ? (
+              <iframe
+                ref={htmlPreviewRef}
+                className="file-viewer-html-preview"
+                src={htmlPreviewUrl}
+                title={`Rendered preview of ${fileData.filename}`}
+                sandbox="allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads"
+              />
+            ) : isImage && imageUrl ? (
               // Show image viewer
               <div className={`file-viewer-image-wrapper zoomable${isSvg ? ' svg-preview' : ''}`}>
                 {/* Keep SVG documents in the browser's image-document context.

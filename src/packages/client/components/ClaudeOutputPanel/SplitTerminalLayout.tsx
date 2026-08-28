@@ -33,6 +33,8 @@ interface SplitTerminalLayoutProps {
   viewMode: ViewMode;
   /** Whether the terminal is open */
   isOpen: boolean;
+  /** Show structured output cards produced by plugin slash commands. */
+  showSlashCommandOutputs: boolean;
   /** Modal callbacks from parent */
   onImageClick: (url: string, name: string) => void;
   onFileClick: (path: string, editData?: { oldString?: string; newString?: string; operation?: string; unifiedDiff?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => void;
@@ -93,6 +95,7 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
     paneRef,
     viewMode,
     isOpen,
+    showSlashCommandOutputs,
     onImageClick,
     onFileClick,
     onBashClick,
@@ -174,6 +177,7 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
           agent={activeAgent}
           viewMode={viewMode}
           isOpen={isOpen}
+          showSlashCommandOutputs={showSlashCommandOutputs}
           onImageClick={onImageClick}
           onFileClick={onFileClick}
           onBashClick={onBashClick}
@@ -231,6 +235,7 @@ export const SplitTerminalLayout = memo(function SplitTerminalLayout(props: Spli
                   agent={agent}
                   viewMode={viewMode}
                   isOpen={isOpen}
+                  showSlashCommandOutputs={showSlashCommandOutputs}
                   onImageClick={onImageClick}
                   onFileClick={onFileClick}
                   onBashClick={onBashClick}
