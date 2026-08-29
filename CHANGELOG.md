@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.213.0] - 2026-08-29
+
+### Added
+- **All-day and recurring Google Calendar events** — calendar create/update APIs and the built-in skill now support date-only events plus recurrence rules such as yearly birthdays.
+
+### Fixed
+- **Stale compaction banners** — agent compaction state now clears on reconnect, idle transitions, resumed runtime events, and new output so interrupted status frames cannot leave the UI stuck.
+
 ## [1.212.0] - 2026-08-28
 
 ### Added

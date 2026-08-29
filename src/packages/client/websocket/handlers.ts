@@ -105,6 +105,10 @@ export function handleServerMessage(message: ServerMessage): void {
   switch (message.type) {
     case 'agents_update': {
       const agentList = message.payload as Agent[];
+      // Compaction is transient runtime state and is not part of the initial
+      // agent snapshot. A client that disconnected before `active:false`
+      // otherwise keeps the banner forever after reconnecting.
+      store.clearCompactingAgents();
       // Debug: log boss agents with their subordinateIds
       const bossAgents = agentList.filter(a => a.class === 'boss' || a.isBoss);
       if (bossAgents.length > 0) {
@@ -168,6 +172,11 @@ export function handleServerMessage(message: ServerMessage): void {
       const previousAgent = state.agents.get(updatedAgent.id);
 
       const statusChanged = previousAgent?.status !== updatedAgent.status;
+      // Idle is a hard lifecycle boundary: compaction either completed,
+      // aborted, or the runner stopped without emitting another stream event.
+      if (updatedAgent.status === 'idle') {
+        store.setAgentCompacting(updatedAgent.id, false);
+      }
       if (statusChanged) {
         debugLog.info(`Status change for ${updatedAgent.name}: ${previousAgent?.status} → ${updatedAgent.status}`, {
           agentId: updatedAgent.id,
@@ -274,6 +283,12 @@ export function handleServerMessage(message: ServerMessage): void {
         agentId: event.agentId,
         toolName: event.toolName,
       }, 'ws:event');
+      // Mirror the server's lifecycle fallback locally. If the explicit
+      // compacting_status=false frame was missed, any subsequent runtime event
+      // proves the agent resumed and must dismiss the stale banner.
+      if (event.type !== 'compacting') {
+        store.setAgentCompacting(event.agentId, false);
+      }
       if (event.type === 'error' && event.errorMessage) {
         store.addOutput(event.agentId, {
           text: event.errorMessage,
@@ -385,6 +400,10 @@ export function handleServerMessage(message: ServerMessage): void {
         uuid: output.uuid,
         toolName: output.toolName,
       }, 'ws:output');
+
+      // Output is an independent proof of resumed work. Clear before optional
+      // stream suppression so low-power/non-live clients recover as well.
+      store.setAgentCompacting(output.agentId, false);
 
       // Optional: suppress word-by-word text/thinking for Claude & Grok when the
       // user turns off streamTextLive (or low power mode is on). Final

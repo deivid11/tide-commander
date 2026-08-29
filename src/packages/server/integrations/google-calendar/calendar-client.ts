@@ -92,6 +92,10 @@ export interface CreateEventParams {
   description?: string;
   startDateTime: string;
   endDateTime: string;
+  /** Use date-only values (YYYY-MM-DD) instead of timed dateTime values. */
+  allDay?: boolean;
+  /** Google Calendar recurrence rules, e.g. RRULE:FREQ=YEARLY. */
+  recurrence?: string[];
   attendees: string[];
   location?: string;
   reminders?: {
@@ -204,8 +208,9 @@ export async function createEvent(params: CreateEventParams): Promise<CalendarEv
     requestBody: {
       summary: params.summary,
       description: params.description,
-      start: { dateTime: params.startDateTime },
-      end: { dateTime: params.endDateTime },
+      start: params.allDay ? { date: params.startDateTime } : { dateTime: params.startDateTime },
+      end: params.allDay ? { date: params.endDateTime } : { dateTime: params.endDateTime },
+      recurrence: params.recurrence,
       attendees: params.attendees.map((email) => ({ email })),
       location: params.location,
       reminders: params.reminders,
@@ -243,8 +248,15 @@ export async function updateEvent(
   const requestBody: calendar_v3.Schema$Event = {};
   if (updates.summary !== undefined) requestBody.summary = updates.summary;
   if (updates.description !== undefined) requestBody.description = updates.description;
-  if (updates.startDateTime) requestBody.start = { dateTime: updates.startDateTime };
-  if (updates.endDateTime) requestBody.end = { dateTime: updates.endDateTime };
+  if (updates.startDateTime)
+    requestBody.start = updates.allDay
+      ? { date: updates.startDateTime }
+      : { dateTime: updates.startDateTime };
+  if (updates.endDateTime)
+    requestBody.end = updates.allDay
+      ? { date: updates.endDateTime }
+      : { dateTime: updates.endDateTime };
+  if (updates.recurrence !== undefined) requestBody.recurrence = updates.recurrence;
   if (updates.attendees) requestBody.attendees = updates.attendees.map((email) => ({ email }));
   if (updates.location !== undefined) requestBody.location = updates.location;
   if (updates.reminders) requestBody.reminders = updates.reminders;

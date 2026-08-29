@@ -16,7 +16,20 @@ const router = Router();
 // POST /api/calendar/events — Create an event
 router.post('/events', async (req: Request, res: Response) => {
   try {
-    const { summary, description, startDateTime, endDateTime, attendees, location, reminders, calendarId, agentId, workflowInstanceId } = req.body;
+    const {
+      summary,
+      description,
+      startDateTime,
+      endDateTime,
+      allDay,
+      recurrence,
+      attendees,
+      location,
+      reminders,
+      calendarId,
+      agentId,
+      workflowInstanceId,
+    } = req.body;
 
     if (!summary || !startDateTime || !endDateTime) {
       res.status(400).json({ error: 'summary, startDateTime, and endDateTime are required' });
@@ -28,6 +41,8 @@ router.post('/events', async (req: Request, res: Response) => {
       description,
       startDateTime,
       endDateTime,
+      allDay,
+      recurrence,
       attendees: attendees || [],
       location,
       reminders,

@@ -20,7 +20,15 @@ curl -s -X POST http://localhost:5174/api/calendar/events \\
   -d '{"summary":"Release v2.1.0","description":"CC approved release","startDateTime":"2024-03-15T22:00:00-06:00","endDateTime":"2024-03-15T23:00:00-06:00","attendees":["dev@company.com","lead@company.com"]}'
 \`\`\`
 
-Optional fields: \`location\`, \`calendarId\` (default: primary), \`agentId\` (for audit logging).
+Optional fields: \`location\`, \`calendarId\` (default: primary), \`agentId\` (for audit logging),
+\`allDay\`, \`recurrence\`, and \`reminders\`. For an annual all-day birthday, send date-only
+values and a yearly recurrence rule:
+
+\`\`\`bash
+curl -s -X POST http://localhost:5174/api/calendar/events \\
+  -H "Content-Type: application/json" \\
+  -d '{"summary":"Birthday","startDateTime":"2027-05-02","endDateTime":"2027-05-03","allDay":true,"recurrence":["RRULE:FREQ=YEARLY"],"attendees":[]}'
+\`\`\`
 
 ## List Upcoming Events
 

@@ -1255,9 +1255,16 @@ class Store
   updateAgentContextStats(...args: Parameters<AgentActions['updateAgentContextStats']>) { return this.agentActions.updateAgentContextStats(...args); }
   updateAgentContext(...args: Parameters<AgentActions['updateAgentContext']>) { return this.agentActions.updateAgentContext(...args); }
   setAgentCompacting(agentId: string, active: boolean): void {
+    const currentlyActive = this.state.compactingAgents.has(agentId);
+    if (currentlyActive === active) return;
     const next = new Set(this.state.compactingAgents);
     if (active) { next.add(agentId); } else { next.delete(agentId); }
     this.state.compactingAgents = next;
+    this.notify();
+  }
+  clearCompactingAgents(): void {
+    if (this.state.compactingAgents.size === 0) return;
+    this.state.compactingAgents = new Set();
     this.notify();
   }
   removeAgent(...args: Parameters<AgentActions['removeAgent']>) { return this.agentActions.removeAgent(...args); }
