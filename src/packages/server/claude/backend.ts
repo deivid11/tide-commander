@@ -7,6 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import type {
   CLIBackend,
   BackendConfig,
@@ -23,6 +24,15 @@ import { loadAreas } from '../data/index.js';
 import { getAgent } from '../services/agent-service.js';
 
 const log = createLogger('Backend');
+
+export function translateClaudeCliModel(model: string): string {
+  if (model === 'opus[1m]') return 'claude-opus-4-7';
+  if (model === 'claude-opus-5[1m]') return 'claude-opus-5';
+  if (model === 'claude-opus-4-8[1m]') return 'claude-opus-4-8';
+  if (model === 'claude-fable-5[1m]') return 'claude-fable-5';
+  if (model === 'claude-sonnet-5[1m]') return 'claude-sonnet-5';
+  return model;
+}
 
 // Track tool_use_id to tool_name mapping for matching tool_result events
 // This is a module-level map that persists across parseEvent calls
@@ -368,12 +378,7 @@ export class ClaudeBackend implements CLIBackend {
     // run with the 1M-token context beta header; translate to the CLI-accepted
     // bare model ID. 'opus[1m]' is the legacy label for Opus 4.7 1M.
     if (config.model) {
-      let cliModel: string = config.model;
-      if (config.model === 'opus[1m]') cliModel = 'claude-opus-4-7';
-      else if (config.model === 'claude-opus-5[1m]') cliModel = 'claude-opus-5';
-      else if (config.model === 'claude-opus-4-8[1m]') cliModel = 'claude-opus-4-8';
-      else if (config.model === 'claude-fable-5[1m]') cliModel = 'claude-fable-5';
-      else if (config.model === 'claude-sonnet-5[1m]') cliModel = 'claude-sonnet-5';
+      const cliModel = translateClaudeCliModel(config.model);
       args.push('--model', cliModel);
       // Baseline for silent-fallback detection, in case this run never emits a
       // `system/init` (resume/tmux reattach paths). `init` overwrites it when
@@ -1017,6 +1022,17 @@ export class ClaudeBackend implements CLIBackend {
   /**
    * Format prompt as stdin input for Claude CLI (stream-json format)
    */
+  formatModelSwitchInput(model: string): string {
+    return JSON.stringify({
+      type: 'control_request',
+      request_id: randomUUID(),
+      request: {
+        subtype: 'set_model',
+        model: translateClaudeCliModel(model),
+      },
+    });
+  }
+
   formatStdinInput(prompt: string): string {
     // Sanitize prompt to remove invalid Unicode surrogates that break JSON
     let sanitizedPrompt = sanitizeUnicode(prompt);

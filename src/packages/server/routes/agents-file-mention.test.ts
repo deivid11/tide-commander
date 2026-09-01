@@ -35,6 +35,7 @@ vi.mock('../services/index.js', () => ({
     stopAgent: vi.fn(),
     collapseAgentContext: vi.fn(),
     isAgentRunning: vi.fn(() => false),
+    switchAgentModel: vi.fn(async () => true),
   },
   bossMessageService: { buildBossMessage: vi.fn() },
   skillService: { buildSkillPromptContent: vi.fn(), hasPendingSkillUpdates: vi.fn(() => false), getSkillUpdateData: vi.fn(), clearPendingSkillUpdates: vi.fn() },
@@ -341,6 +342,60 @@ describe('POST /api/agents/:id/convert-runtime — harness migration', () => {
     expect(res.status).toBe(409);
     expect((await res.json()).code).toBe('use-convert-runtime');
     expect(agentService.updateAgent).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/agents/bulk/change-model — context preservation', () => {
+  it('keeps the existing session and context counters when changing a Claude model', async () => {
+    const agent = {
+      ...makeAgent(),
+      provider: 'claude',
+      sessionId: 'session-to-preserve',
+      tokensUsed: 42_000,
+      contextUsed: 37_000,
+      contextStats: { totalTokens: 37_000, contextLimit: 200_000 },
+    };
+    vi.mocked(agentService.getAgent).mockReturnValue(agent as any);
+    vi.mocked(agentService.updateAgent).mockImplementation((_id, updates) => ({ ...agent, ...updates }) as any);
+
+    const res = await fetch(`${baseUrl}/api/agents/bulk/change-model`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ agentIds: ['agent-1'], provider: 'claude', model: 'sonnet' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ changed: ['agent-1'], failed: [] });
+    expect(runtimeService.stopAgent).not.toHaveBeenCalled();
+
+    const updates = vi.mocked(agentService.updateAgent).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(updates).toMatchObject({ model: 'sonnet', status: 'idle' });
+    expect(updates).not.toHaveProperty('sessionId');
+    expect(updates).not.toHaveProperty('tokensUsed');
+    expect(updates).not.toHaveProperty('contextUsed');
+    expect(updates).not.toHaveProperty('contextStats');
+  });
+
+  it('uses the native live-session model switch without restarting the runtime', async () => {
+    const agent = {
+      ...makeAgent(),
+      provider: 'claude',
+      sessionId: 'live-session',
+      effort: 'high',
+    };
+    vi.mocked(agentService.getAgent).mockReturnValue(agent as any);
+    vi.mocked(agentService.updateAgent).mockImplementation((_id, updates) => ({ ...agent, ...updates }) as any);
+    vi.mocked(runtimeService.isAgentRunning).mockReturnValue(true);
+
+    const res = await fetch(`${baseUrl}/api/agents/bulk/change-model`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ agentIds: ['agent-1'], provider: 'claude', model: 'sonnet' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(runtimeService.switchAgentModel).toHaveBeenCalledWith('agent-1', 'sonnet', 'high');
+    expect(runtimeService.stopAgent).not.toHaveBeenCalled();
   });
 });
 

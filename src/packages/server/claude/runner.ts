@@ -401,6 +401,33 @@ export class ClaudeRunner {
     return true;
   }
 
+  async switchModel(agentId: string, model: string, effort?: string): Promise<boolean> {
+    const activeProcess = this.activeProcesses.get(agentId);
+    const controlInput = this.backend.formatModelSwitchInput?.(model, effort);
+    if (!activeProcess || !controlInput) return false;
+
+    if (activeProcess.lastRequest) {
+      activeProcess.lastRequest = { ...activeProcess.lastRequest, model, effort };
+    }
+
+    if (activeProcess.tmuxSession) {
+      return sendToTmux(agentId, controlInput);
+    }
+
+    const stdin = activeProcess.process.stdin;
+    if (!stdin?.writable) return false;
+    return new Promise<boolean>((resolve) => {
+      stdin.write(`${controlInput}\n`, 'utf8', (err) => {
+        if (err) {
+          log.warn(`Native model switch write failed for ${agentId}: ${err.message}`);
+          resolve(false);
+          return;
+        }
+        resolve(true);
+      });
+    });
+  }
+
   sendMessage(agentId: string, message: string): boolean {
     return withAgentContext(agentId, () => this.sendMessageImpl(agentId, message));
   }

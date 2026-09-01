@@ -701,7 +701,8 @@ router.post('/bulk/clear-context', async (req: Request, res: Response) => {
 });
 
 // POST /api/agents/bulk/change-model - Change model for multiple agents.
-// Pi sessions are provider-neutral and are preserved across model providers.
+// The existing provider-native session is preserved and resumed with the new
+// model; changing a model must never implicitly perform a clear-context.
 router.post('/bulk/change-model', async (req: Request, res: Response) => {
   try {
     const { agentIds, provider, model, effort } = req.body as {
@@ -763,37 +764,22 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
           continue;
         }
 
-        if (provider === 'pi') {
+        if (runtimeService.isAgentRunning(agentId)) {
           const switchedInPlace = await runtimeService.switchAgentModel(
             agentId,
             sanitized,
             effortUpdate.set ? effortUpdate.value : agent.effort,
           );
-          if (!switchedInPlace && runtimeService.isAgentRunning(agentId)) {
-            // Pi single-shot mode cannot switch live, but the same Pi session
-            // can resume on the selected provider/model after this stop.
-            await runtimeService.stopAgent(agentId);
+          if (!switchedInPlace) {
+            log.log(`Bulk change-model: ${agentId} has no live switch control; saved model will apply on its next native turn/process`);
           }
-        } else {
-          await runtimeService.stopAgent(agentId);
         }
 
-        const modelUpdates: Record<string, unknown> = provider === 'pi'
-          ? {
-              status: 'idle',
-              currentTask: undefined,
-              currentTool: undefined,
-              contextStats: undefined,
-            }
-          : {
-              status: 'idle',
-              currentTask: undefined,
-              currentTool: undefined,
-              sessionId: undefined,
-              tokensUsed: 0,
-              contextUsed: 0,
-              contextStats: undefined,
-            };
+        const modelUpdates: Record<string, unknown> = {
+          status: 'idle',
+          currentTask: undefined,
+          currentTool: undefined,
+        };
         if (provider === 'claude') modelUpdates.model = sanitized;
         else if (provider === 'codex') modelUpdates.codexModel = sanitized;
         else if (provider === 'opencode') modelUpdates.opencodeModel = sanitized;
@@ -1905,7 +1891,7 @@ router.post('/:id/simulate-model-fallback', (req: Request<{ id: string }>, res: 
     }
 
     const body = (req.body ?? {}) as { requestedModel?: string; servedModel?: string };
-    const requestedModel = body.requestedModel || agent.model || 'claude-fable-5';
+    const requestedModel = body.requestedModel || agent.model || 'claude-fable-5-1';
     const servedModel = body.servedModel || 'claude-opus-4-8';
 
     const emitted = runtimeService.simulateModelFallback(agentId, requestedModel, servedModel);

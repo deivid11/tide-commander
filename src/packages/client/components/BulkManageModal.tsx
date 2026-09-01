@@ -21,8 +21,9 @@ import {
   type BulkAddSkillsResult,
   type BulkRemoveSkillsResult,
 } from '../api/bulk-agents';
-import type { Agent, DrawingArea, Skill } from '../../shared/types';
-import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, isDeprecatedClaudeModel, type ClaudeModel, type ClaudeEffort, type CodexModel } from '../../shared/agent-types';
+import type { Agent, DrawingArea, Skill, SessionTransferMode } from '../../shared/types';
+import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, isDeprecatedClaudeModel, supportsSessionImport, type ClaudeModel, type ClaudeEffort, type CodexModel } from '../../shared/agent-types';
+import { convertAgentRuntime } from '../api/session-transfer';
 import '../styles/components/bulk-manage-modal.scss';
 
 type ModelProvider = 'claude' | 'codex' | 'pi';
@@ -40,7 +41,7 @@ export interface BulkManageModalProps {
 type StatusFilter = 'all' | 'idle' | 'working' | 'error' | 'stopped';
 type IdleTimeFilter = 'any' | '>1h' | '>6h' | '>1d' | '>3d' | '>7d' | '>30d';
 type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
-type ModelFilter = 'all' | 'fable-5-1m' | 'fable-5' | 'opus' | 'opus-5-1m' | 'opus-5' | 'opus-4-8-1m' | 'opus-4-8' | 'opus-4-7-1m' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
+type ModelFilter = 'all' | 'fable-5-1' | 'fable-5-1m' | 'fable-5' | 'opus' | 'opus-5-1m' | 'opus-5' | 'opus-4-8-1m' | 'opus-4-8' | 'opus-4-7-1m' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
 
 type ConfirmAction = 'delete' | 'clear-context' | 'change-model' | 'add-skill' | 'remove-skill' | null;
 type SkillPickerMode = 'add' | 'remove' | null;
@@ -99,6 +100,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>('claude-opus-4-8[1m]');
   const [newCodexModel, setNewCodexModel] = useState<CodexModel>('gpt-5.6-luna');
   const [newPiModel, setNewPiModel] = useState<string>('');
+  const [transferMode, setTransferMode] = useState<SessionTransferMode>('smart');
+  const [stopActiveForTransfer, setStopActiveForTransfer] = useState(false);
   // 'default' represents "leave unchanged / use default"; other values are ClaudeEffort levels
   const [newEffort, setNewEffort] = useState<ClaudeEffort | 'default'>('xHigh');
   const [error, setError] = useState<string | null>(null);
@@ -117,6 +120,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       setError(null);
       setSuccess(null);
       setConfirmAction(null);
+      setTransferMode('smart');
+      setStopActiveForTransfer(false);
       setSkillPickerMode(null);
       setSkillSearchQuery('');
       setPendingSkillIds(new Set());
@@ -155,6 +160,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       if (modelFilter !== 'all') {
         const agentModel = agent.model || 'sonnet';
         const matchesFilter =
+          modelFilter === 'fable-5-1' ? agentModel === 'claude-fable-5-1' :
           modelFilter === 'fable-5-1m' ? agentModel === 'claude-fable-5[1m]' :
           modelFilter === 'fable-5' ? agentModel === 'claude-fable-5' :
           modelFilter === 'opus-5-1m' ? agentModel === 'claude-opus-5[1m]' :
@@ -287,14 +293,29 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
     return map;
   }, [agents, skills]);
 
-  // IDs of selected agents whose provider matches the chosen modelProvider
-  const modelProviderSelectedIds = useMemo(() => {
-    const agentById = new Map(agents.map(a => [a.id, a]));
-    return Array.from(selectedIds).filter(id => {
-      const agent = agentById.get(id);
-      return agent && (agent.provider ?? 'claude') === modelProvider;
-    });
-  }, [agents, selectedIds, modelProvider]);
+  const selectedModelAgents = useMemo(() => {
+    const agentById = new Map(agents.map((agent) => [agent.id, agent]));
+    return Array.from(selectedIds)
+      .map((id) => agentById.get(id))
+      .filter((agent): agent is Agent => Boolean(agent));
+  }, [agents, selectedIds]);
+  const sameProviderAgents = useMemo(
+    () => selectedModelAgents.filter((agent) => (agent.provider ?? 'claude') === modelProvider),
+    [selectedModelAgents, modelProvider],
+  );
+  const migratingAgents = useMemo(
+    () => selectedModelAgents.filter((agent) => (agent.provider ?? 'claude') !== modelProvider),
+    [selectedModelAgents, modelProvider],
+  );
+  const activeMigratingAgents = useMemo(
+    () => migratingAgents.filter((agent) => ['working', 'waiting', 'waiting_permission', 'orphaned'].includes(agent.status)),
+    [migratingAgents],
+  );
+  const migratingAgentsWithoutSession = useMemo(
+    () => migratingAgents.filter((agent) => !agent.sessionId),
+    [migratingAgents],
+  );
+  const targetSupportsImport = supportsSessionImport(modelProvider);
 
   const handleAction = useCallback(async (action: string) => {
     setActionInProgress(true);
@@ -308,8 +329,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       let verb = '';
 
       if (action === 'change-model') {
-        const ids = modelProviderSelectedIds;
-        if (ids.length === 0) {
+        if (selectedModelAgents.length === 0) {
           setActionInProgress(false);
           setConfirmAction(null);
           return;
@@ -322,8 +342,37 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
         const effort = modelProvider === 'claude' || modelProvider === 'pi'
           ? (newEffort === 'default' ? null : newEffort)
           : undefined;
-        result = await bulkChangeModel(ids, modelProvider, model, effort);
-        verb = 'Changed model for';
+        const succeeded: string[] = [];
+        const failed: string[] = [];
+
+        if (sameProviderAgents.length > 0) {
+          const changed = await bulkChangeModel(
+            sameProviderAgents.map((agent) => agent.id),
+            modelProvider,
+            model,
+            effort,
+          );
+          succeeded.push(...changed.succeeded);
+          failed.push(...changed.failed);
+        }
+
+        for (const agent of migratingAgents) {
+          try {
+            await convertAgentRuntime(agent.id, {
+              targetProvider: modelProvider,
+              mode: targetSupportsImport && agent.sessionId ? transferMode : 'fresh',
+              model,
+              effort,
+              stopActive: stopActiveForTransfer,
+            });
+            succeeded.push(agent.id);
+          } catch {
+            failed.push(agent.id);
+          }
+        }
+
+        result = { succeeded, failed };
+        verb = migratingAgents.length > 0 ? 'Changed model/runtime for' : 'Changed model for';
       } else if (action === 'add-skill' || action === 'remove-skill') {
         const ids = Array.from(selectedIds);
         const skillIds = Array.from(pendingSkillIds);
@@ -396,7 +445,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       setActionInProgress(false);
       setConfirmAction(null);
     }
-  }, [selectedIds, moveAreaId, modelProviderSelectedIds, modelProvider, newClaudeModel, newCodexModel, newEffort, pendingSkillIds]);
+  }, [selectedIds, moveAreaId, selectedModelAgents, sameProviderAgents, migratingAgents, modelProvider, newClaudeModel, newCodexModel, newPiModel, newEffort, targetSupportsImport, transferMode, stopActiveForTransfer, pendingSkillIds]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -516,6 +565,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 className="bulk-filter-select"
               >
                 <option value="all">All Models</option>
+                <option value="fable-5-1">Fable 5.1 [1M]</option>
                 <option value="fable-5-1m">Fable 5 [1M]</option>
                 <option value="fable-5">Fable 5 (200K)</option>
                 <option value="opus-5-1m">Opus 5 [1M]</option>
@@ -782,7 +832,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           {/* Confirmation overlay */}
           {confirmAction && (
             <div className="bulk-confirm-overlay">
-              <div className="bulk-confirm-box">
+              <div className={`bulk-confirm-box${confirmAction === 'change-model' ? ' bulk-confirm-box--model' : ''}`}>
                 {confirmAction === 'change-model' ? (
                   <>
                     <p>
@@ -800,22 +850,57 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                           </strong>
                         </>
                       )}
-                      {' '}for <strong>{modelProviderSelectedIds.length}</strong> {modelProvider} agent(s)?
+                      {' '}for <strong>{selectedModelAgents.length}</strong> selected agent(s)?
                     </p>
-                    {selectedIds.size > modelProviderSelectedIds.length && (
-                      <p style={{ fontSize: 12, color: 'var(--text-muted, #888)' }}>
-                        {selectedIds.size - modelProviderSelectedIds.length} selected agent(s) with a different provider will be skipped.
+                    {sameProviderAgents.length > 0 && (
+                      <p style={{ color: 'var(--color-success, #4caf7d)', fontWeight: 600 }}>
+                        {sameProviderAgents.length} already use {modelProvider}: the model changes in place without restarting or clearing context.
                       </p>
                     )}
-                    {modelProvider === 'pi' ? (
-                      <p style={{ color: 'var(--color-success, #4caf7d)', fontWeight: 600 }}>
-                        The Pi conversation and context will be preserved while changing model provider.
-                      </p>
-                    ) : (
-                      <p style={{ color: 'var(--color-danger, #e55)', fontWeight: 600 }}>
-                        <Icon name="warn" size={14} /> The current conversation/context will be CLEARED for each affected agent.
-                        Their sessions will restart on the next command so the new model takes effect.
-                      </p>
+                    {migratingAgents.length > 0 && (
+                      <div className="runtime-transfer-panel">
+                        <div className="runtime-transfer-panel__title">
+                          <Icon name="arrow-right" size={14} /> Migrate {migratingAgents.length} agent(s) to {modelProvider}
+                        </div>
+                        <div className="spawn-inline-hint">
+                          Commander uses the existing per-agent migration flow. Each source session remains archived for rollback.
+                        </div>
+                        {targetSupportsImport && (
+                          <div className="runtime-transfer-mode-grid">
+                            {([
+                              ['smart', 'Smart Context', 'Useful history and recent turns within the target context budget.'],
+                              ['full', 'Visible Transcript', 'Import visible user/assistant turns and safe tool activity.'],
+                              ['fresh', 'Fresh Start', 'Archive the source without importing its conversation.'],
+                            ] as Array<[SessionTransferMode, string, string]>).map(([mode, label, description]) => (
+                              <button
+                                type="button"
+                                key={mode}
+                                className={`runtime-transfer-mode ${transferMode === mode ? 'selected' : ''}`}
+                                onClick={() => setTransferMode(mode)}
+                              >
+                                <strong>{label}</strong>
+                                <span>{description}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {migratingAgentsWithoutSession.length > 0 && transferMode !== 'fresh' && (
+                          <div className="model-change-notice warning">
+                            {migratingAgentsWithoutSession.length} agent(s) have no saved session and will start fresh automatically;
+                            saved sessions still use the selected migration mode.
+                          </div>
+                        )}
+                        {activeMigratingAgents.length > 0 && (
+                          <label className="spawn-checkbox runtime-transfer-stop-confirmation">
+                            <input
+                              type="checkbox"
+                              checked={stopActiveForTransfer}
+                              onChange={(event) => setStopActiveForTransfer(event.target.checked)}
+                            />
+                            <span>Stop {activeMigratingAgents.length} active task(s) before taking their migration snapshots</span>
+                          </label>
+                        )}
+                      </div>
                     )}
                   </>
                 ) : confirmAction === 'add-skill' ? (
@@ -854,7 +939,11 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                     onClick={() => handleAction(confirmAction)}
                     disabled={
                       actionInProgress ||
-                      (confirmAction === 'change-model' && (modelProviderSelectedIds.length === 0 || (modelProvider === 'pi' && !newPiModel))) ||
+                      (confirmAction === 'change-model' && (
+                        selectedModelAgents.length === 0
+                        || (modelProvider === 'pi' && !newPiModel)
+                        || (activeMigratingAgents.length > 0 && !stopActiveForTransfer)
+                      )) ||
                       ((confirmAction === 'add-skill' || confirmAction === 'remove-skill') && pendingSkillIds.size === 0)
                     }
                   >
@@ -997,13 +1086,13 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
               )}
 
               <span className="bulk-change-model-count">
-                {modelProviderSelectedIds.length} match
+                {selectedModelAgents.length} selected{migratingAgents.length > 0 ? ` · ${migratingAgents.length} migrate` : ''}
               </span>
             </div>
             <div className="footer-buttons-right">
               <button
                 className="btn btn-primary"
-                disabled={modelProviderSelectedIds.length === 0 || actionInProgress || (modelProvider === 'pi' && !newPiModel)}
+                disabled={selectedModelAgents.length === 0 || actionInProgress || (modelProvider === 'pi' && !newPiModel)}
                 onClick={() => setConfirmAction('change-model')}
               >
                 Change Model

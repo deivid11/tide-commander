@@ -85,6 +85,10 @@ export class CodexRunnerRouter implements RuntimeRunner {
     return this.ownerRunner(agentId).queueMessage?.(agentId, message) ?? false;
   }
 
+  async switchModel(agentId: string, model: string, effort?: string): Promise<boolean> {
+    return this.ownerRunner(agentId).switchModel?.(agentId, model, effort) ?? false;
+  }
+
   async interruptTurn(agentId: string, clearQueue?: boolean): Promise<boolean> {
     const owner = this.ownerRunner(agentId);
     // Only the app-server runner can interrupt a turn in place; exec falls

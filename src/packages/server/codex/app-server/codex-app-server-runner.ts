@@ -413,9 +413,13 @@ export class CodexAppServerRunner implements RuntimeRunner {
     state.lastActivityTime = Date.now();
 
     try {
+      const model = this.threadModel(state.lastRequest);
+      const effort = state.lastRequest.codexConfig?.reasoningEffort;
       const res = (await proc.request('turn/start', {
         threadId: state.threadId,
         input: [{ type: 'text', text: promptText }],
+        ...(model ? { model } : {}),
+        ...(effort ? { effort } : {}),
       })) as { turn?: { id?: unknown } } | undefined;
       // Capture the turn id up front (also arrives on streamed notifications) so
       // an immediate "Send now" can interrupt before the first item/* event.
@@ -439,6 +443,23 @@ export class CodexAppServerRunner implements RuntimeRunner {
     log.log(`📤 Delivering queued follow-up to ${agentId.slice(0, 8)} (${state.queue.length} remaining)`);
     agentService.updateAgent(agentId, { status: 'working', currentTask: next.substring(0, 100) });
     void this.startTurn(agentId, state, next, proc);
+  }
+
+  async switchModel(agentId: string, model: string, effort?: string): Promise<boolean> {
+    const state = this.agents.get(agentId);
+    if (!state) return false;
+    state.lastRequest = {
+      ...state.lastRequest,
+      model,
+      ...(effort ? {
+        codexConfig: {
+          ...state.lastRequest.codexConfig,
+          reasoningEffort: effort as NonNullable<RunnerRequest['codexConfig']>['reasoningEffort'],
+        },
+      } : {}),
+    };
+    this.persistAgents();
+    return true;
   }
 
   queueMessage(agentId: string, message: string): boolean {

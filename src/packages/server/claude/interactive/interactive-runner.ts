@@ -20,7 +20,7 @@ import type {
   BackendConfig,
 } from '../types.js';
 import type { RuntimeRunner } from '../../runtime/types.js';
-import { ClaudeBackend } from '../backend.js';
+import { ClaudeBackend, translateClaudeCliModel } from '../backend.js';
 import { RunnerInternalEventBus } from '../runner/internal-events.js';
 import { RunnerStdoutPipeline } from '../runner/stdout-pipeline.js';
 import {
@@ -357,6 +357,13 @@ export class InteractiveClaudeRunner implements RuntimeRunner {
       changed = true;
     }
     if (changed) this.persistAll();
+  }
+
+  async switchModel(agentId: string, model: string, effort?: string): Promise<boolean> {
+    const proc = this.processes.get(agentId);
+    if (!proc) return false;
+    proc.lastRequest = { ...proc.lastRequest, model, effort };
+    return sendPromptToTmuxInteractive(agentId, `/model ${translateClaudeCliModel(model)}`);
   }
 
   sendMessage(agentId: string, message: string): boolean {

@@ -85,6 +85,15 @@ describe('ClaudeBackend', () => {
         expect(args).not.toContain('--model');
       });
     });
+
+    it('formats a native set_model control request without changing the conversation', () => {
+      const request = JSON.parse(new ClaudeBackend().formatModelSwitchInput('claude-fable-5[1m]'));
+      expect(request).toMatchObject({
+        type: 'control_request',
+        request: { subtype: 'set_model', model: 'claude-fable-5' },
+      });
+      expect(request.request_id).toEqual(expect.any(String));
+    });
   });
 
   describe('parseEvent', () => {

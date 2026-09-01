@@ -15,6 +15,7 @@ describe('normalizeModelId', () => {
   });
 
   it('drops dated snapshots and Bedrock revisions', () => {
+    expect(normalizeModelId('claude-fable-5-1-20260831')).toBe('claude-fable-5-1');
     expect(normalizeModelId('claude-opus-4-8-20260101')).toBe('claude-opus-4-8');
     expect(normalizeModelId('claude-fable-5-v1:0')).toBe('claude-fable-5');
     expect(normalizeModelId('claude-opus-5-latest')).toBe('claude-opus-5');
@@ -50,6 +51,7 @@ describe('modelTier / isModelAlias', () => {
 
 describe('formatModelName', () => {
   it('renders compact labels', () => {
+    expect(formatModelName('claude-fable-5-1')).toBe('Fable 5.1');
     expect(formatModelName('claude-fable-5')).toBe('Fable 5');
     expect(formatModelName('claude-opus-5')).toBe('Opus 5');
     expect(formatModelName('claude-opus-4-8')).toBe('Opus 4.8');

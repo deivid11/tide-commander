@@ -10,6 +10,16 @@ import {
   providerDisplayName,
 } from './agent-types.js';
 
+describe('CLAUDE_MODELS — Fable 5.1', () => {
+  it('exposes the canonical Fable 5.1 id with its native 1M context', () => {
+    expect(CLAUDE_MODELS['claude-fable-5-1']).toMatchObject({
+      label: 'Fable 5.1 [1M]',
+      contextWindow: 1000000,
+    });
+    expect(isDeprecatedClaudeModel('claude-fable-5-1')).toBe(false);
+  });
+});
+
 describe('CLAUDE_MODELS — Sonnet 5', () => {
   it('exposes the 1M-context Sonnet 5 variant as visible (non-deprecated)', () => {
     expect(CLAUDE_MODELS['claude-sonnet-5[1m]']).toBeDefined();

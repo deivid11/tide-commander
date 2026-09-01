@@ -6,6 +6,14 @@ import { describe, it, expect } from 'vitest';
 import { resolveModel } from './llm-matcher-service.js';
 
 describe('resolveModel', () => {
+  it('resolves Fable aliases to Fable 5.1 while preserving explicit Fable 5', () => {
+    expect(resolveModel('fable')).toBe('claude-fable-5-1');
+    expect(resolveModel('fable-5-1')).toBe('claude-fable-5-1');
+    expect(resolveModel('fable51')).toBe('claude-fable-5-1');
+    expect(resolveModel('claude-fable-5-1')).toBe('claude-fable-5-1');
+    expect(resolveModel('claude-fable-5')).toBe('claude-fable-5');
+  });
+
   it('resolves the "sonnet" alias to the latest Sonnet model', () => {
     expect(resolveModel('sonnet')).toBe('claude-sonnet-5');
   });

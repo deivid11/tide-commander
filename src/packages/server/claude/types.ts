@@ -259,6 +259,11 @@ export interface CLIBackend {
   // Format stdin input for the CLI
   formatStdinInput(prompt: string): string;
 
+  // Optional native control request for changing the live session model.
+  // Backends without this capability return no formatter and apply the saved
+  // model on their next native process/turn instead.
+  formatModelSwitchInput?(model: string, effort?: string): string;
+
   // Whether to close stdin after sending the initial prompt (e.g. opencode reads until EOF)
   shouldCloseStdinAfterPrompt?(): boolean;
 

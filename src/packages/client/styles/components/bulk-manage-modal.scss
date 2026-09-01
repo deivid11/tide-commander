@@ -402,6 +402,14 @@
   }
 }
 
+.bulk-confirm-box--model {
+  width: min(680px, calc(100% - 32px));
+  max-width: 680px;
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  text-align: left;
+}
+
 .bulk-confirm-actions {
   display: flex;
   gap: 8px;
@@ -416,6 +424,15 @@
 
   .filter-row {
     flex-direction: column;
+  }
+
+  .bulk-confirm-box--model {
+    width: calc(100% - 20px);
+    padding: 16px;
+  }
+
+  .runtime-transfer-mode-grid {
+    grid-template-columns: 1fr;
   }
 
   .bulk-filter-select,

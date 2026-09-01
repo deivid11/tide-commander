@@ -30,7 +30,8 @@ describe('buildInteractiveClaudeArgs', () => {
     expect(modelArg('claude-sonnet-5[1m]')).toBe('claude-sonnet-5');
   });
 
-  it('passes the plain claude-sonnet-5 id through unchanged', () => {
+  it('passes native 1M model ids through unchanged', () => {
+    expect(modelArg('claude-fable-5-1')).toBe('claude-fable-5-1');
     expect(modelArg('claude-sonnet-5')).toBe('claude-sonnet-5');
   });
 

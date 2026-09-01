@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.215.0] - 2026-09-01
+
+### Added
+- **Claude Fable 5.1** — the canonical `claude-fable-5-1` model is available with its native one-million-token context window across model pickers, matching, fallback detection, documentation, and boss spawning guidance.
+- **Bulk runtime migration** — Bulk Manage can move selected agents between Claude, Codex, and Pi using smart, full-transcript, or fresh transfer modes while preserving archived source sessions for rollback.
+
+### Changed
+- **Live model switching** — running Claude and Codex sessions can change models without clearing conversation history or context counters; active cross-provider migrations require explicit stop confirmation.
+
 ## [1.214.0] - 2026-08-31
 
 ### Added

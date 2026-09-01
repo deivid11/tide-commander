@@ -231,13 +231,15 @@ export const CODEX_MODELS: Record<CodexModel, { label: string; description: stri
 // Claude Model - which AI model to use.
 // Short names ('sonnet' | 'opus' | 'haiku') are legacy aliases for the CLI's
 // latest-of-family resolution. Explicit IDs (e.g. 'claude-opus-4-8') are
-// preferred for new agents so we pin a specific version. The '[1m]' suffix
-// is a Tide Commander label meaning "run this Opus version with the 1M-token
-// context beta header"; it translates to the bare model ID on the CLI side.
+// preferred for new agents so we pin a specific version. Models such as Fable
+// 5.1 expose a native 1M context under their bare model ID. The '[1m]' suffix
+// remains a Tide Commander label for older models whose 1M context uses the
+// beta header; those labels translate to bare model IDs on the CLI side.
 export type ClaudeModel =
   | 'sonnet'
   | 'opus'
   | 'haiku'
+  | 'claude-fable-5-1'
   | 'claude-fable-5'
   | 'claude-fable-5[1m]'
   | 'claude-sonnet-5'
@@ -252,8 +254,9 @@ export type ClaudeModel =
 
 export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string; contextWindow: number; deprecated?: boolean }> = {
   sonnet: { label: 'Sonnet', description: 'Balanced performance and cost', icon: '⚡', contextWindow: 200000 },
+  'claude-fable-5-1': { label: 'Fable 5.1 [1M]', description: 'Latest Fable — most capable Claude model for the hardest and longest-running tasks, native 1M token context window', icon: '🪄', contextWindow: 1000000 },
   'claude-sonnet-5[1m]': { label: 'Sonnet 5 [1M]', description: 'Latest Sonnet — most agentic Sonnet, near-Opus intelligence at lower cost, 1M token context window (recommended)', icon: '⚡', contextWindow: 1000000 },
-  'claude-fable-5[1m]': { label: 'Fable 5 [1M]', description: 'Most powerful, most intelligent Claude model — new tier above Opus, 1M token context window', icon: '🪄', contextWindow: 1000000 },
+  'claude-fable-5[1m]': { label: 'Fable 5 [1M]', description: 'Previous Fable generation with 1M token context window', icon: '🪄', contextWindow: 1000000 },
   'claude-opus-5[1m]': { label: 'Opus 5 [1M]', description: 'Latest Opus with 1M token context window — for complex agentic coding and enterprise work', icon: '🧠', contextWindow: 1000000 },
   'claude-opus-4-8[1m]': { label: 'Opus 4.8 [1M]', description: 'Opus 4.8 with 1M token context window (previous Opus generation, still supported)', icon: '🧠', contextWindow: 1000000 },
   'opus[1m]': { label: 'Opus 4.7 [1M]', description: 'Previous Opus generation with 1M token context window', icon: '🧠', contextWindow: 1000000 },
@@ -261,7 +264,7 @@ export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: st
   // Plain (200K) Opus IDs are kept as valid model values for existing agents
   // and CLI passthrough, but hidden from the "new agent" picker in favor of
   // the 1M variants above.
-  'claude-fable-5': { label: 'Fable 5 (200K)', description: 'Fable 5, 200K context window (1M variant preferred)', icon: '🪄', contextWindow: 200000, deprecated: true },
+  'claude-fable-5': { label: 'Fable 5 (200K)', description: 'Previous Fable generation with 200K context (Fable 5.1 preferred)', icon: '🪄', contextWindow: 200000, deprecated: true },
   'claude-opus-5': { label: 'Opus 5 (200K)', description: 'Latest Opus, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
   'claude-sonnet-5': { label: 'Sonnet 5 (200K)', description: 'Latest Sonnet, 200K context window (1M variant preferred)', icon: '⚡', contextWindow: 200000, deprecated: true },
   'claude-opus-4-8': { label: 'Opus 4.8 (200K)', description: 'Latest Opus, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
