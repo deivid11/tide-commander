@@ -62,6 +62,9 @@ interface AgentOverviewPanelProps {
   activeAgentId: string;
   onClose: () => void;
   onSelectAgent: (agentId: string) => void;
+  /** Mobile-only compact tray ↔ complete panel state. */
+  mobileFull?: boolean;
+  onToggleMobileFull?: () => void;
   /** External ref for the agent card list (used by the two-finger selector hook). */
   agentListRef?: React.RefObject<HTMLDivElement | null>;
   /** Two-finger selector state driven from the parent (GuakeOutputPanel). */
@@ -452,7 +455,7 @@ const AgentCardWorkingIndicator = React.memo(function AgentCardWorkingIndicator(
   );
 });
 
-export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agentListRef: externalAgentListRef, twoFingerState, expandedAreas: externalExpandedAreas, onToggleArea: externalOnToggleArea, onSetExpandedAreas }: AgentOverviewPanelProps) {
+export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobileFull = false, onToggleMobileFull, agentListRef: externalAgentListRef, twoFingerState, expandedAreas: externalExpandedAreas, onToggleArea: externalOnToggleArea, onSetExpandedAreas }: AgentOverviewPanelProps) {
   const { t } = useTranslation(['terminal', 'common']);
   const allAgents = useAgentsArray();
   const [activeWorkspace] = useWorkspaceFilter();
@@ -1266,7 +1269,7 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
 
   return (
     <AgentCardSelectionContext.Provider value={cardSelectionState}>
-    <div className={`agent-overview-panel${isMobileViewport && mobileFiltersCollapsed ? ' mobile-filters-collapsed' : ''}`}>
+    <div className={`agent-overview-panel${isMobileViewport && mobileFiltersCollapsed ? ' mobile-filters-collapsed' : ''}${isMobileViewport ? (mobileFull ? ' mobile-full' : ' mobile-compact') : ''}`}>
       {/* Stats + Search + Close — minimal top row */}
       <div className="aop-stats-row">
         <span className="stat">{t('terminal:overview.agents', { count: statusSummary.total })}</span>
@@ -1275,6 +1278,17 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, agen
         {statusSummary.error > 0 && <span className="stat stat-error"><Icon name="status-error" size={11} color={STATUS_COLORS.error} weight="fill" /> {statusSummary.error}</span>}
 
         <div className="aop-row-controls">
+          {onToggleMobileFull && (
+            <button
+              type="button"
+              className="aop-mobile-size-toggle"
+              onClick={onToggleMobileFull}
+              title={mobileFull ? 'Show compact agents panel' : 'Show complete agents panel'}
+              aria-label={mobileFull ? 'Show compact agents panel' : 'Show complete agents panel'}
+            >
+              {mobileFull ? 'Compact' : 'Full'}
+            </button>
+          )}
           <button
             type="button"
             className="aop-search-toggle"

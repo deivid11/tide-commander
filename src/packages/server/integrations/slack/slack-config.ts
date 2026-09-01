@@ -99,15 +99,6 @@ export interface SlackConfig {
    */
   mirrorOwnMessages?: boolean;
 
-  /**
-   * Auto-react with :eyes: (👀) on every incoming message that fires a trigger,
-   * as a visual "I saw it, working on it" ack. Default true. The global env
-   * `SLACK_REACT_ON_TRIGGER=false` still acts as a kill-switch across all
-   * instances; this per-instance flag only takes effect when the env doesn't
-   * force-disable.
-   */
-  reactOnTrigger?: boolean;
-
   // ─── Diagnostic, set by the client at runtime ───
   /** Effective transport in use (socket / polling / none). Read-only. */
   currentMode?: SlackCurrentMode;
@@ -128,7 +119,6 @@ const DEFAULT_CONFIG: SlackConfig = {
   pollingUseSearch: false,
   socketReconcileEnabled: true,
   mirrorOwnMessages: false,
-  reactOnTrigger: true,
   currentMode: 'none',
 };
 
@@ -326,14 +316,6 @@ export const slackConfigSchema: ConfigField[] = [
     defaultValue: false,
     group: 'General',
   },
-  {
-    key: 'reactOnTrigger',
-    label: 'Auto-react with :eyes: on trigger',
-    type: 'boolean',
-    description: 'When a Slack trigger fires on an incoming message, react with 👀 as a visual acknowledgement. Default on. Per-instance — turn off for accounts where the reaction is noisy.',
-    defaultValue: true,
-    group: 'General',
-  },
 ];
 
 // ─── Per-Instance Secret Keys ───
@@ -386,7 +368,6 @@ export function getConfigValues(
     pollingUseSearch: config.pollingUseSearch ?? false,
     socketReconcileEnabled: config.socketReconcileEnabled ?? true,
     mirrorOwnMessages: config.mirrorOwnMessages ?? false,
-    reactOnTrigger: config.reactOnTrigger ?? true,
     currentMode: config.currentMode ?? 'none',
     // Mask secret values for UI display
     SLACK_BOT_TOKEN: secrets.get(instanceSecretKey('SLACK_BOT_TOKEN', instanceId)) ? '********' : '',
@@ -446,9 +427,6 @@ export async function setConfigValues(
   }
   if (typeof values.mirrorOwnMessages === 'boolean') {
     updates.mirrorOwnMessages = values.mirrorOwnMessages;
-  }
-  if (typeof values.reactOnTrigger === 'boolean') {
-    updates.reactOnTrigger = values.reactOnTrigger;
   }
 
   updateConfig(updates, instanceId);

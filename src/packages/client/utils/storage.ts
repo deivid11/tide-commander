@@ -68,6 +68,7 @@ export const STORAGE_KEYS = {
   // Flat view inspector panel
   FLAT_INSPECTOR_OPEN: 'tide-flat-inspector-open',
   FLAT_INSPECTOR_VIEW: 'tide-flat-inspector-view',
+  FLAT_MOBILE_SIDEBAR_FULL: 'tide-flat-mobile-sidebar-full',
   FLAT_MIDDLE_WIDTH: 'tide-flat-middle-width',
   FLAT_INSPECTOR_WIDTH: 'tide-flat-inspector-width',
 

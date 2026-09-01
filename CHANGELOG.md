@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.214.0] - 2026-08-31
+
+### Added
+- **Compact mobile agent panels** — Guake and Flat View now open practical compact agent selectors with an explicit Full mode; Flat View remembers the selected size and keeps the compact rail available while chatting.
+- **Quick-select swipe navigation** — horizontal chat swipes now follow the agents currently visible in the quick-select row, including pinned, working, and recent agents, with wrapping navigation.
+- **Jira Service Management comments** — Jira request comments now support public/internal visibility, attachments uploaded through the customer-request flow, author metadata, and credential-safe avatar proxying.
+
+### Changed
+- **Slack reactions** — automatic trigger acknowledgements and eye reactions are disabled, while other explicit reactions remain supported.
+
+### Fixed
+- **Mobile sudo authorization** — expired sudo challenges are refreshed transparently, and touch/password input behavior reliably opens the Android keyboard without disabling pending requests locally.
+- **Jira customer attachments** — files now use the JSM temporary-file flow and are committed with the comment visibility instead of becoming generic issue attachments hidden from portal customers.
+
 ## [1.213.0] - 2026-08-29
 
 ### Added

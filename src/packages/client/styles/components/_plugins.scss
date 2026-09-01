@@ -3130,6 +3130,13 @@
 .shell-command-exec-pending strong { color: var(--text-secondary); }
 
 @media (max-width: 640px) {
+  // 16px prevents browser zoom and the larger target reliably receives native
+  // Android/WebView focus, allowing the software keyboard to open.
+  .shell-command-sudo-request form > input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
   .shell-commands-settings__header { align-items: flex-start; }
   .shell-command-editor__grid,
   .shell-command-editor__options { grid-template-columns: 1fr; }

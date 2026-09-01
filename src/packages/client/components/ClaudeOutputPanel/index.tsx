@@ -498,9 +498,15 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
     return () => { cancelled = true; };
   }, [activeAgentId]);
 
-  // Agent overview panel state (persisted in store across agent switches)
+  // Agent overview panel state (persisted in store across agent switches).
+  // Mobile opens in a compact, practical tray; users can explicitly expand it
+  // to the complete overview without making the bulky version the default.
   const overviewPanelOpen = useOverviewPanelOpen();
-  const setOverviewPanelOpen = useCallback((open: boolean) => store.setOverviewPanelOpen(open), []);
+  const [mobileOverviewFull, setMobileOverviewFull] = useState(false);
+  const setOverviewPanelOpen = useCallback((open: boolean) => {
+    if (open) setMobileOverviewFull(false);
+    store.setOverviewPanelOpen(open);
+  }, []);
 
   // Bottom split panels - supports multiple panels (terminal + PM2 logs side by side)
   const [bottomPanels, setBottomPanels] = useState<BottomPanel[]>([]);
@@ -1451,7 +1457,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   return (
     <div
       ref={terminalRef}
-      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${gitPanelOpen && isOpen ? 'with-git-panel' : ''} ${buildingsPanelOpen && isOpen ? 'with-buildings-panel' : ''} ${workflowPanelOpen && isOpen ? 'with-workflow-panel' : ''} ${trackingBoardVisible && isOpen ? 'with-tracking-board' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
+      className={`guake-terminal ${isOpen ? 'open' : 'collapsed'} ${isFullscreen && isOpen ? 'fullscreen' : ''} ${debugPanelOpen && isOpen ? 'with-debug-panel' : ''} ${gitPanelOpen && isOpen ? 'with-git-panel' : ''} ${buildingsPanelOpen && isOpen ? 'with-buildings-panel' : ''} ${workflowPanelOpen && isOpen ? 'with-workflow-panel' : ''} ${trackingBoardVisible && isOpen ? 'with-tracking-board' : ''} ${overviewPanelOpen && isOpen ? 'with-overview-panel' : ''} ${overviewPanelOpen && mobileOverviewFull ? 'overview-mobile-full' : ''} ${draggingOver ? 'drag-over' : ''} ${mobileSwipeCloseOffset > 0 ? 'mobile-swipe-close-active' : ''} ${isMobileSwipeClosing ? 'mobile-swipe-close-closing' : ''}`}
       style={{ '--terminal-height': `${terminalHeight}%`, '--mobile-swipe-close-offset': `${mobileSwipeCloseOffset}px`, '--guake-side-panel-width': `${sidePanelWidth}px`, ...(mobileOverviewHeight > 0 ? { '--guake-mobile-overview-height': `${mobileOverviewHeight}px` } : {}) } as React.CSSProperties}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -1520,6 +1526,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
         <AgentOverviewPanel
           activeAgentId={activeAgentId}
           onClose={() => setOverviewPanelOpen(false)}
+          mobileFull={mobileOverviewFull}
+          onToggleMobileFull={() => setMobileOverviewFull((full) => !full)}
           onSelectAgent={(agentId) => {
             store.setLastSelectionViaDirectClick(true);
             store.selectAgent(agentId);
@@ -1535,7 +1543,7 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
       )}
 
       {/* Mobile resize handle between overview and terminal */}
-      {overviewPanelOpen && isOpen && activeAgentId && (
+      {overviewPanelOpen && !mobileOverviewFull && isOpen && activeAgentId && (
         <div
           className="aop-resize-handle"
           onMouseDown={handleOverviewResizeMouseDown}

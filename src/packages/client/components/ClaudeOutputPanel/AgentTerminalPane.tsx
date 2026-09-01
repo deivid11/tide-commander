@@ -385,10 +385,10 @@ export const AgentTerminalPane = memo(forwardRef<AgentTerminalPaneHandle, AgentT
   // ── Terminal input ──
   const terminalInput = useTerminalInput({ selectedAgentId: agentId });
 
-  // Touch swipe on the chat area cycles the PINNED agents (>= 2 pinned). Shared
-  // by 3D/normal and Flat modes since both render this pane. In normal mode the
-  // all-agent useSwipeNavigation yields to this when >= 2 agents are pinned.
-  usePinnedSwipeNavigation({ outputRef: outputScrollRef, enabled: isOpen });
+  // Touch swipe on the Guake chat follows the visible quick-select row: pins,
+  // then working/recent agents when the activity dock is beside the composer.
+  // Shared by normal and Flat modes since both render this pane.
+  usePinnedSwipeNavigation({ activeAgentId: agentId, outputRef: outputScrollRef, enabled: isOpen });
 
   // When agents are pinned, the floating pinned-bar (mobile) overlays the bottom
   // of the chat — flag the output so the mobile stylesheet reserves extra bottom

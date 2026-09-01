@@ -8,6 +8,7 @@
  *   PATCH  /issues/:key                     - Update issue
  *   POST   /issues/:key/comments            - Add comment
  *   GET    /issues/:key/comments            - Get comments
+ *   GET    /issues/:key/comments/:id/avatar - Proxy the comment author's avatar
  *   GET    /issues/:key/transitions         - List transitions
  *   POST   /issues/:key/transitions         - Transition issue
  *   GET    /issues/:key/attachments         - List issue attachments
@@ -19,6 +20,7 @@
  *   POST   /service-desk/:deskId/requests   - Create SD request
  */
 
+import path from 'node:path';
 import { Router, Request, Response } from 'express';
 import type { IntegrationContext } from '../../../shared/integration-types.js';
 import type { JiraTicketLogEvent } from '../../../shared/event-types.js';
@@ -132,13 +134,32 @@ export function createJiraRoutes(client: JiraClient, ctx: IntegrationContext): R
   // Add comment
   router.post('/issues/:key/comments', async (req: Request<{ key: string }>, res: Response) => {
     try {
-      const { body } = req.body as { body: string };
-      if (!body) {
-        res.status(400).json({ error: 'body is required' });
+      const { body, public: isPublic, files } = req.body as {
+        body: string;
+        public?: boolean;
+        files?: string[];
+      };
+      if (!body && !files?.length) {
+        res.status(400).json({ error: 'body or files is required' });
+        return;
+      }
+      if (files?.length && !files.every((file) => typeof file === 'string' && path.isAbsolute(file))) {
+        res.status(400).json({ error: 'files must contain only absolute paths' });
         return;
       }
 
-      const result = await client.addComment(req.params.key, body);
+      // JSM files must be attached through the request API in the SAME operation that creates
+      // the comment; generic issue attachments are invisible to customers in the portal.
+      const result = files?.length
+        ? await client.addRequestCommentWithAttachments(
+            req.params.key,
+            body ?? '',
+            isPublic === true,
+            files
+          )
+        : typeof isPublic === 'boolean'
+          ? await client.addRequestComment(req.params.key, body, isPublic)
+          : await client.addComment(req.params.key, body);
 
       // Fetch issue for logging context
       const issue = await client.getIssue(req.params.key);
@@ -157,7 +178,13 @@ export function createJiraRoutes(client: JiraClient, ctx: IntegrationContext): R
         recordedAt: Date.now(),
       } as JiraTicketLogEvent);
 
-      res.json({ id: result.id });
+      res.json({
+        id: result.id,
+        ...(typeof isPublic === 'boolean'
+          ? { public: ('public' in result ? result.public : undefined) ?? isPublic }
+          : {}),
+        ...('attachments' in result ? { attachments: result.attachments } : {}),
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to add comment';
       res.status(500).json({ error: message });
@@ -174,6 +201,24 @@ export function createJiraRoutes(client: JiraClient, ctx: IntegrationContext): R
       res.status(500).json({ error: message });
     }
   });
+
+  // Proxy the author avatar so callers never receive Jira credentials or private avatar URLs.
+  router.get(
+    '/issues/:key/comments/:commentId/avatar',
+    async (req: Request<{ key: string; commentId: string }>, res: Response) => {
+      try {
+        const avatar = await client.fetchCommentAvatar(req.params.key, req.params.commentId);
+        res.setHeader('Content-Type', avatar.contentType);
+        res.setHeader('Content-Length', String(avatar.buffer.length));
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.end(avatar.buffer);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to get Jira avatar';
+        res.status(message.includes('not found') ? 404 : 500).json({ error: message });
+      }
+    }
+  );
 
   // ─── Transitions ───
 

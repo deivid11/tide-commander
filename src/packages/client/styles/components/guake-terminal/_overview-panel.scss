@@ -278,6 +278,23 @@
       justify-content: flex-end;
     }
 
+    .aop-mobile-size-toggle {
+      display: none;
+      border: 1px solid color-mix(in srgb, var(--accent-purple) 42%, transparent);
+      background: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+      color: var(--accent-purple);
+      font-family: $font-mono;
+      font-size: 11px;
+      line-height: 1.2;
+      padding: 3px 6px;
+      border-radius: $radius-sm;
+      cursor: pointer;
+
+      &:hover {
+        background: color-mix(in srgb, var(--accent-purple) 18%, transparent);
+      }
+    }
+
     .aop-search-toggle {
       display: none;
       border: 1px solid color-mix(in srgb, var(--accent-cyan) 35%, transparent);
@@ -1606,7 +1623,21 @@
 
 @media (max-width: 768px) {
   .guake-terminal {
-    --guake-mobile-overview-height: clamp(200px, 38dvh, 320px);
+    // Agents opens as a compact tray by default; the header's Full control
+    // promotes it to the complete mobile panel below.
+    --guake-mobile-overview-height: clamp(160px, 27dvh, 230px);
+  }
+
+  .guake-terminal.overview-mobile-full {
+    .guake-content {
+      display: none;
+    }
+
+    .agent-overview-panel {
+      height: 100%;
+      bottom: 0;
+      border-bottom: none;
+    }
   }
 
   .guake-terminal.with-overview-panel {
@@ -1646,6 +1677,7 @@
       font-size: 10px;
       gap: 6px;
 
+      .aop-mobile-size-toggle,
       .aop-search-toggle {
         display: inline-flex;
         align-items: center;
@@ -1857,7 +1889,7 @@
 
 @media (max-width: 420px) {
   .guake-terminal {
-    --guake-mobile-overview-height: clamp(180px, 34dvh, 280px);
+    --guake-mobile-overview-height: clamp(150px, 25dvh, 210px);
   }
 
   .agent-overview-panel {
@@ -1895,6 +1927,6 @@
 
 @media (max-width: 768px) and (orientation: landscape) {
   .guake-terminal {
-    --guake-mobile-overview-height: clamp(170px, 32dvh, 250px);
+    --guake-mobile-overview-height: clamp(140px, 30dvh, 210px);
   }
 }

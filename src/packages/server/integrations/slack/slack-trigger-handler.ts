@@ -25,7 +25,6 @@ import * as slackClient from './slack-client.js';
 import type { SlackMessage } from './slack-client.js';
 import { getInstance, type SlackInstance } from './slack-instance.js';
 import { listInstanceMetas, onInstanceChange } from './slack-instance-manifest.js';
-import { loadConfig } from './slack-config.js';
 import { formatAttachmentLine } from '../../services/attachment-downloader.js';
 
 /**
@@ -79,17 +78,6 @@ const instanceUnsubscribers = new Map<string, () => void>();
 let manifestUnsubscribe: (() => void) | null = null;
 
 /**
- * Global kill-switch: `SLACK_REACT_ON_TRIGGER=false` (or 0/no/off) disables the
- * auto-:eyes: ack across every instance regardless of per-instance config.
- * Defaults to enabled when unset.
- */
-function envAllowsReact(): boolean {
-  const raw = (process.env.SLACK_REACT_ON_TRIGGER ?? '').toLowerCase().trim();
-  if (!raw) return true;
-  return !['false', '0', 'no', 'off'].includes(raw);
-}
-
-/**
  * Subscribe to `onMessage` for a single instance. Idempotent — calling twice
  * for the same id keeps the original subscription. Returns nothing; the
  * unsubscribe callback is stashed in `instanceUnsubscribers`.
@@ -97,20 +85,10 @@ function envAllowsReact(): boolean {
 function subscribeInstance(
   inst: SlackInstance,
   onEvent: (event: ExternalEvent) => void,
-  envOn: boolean,
 ): void {
   if (instanceUnsubscribers.has(inst.id)) return;
 
   const off = inst.onMessage((message: SlackMessage) => {
-    // Per-instance toggle is read fresh on each message so flipping the
-    // checkbox in the UI takes effect without restarting the trigger.
-    const perInstance = loadConfig(inst.id).reactOnTrigger ?? true;
-    if (envOn && perInstance) {
-      // Use the instance-specific reaction so it posts as the right account.
-      inst.addReaction({ channel: message.channel, ts: message.ts, name: 'eyes' })
-        .catch(() => { /* swallow */ });
-    }
-
     const eventData: SlackTriggerEventData = { ...message, instanceId: inst.id };
     onEvent({
       source: 'slack',
@@ -134,8 +112,6 @@ export const slackTriggerHandler: TriggerHandler = {
   triggerType: 'slack',
 
   async startListening(onEvent) {
-    const envOn = envAllowsReact();
-
     // Seed: subscribe to every instance the manifest already knows about.
     // `getInstance()` is lazy + idempotent — it returns the existing instance
     // when present, or creates one if the registry hasn't seen this id yet
@@ -143,7 +119,7 @@ export const slackTriggerHandler: TriggerHandler = {
     // connection is required for the listener to be in place once the
     // instance connects later).
     for (const meta of listInstanceMetas()) {
-      subscribeInstance(getInstance(meta.id), onEvent, envOn);
+      subscribeInstance(getInstance(meta.id), onEvent);
     }
 
     // Wire dynamically when a new instance shows up (POST /api/slack/instances)
@@ -151,7 +127,7 @@ export const slackTriggerHandler: TriggerHandler = {
     // instances created AFTER server start actually fire.
     manifestUnsubscribe = onInstanceChange((change) => {
       if (change.type === 'added') {
-        subscribeInstance(getInstance(change.id), onEvent, envOn);
+        subscribeInstance(getInstance(change.id), onEvent);
       } else {
         unsubscribeInstance(change.id);
       }

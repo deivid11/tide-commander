@@ -13,6 +13,7 @@ import { STORAGE_KEYS, getStorage } from '../../utils/storage';
 import type { VibrationIntensity } from '../../utils/haptics';
 import type { Agent } from '../../../shared/types';
 import { getActiveWorkspaceState, isAgentVisibleInWorkspace } from '../WorkspaceSwitcher';
+import { useAgentDockPosition } from './agentDockPosition';
 
 export interface UseSwipeNavigationProps {
   agents: Map<string, Agent>;
@@ -69,10 +70,11 @@ export function useSwipeNavigation({
   const areas = useAreas();
   const toolExecutions = useToolExecutions();
   const settings = useSettings();
-  // When >= 2 agents are pinned, the pinned-swipe (usePinnedSwipeNavigation, bound
-  // on the same output element in AgentTerminalPane) takes over horizontal swipe.
-  // Disable this all-agent swipe gesture then so the two never both fire; the
-  // keyboard nav below still cycles the full agent list.
+  const dockPosition = useAgentDockPosition();
+  // The quick-select-row swipe (usePinnedSwipeNavigation, bound to the same
+  // output element) owns the gesture whenever that row includes the activity
+  // dock, or when a pinned-only row has at least two agents. Disable this
+  // all-agent gesture then so both handlers never fire for one swipe.
   const pinnedIds = usePinnedAgentIds();
   const pinnedNavCount = pinnedIds.reduce((n, id) => (agents.has(id) ? n + 1 : n), 0);
   const vibrationIntensity = (settings.vibrationIntensity ?? 1) as VibrationIntensity;
@@ -313,7 +315,8 @@ export function useSwipeNavigation({
     resetDragState();
   }, [resetDragState]);
 
-  const swipeEnabled = isOpen && sortedAgents.length > 1 && pinnedNavCount < 2;
+  const quickSelectSwipeOwnsOutput = dockPosition === 'composer' || pinnedNavCount >= 2;
+  const swipeEnabled = isOpen && sortedAgents.length > 1 && !quickSelectSwipeOwnsOutput;
   const sharedSwipeOpts = {
     // Physical swipe-left pulls in the NEXT agent, swipe-right the PREVIOUS one
     // (handleSwipeLeft/Right are named after list direction, hence the crossed wiring)

@@ -1960,8 +1960,18 @@ export function FlatView({
   // lives here so the drawer can be closed programmatically (e.g. after an
   // agent is tapped from inside it).
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const toggleMobileSidebar = useCallback(() => setMobileSidebarOpen(prev => !prev), []);
+  const [mobileSidebarFull, setMobileSidebarFull] = useState(() =>
+    getStorageBoolean(STORAGE_KEYS.FLAT_MOBILE_SIDEBAR_FULL, false)
+  );
+  const toggleMobileSidebar = useCallback(() => setMobileSidebarOpen((prev) => !prev), []);
   const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
+  const toggleMobileSidebarFull = useCallback(() => {
+    setMobileSidebarFull((full) => {
+      const next = !full;
+      setStorageBoolean(STORAGE_KEYS.FLAT_MOBILE_SIDEBAR_FULL, next);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('tide-flat-agents-drawer-state', { detail: { open: mobileSidebarOpen } }));
@@ -2437,11 +2447,12 @@ export function FlatView({
   const handleAgentClick = useCallback(
     (agentId: string) => {
       onAgentClick(agentId);
-      // Auto-close the mobile drawer when an agent is picked so the user
-      // lands straight in the chat without an extra dismiss tap.
-      setMobileSidebarOpen(false);
+      // Full mode is a browse/manage screen, so selecting lands in chat. The
+      // compact rail is intentionally persistent: it stays open beside chat
+      // for rapid switching while the user continues working in Guake.
+      if (mobileSidebarFull) setMobileSidebarOpen(false);
     },
-    [onAgentClick]
+    [onAgentClick, mobileSidebarFull]
   );
 
   // Empty-string sentinel keeps the Guake AgentOverviewPanel happy when nothing
@@ -3008,7 +3019,7 @@ export function FlatView({
   return (
     <div
       ref={flatViewRef}
-      className={`flat-view ${showInspector ? 'flat-view--with-inspector' : ''} ${selectedAgentId ? 'flat-view--has-chat' : ''} ${mobileSidebarOpen ? 'flat-view--mobile-sidebar-open' : ''}`}
+      className={`flat-view ${showInspector ? 'flat-view--with-inspector' : ''} ${selectedAgentId ? 'flat-view--has-chat' : ''} ${mobileSidebarOpen ? 'flat-view--mobile-sidebar-open' : ''} ${mobileSidebarFull ? 'flat-view--mobile-sidebar-full' : 'flat-view--mobile-sidebar-compact'}`}
       style={(() => {
         if (middleWidth === null && inspectorWidth === null) return undefined;
         // Typed as a record so the custom CSS properties pass through the
@@ -3021,7 +3032,7 @@ export function FlatView({
     >
       {/* Backdrop that captures taps outside the drawer to close it. Only
           rendered when the drawer is open. Hidden on desktop via CSS. */}
-      {mobileSidebarOpen && (
+      {mobileSidebarOpen && mobileSidebarFull && (
         <div
           className="flat-mobile-sidebar-backdrop"
           onClick={closeMobileSidebar}
@@ -3054,6 +3065,19 @@ export function FlatView({
               title="Create new area"
             >
               + Area
+            </button>
+            <button
+              type="button"
+              className="flat-mobile-sidebar-size-toggle"
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleMobileSidebarFull();
+              }}
+              aria-pressed={mobileSidebarFull}
+              title={mobileSidebarFull ? 'Show compact agents panel' : 'Show complete agents panel'}
+              aria-label={mobileSidebarFull ? 'Show compact agents panel' : 'Show complete agents panel'}
+            >
+              {mobileSidebarFull ? 'Compact' : 'Full'}
             </button>
           </div>
         </div>

@@ -5,14 +5,13 @@ import type { SlackMessage } from './slack-instance.js';
 
 // ─── Fake SlackInstance ─────────────────────────────────────────────────────
 //
-// We model only the slice the trigger handler depends on: `id`, `onMessage`,
-// and `addReaction`. `emit` is a test-only helper that simulates an inbound
-// message by invoking every registered onMessage callback.
+// We model only the slice the trigger handler depends on: `id` and
+// `onMessage`. `emit` is a test-only helper that simulates an inbound message
+// by invoking every registered onMessage callback.
 
 interface FakeSlackInstance {
   id: string;
   onMessage: (cb: (m: SlackMessage) => void) => () => void;
-  addReaction: (params: { channel: string; ts: string; name: string }) => Promise<void>;
   emit: (m: SlackMessage) => void;
   listenerCount: () => number;
 }
@@ -25,7 +24,6 @@ function makeFakeInstance(id: string): FakeSlackInstance {
       listeners.add(cb);
       return () => { listeners.delete(cb); };
     },
-    async addReaction() { /* swallow */ },
     emit(m) {
       for (const l of listeners) l(m);
     },
@@ -69,13 +67,6 @@ vi.mock('./slack-instance-manifest.js', () => ({
     manifestListeners.add(l);
     return () => { manifestListeners.delete(l); };
   },
-}));
-
-// loadConfig is consulted on every dispatched message for the per-instance
-// reactOnTrigger toggle. We always return a minimal valid config — actual
-// reaction calls go to the fake addReaction (which swallows).
-vi.mock('./slack-config.js', () => ({
-  loadConfig: () => ({ reactOnTrigger: false }),
 }));
 
 // formatAttachmentLine isn't exercised here but is imported by the handler.

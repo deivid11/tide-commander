@@ -49,8 +49,12 @@ export interface JiraTransition {
 export interface JiraComment {
   id: string;
   author: string;
+  authorAccountId?: string;
+  authorAvatarUrl?: string;
   body: string;
   created: string;
+  /** Service Management: false = interno (solo agentes), true = visible al cliente. */
+  jsdPublic?: boolean;
 }
 
 export interface JiraSearchResult {
@@ -172,18 +176,160 @@ export class JiraClient {
     return { id: (resp as { id: string }).id };
   }
 
+  /** Add a Jira Service Management request comment with explicit customer visibility. */
+  async addRequestComment(
+    issueKey: string,
+    body: string,
+    isPublic: boolean
+  ): Promise<{ id: string; public: boolean }> {
+    const resp = await this.request(
+      'POST',
+      `/rest/servicedeskapi/request/${encodeURIComponent(issueKey)}/comment`,
+      { body, public: isPublic }
+    );
+    const comment = resp as { id: string; public?: boolean };
+    return { id: comment.id, public: comment.public ?? isPublic };
+  }
+
+  /**
+   * JSM attachments are not generic Jira issue attachments. They must first be uploaded as
+   * temporary files to the service desk and then attached through the customer-request API;
+   * that final call creates the comment and applies its public/internal visibility atomically.
+   */
+  async addRequestCommentWithAttachments(
+    issueKey: string,
+    body: string,
+    isPublic: boolean,
+    filePaths: string[]
+  ): Promise<{ id: string; public: boolean; attachments: JiraAttachment[] }> {
+    if (!this.isConfigured) {
+      throw new Error('Jira client is not configured. Set base URL, email, and API token.');
+    }
+    const request = (await this.request(
+      'GET',
+      `/rest/servicedeskapi/request/${encodeURIComponent(issueKey)}`
+    )) as { serviceDeskId?: string };
+    if (!request.serviceDeskId) throw new Error(`No service desk found for Jira request ${issueKey}`);
+
+    const form = new FormData();
+    for (const filePath of filePaths) {
+      const bytes = await fs.readFile(filePath);
+      form.append('file', new Blob([new Uint8Array(bytes)]), path.basename(filePath));
+    }
+    const temporaryResponse = await fetch(
+      `${this.baseUrl}/rest/servicedeskapi/servicedesk/${encodeURIComponent(request.serviceDeskId)}/attachTemporaryFile`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${this.auth}`,
+          Accept: 'application/json',
+          'X-Atlassian-Token': 'no-check',
+          'X-ExperimentalApi': 'opt-in',
+        },
+        body: form,
+      }
+    );
+    if (!temporaryResponse.ok) {
+      const detail = await temporaryResponse.text().catch(() => '');
+      throw new Error(
+        `JSM temporary attachment upload failed for ${issueKey} (${temporaryResponse.status}): ${detail}`
+      );
+    }
+    const temporary = (await temporaryResponse.json()) as {
+      temporaryAttachments?: Array<{ temporaryAttachmentId: string; fileName: string }>;
+    };
+    const ids = (temporary.temporaryAttachments ?? []).map((item) => item.temporaryAttachmentId);
+    if (ids.length !== filePaths.length) {
+      throw new Error(`JSM accepted ${ids.length} of ${filePaths.length} temporary attachments`);
+    }
+    const result = (await this.request(
+      'POST',
+      `/rest/servicedeskapi/request/${encodeURIComponent(issueKey)}/attachment`,
+      {
+        temporaryAttachmentIds: ids,
+        ...(body.trim() ? { additionalComment: { body } } : {}),
+        public: isPublic,
+      }
+    )) as {
+      comment?: { id?: string; public?: boolean };
+      attachments?: JiraAttachment[];
+    };
+    const id = result.comment?.id;
+    if (!id) throw new Error(`JSM did not return the attachment comment id for ${issueKey}`);
+    return {
+      id,
+      public: result.comment?.public ?? isPublic,
+      attachments: result.attachments ?? [],
+    };
+  }
+
   async getComments(issueKey: string): Promise<JiraComment[]> {
     const resp = (await this.request(
       'GET',
       `/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment`
-    )) as { comments: Array<{ id: string; author: { displayName: string }; body: unknown; created: string }> };
+    )) as {
+      comments: Array<{
+        id: string;
+        author: {
+          displayName: string;
+          accountId?: string;
+          avatarUrls?: Record<string, string>;
+        };
+        body: unknown;
+        created: string;
+        /** Service Management: false = comentario interno (solo agentes); ausente en proyectos software. */
+        jsdPublic?: boolean;
+      }>;
+    };
 
     return resp.comments.map((c) => ({
       id: c.id,
       author: c.author.displayName,
+      ...(typeof c.jsdPublic === 'boolean' ? { jsdPublic: c.jsdPublic } : {}),
+      ...(c.author.accountId ? { authorAccountId: c.author.accountId } : {}),
+      ...(c.author.avatarUrls
+        ? {
+            authorAvatarUrl:
+              c.author.avatarUrls['48x48'] ??
+              c.author.avatarUrls['32x32'] ??
+              c.author.avatarUrls['24x24'] ??
+              c.author.avatarUrls['16x16'],
+          }
+        : {}),
       body: this.fromADF(c.body),
       created: c.created,
     }));
+  }
+
+  /**
+   * Fetch the avatar for a comment author without exposing Jira credentials or its avatar URL.
+   * Authentication is only forwarded to the configured Jira origin; Atlassian's external avatar
+   * CDN receives the signed/public URL without our Basic credential.
+   */
+  async fetchCommentAvatar(
+    issueKey: string,
+    commentId: string
+  ): Promise<{ buffer: Buffer; contentType: string }> {
+    if (!this.isConfigured) {
+      throw new Error('Jira client is not configured. Set base URL, email, and API token.');
+    }
+    const comment = (await this.getComments(issueKey)).find((item) => item.id === commentId);
+    if (!comment?.authorAvatarUrl) throw new Error(`Jira avatar not found for comment ${commentId}`);
+
+    const target = new URL(comment.authorAvatarUrl);
+    const headers: Record<string, string> = { Accept: 'image/*' };
+    if (target.origin === new URL(this.baseUrl).origin) {
+      headers.Authorization = `Basic ${this.auth}`;
+    }
+    const response = await fetch(target, { method: 'GET', headers, redirect: 'follow' });
+    if (!response.ok) {
+      throw new Error(`Jira avatar fetch failed for comment ${commentId} (${response.status})`);
+    }
+    const contentType = response.headers.get('content-type')?.split(';', 1)[0]?.trim() ?? '';
+    if (!contentType.startsWith('image/')) {
+      throw new Error(`Jira avatar for comment ${commentId} is not an image`);
+    }
+    return { buffer: Buffer.from(await response.arrayBuffer()), contentType };
   }
 
   // ─── Transitions ───

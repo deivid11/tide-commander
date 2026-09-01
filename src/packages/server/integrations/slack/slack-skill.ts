@@ -211,21 +211,15 @@ Add an emoji reaction to a Slack message. Requires the bot token to have **\`rea
 \`\`\`bash
 curl -s -X POST http://localhost:5174/api/slack/reactions/add \\
   -H "Content-Type: application/json" \\
-  -d '{"channel":"C0123456789","ts":"1234567890.123456","name":"eyes"}'
+  -d '{"channel":"C0123456789","ts":"1234567890.123456","name":"white_check_mark"}'
 \`\`\`
 
 Fields:
 - \`channel\` — Slack channel id (required)
 - \`ts\` — message timestamp (required; looks like \`1234567890.123456\`)
-- \`name\` — emoji slug without colons (e.g. \`eyes\`, \`+1\`, \`white_check_mark\`). Raw eye emoji chars (\`👁\`, \`👀\`) are auto-normalized to \`eyes\`.
+- \`name\` — emoji slug without colons (e.g. \`+1\`, \`white_check_mark\`). Eye reactions are disabled.
 
 \`already_reacted\` responses are silently ignored.
-
-### Auto-react on triggers
-
-When a Slack trigger fires on an incoming message, the bot automatically reacts with :eyes: (👀) as a visual acknowledgement that it saw the message. This happens fire-and-forget — a failed reaction never blocks the trigger.
-
-Disable the auto-ack by setting \`SLACK_REACT_ON_TRIGGER=false\` (accepts \`false\`/\`0\`/\`no\`/\`off\`) in the server environment.
 
 ## Check Connection Status
 

@@ -560,7 +560,7 @@ router.post('/files/:id/download', async (req: Request<{ id: string }>, res: Res
 });
 
 // POST /api/slack/reactions/add — Add an emoji reaction to a message
-// Body: { channel, ts, name } — name is the Slack slug without colons (e.g. "eyes").
+// Body: { channel, ts, name } — name is the Slack slug without colons (e.g. "white_check_mark").
 router.post('/reactions/add', async (req: Request, res: Response) => {
   try {
     const { channel, ts, name } = req.body as { channel?: string; ts?: string; name?: string };

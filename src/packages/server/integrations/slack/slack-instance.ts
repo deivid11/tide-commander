@@ -1270,9 +1270,11 @@ function parseSlackTs(ts: string): number {
   return Math.floor(parseFloat(ts) * 1000);
 }
 
-function normalizeEmojiName(input: string): string {
+export function normalizeEmojiName(input: string): string {
   const trimmed = input.trim().replace(/^:|:$/g, '');
-  if (trimmed === '👁' || trimmed === '👁️' || trimmed === '👀') return 'eyes';
+  if (trimmed === 'eye' || trimmed === 'eyes' || trimmed === '👁' || trimmed === '👁️' || trimmed === '👀') {
+    throw new Error('Eye reactions are disabled');
+  }
   return trimmed;
 }
 
