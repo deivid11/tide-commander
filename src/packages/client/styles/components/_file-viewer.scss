@@ -396,6 +396,33 @@
   }
 }
 
+.glb-animation-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.68);
+  pointer-events: auto;
+
+  select {
+    width: min(190px, 24vw);
+    height: 26px;
+    padding: 0 24px 0 7px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 4px;
+    outline: none;
+    background: rgba(0, 0, 0, 0.34);
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+
+    &:focus-visible {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-cyan) 45%, transparent);
+    }
+  }
+}
+
 .stl-viewer-info {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1059,6 +1086,15 @@
 
     .stl-viewer-info {
       display: none;
+    }
+
+    .glb-animation-selector {
+      > span { display: none; }
+
+      select {
+        width: min(120px, 31vw);
+        font-size: 10px;
+      }
     }
   }
 

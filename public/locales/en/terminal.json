@@ -1127,6 +1127,8 @@
     "glbStats": "{{objects}} objects · {{triangles}} triangles",
     "emptyGlb": "The GLB file contains no compatible meshes",
     "glbLoadError": "Could not load this GLB file",
+    "animation": "Animation",
+    "staticPose": "Static pose",
     "viewerSettings": "Settings",
     "modelColor": "Model color",
     "backgroundColor": "Background",

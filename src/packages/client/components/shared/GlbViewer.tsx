@@ -30,6 +30,28 @@ interface ModelInfo {
   dimensions: [number, number, number];
 }
 
+export interface GlbAnimationOption {
+  index: number;
+  label: string;
+  duration: number;
+}
+
+export function buildGlbAnimationOptions(
+  clips: ReadonlyArray<Pick<THREE.AnimationClip, 'name' | 'duration'>>,
+): GlbAnimationOption[] {
+  const nameCounts = new Map<string, number>();
+  return clips.map((clip, index) => {
+    const baseName = clip.name.trim() || `Animation ${index + 1}`;
+    const count = (nameCounts.get(baseName) ?? 0) + 1;
+    nameCounts.set(baseName, count);
+    return {
+      index,
+      label: count === 1 ? baseName : `${baseName} (${count})`,
+      duration: clip.duration,
+    };
+  });
+}
+
 type ColorMaterial = THREE.Material & { color: THREE.Color };
 
 function hasColor(material: THREE.Material): material is ColorMaterial {
@@ -77,9 +99,13 @@ export function GlbViewer({ url, filename, filePath, onFileSelect }: GlbViewerPr
   const modelMaterialsRef = useRef<THREE.Material[]>([]);
   const edgeObjectsRef = useRef<THREE.LineSegments[]>([]);
   const lightsRef = useRef<{ hemisphere: THREE.HemisphereLight; key: THREE.DirectionalLight; fill: THREE.DirectionalLight } | null>(null);
+  const animationMixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const animationClipsRef = useRef<THREE.AnimationClip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
+  const [animationOptions, setAnimationOptions] = useState<GlbAnimationOption[]>([]);
+  const [selectedAnimation, setSelectedAnimation] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [initialPreferences] = useState(getThreeViewerPreferences);
   const [modelColor, setModelColor] = useState(initialPreferences.modelColor);
@@ -114,6 +140,9 @@ export function GlbViewer({ url, filename, filePath, onFileSelect }: GlbViewerPr
     const abortController = new AbortController();
     let disposed = false;
     let modelRoot: THREE.Group | null = null;
+    let animationMixer: THREE.AnimationMixer | null = null;
+    let animationFrame = 0;
+    const animationClock = new THREE.Clock();
     let axesHelper: THREE.AxesHelper | null = null;
     const edgeGeometries: THREE.BufferGeometry[] = [];
     const edgeMaterials: THREE.Material[] = [];
@@ -121,6 +150,10 @@ export function GlbViewer({ url, filename, filePath, onFileSelect }: GlbViewerPr
     setLoading(true);
     setError(null);
     setModelInfo(null);
+    setAnimationOptions([]);
+    setSelectedAnimation(null);
+    animationMixerRef.current = null;
+    animationClipsRef.current = [];
     modelMaterialsRef.current = [];
     edgeObjectsRef.current = [];
     raycastObjectsRef.current = [];
@@ -175,7 +208,7 @@ export function GlbViewer({ url, filename, filePath, onFileSelect }: GlbViewerPr
     resizeObserver.observe(container);
     resize();
 
-    const finishModel = (root: THREE.Group) => {
+    const finishModel = (root: THREE.Group, clips: THREE.AnimationClip[]) => {
       if (disposed) return;
       modelRoot = root;
       const meshes: THREE.Mesh[] = [];
@@ -204,6 +237,21 @@ export function GlbViewer({ url, filename, filePath, onFileSelect }: GlbViewerPr
       }
       modelMaterialsRef.current = [...materialSet];
       scene.add(root);
+      animationClipsRef.current = clips;
+      setAnimationOptions(buildGlbAnimationOptions(clips));
+      if (clips.length > 0) {
+        animationMixer = new THREE.AnimationMixer(root);
+        animationMixerRef.current = animationMixer;
+        setSelectedAnimation(0);
+        const tick = () => {
+          if (disposed) return;
+          animationMixer?.update(Math.min(animationClock.getDelta(), 0.1));
+          renderer.render(scene, camera);
+          animationFrame = requestAnimationFrame(tick);
+        };
+        animationClock.start();
+        animationFrame = requestAnimationFrame(tick);
+      }
       const box = new THREE.Box3().setFromObject(root);
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
@@ -277,7 +325,7 @@ export function GlbViewer({ url, filename, filePath, onFileSelect }: GlbViewerPr
           const resourcePath = resolveGlbResourcePath(effectiveFilePath, resourceUrl);
           return apiUrl(`${resourceEndpoint}?path=${encodeURIComponent(resourcePath)}${token ? `&token=${encodeURIComponent(token)}` : ''}`);
         });
-        new GLTFLoader(manager).parse(buffer, '', (gltf) => finishModel(gltf.scene), () => {
+        new GLTFLoader(manager).parse(buffer, '', (gltf) => finishModel(gltf.scene, gltf.animations), () => {
           if (!disposed) { setError(t('fileViewerModal.glbLoadError')); setLoading(false); }
         });
       })
@@ -288,6 +336,9 @@ export function GlbViewer({ url, filename, filePath, onFileSelect }: GlbViewerPr
     return () => {
       disposed = true;
       abortController.abort();
+      cancelAnimationFrame(animationFrame);
+      animationMixer?.stopAllAction();
+      if (modelRoot && animationMixer) animationMixer.uncacheRoot(modelRoot);
       disposeThreeAreaMarkerGroup(areaMarkerGroupRef.current);
       areaMarkerGroupRef.current = null;
       resizeObserver.disconnect();
@@ -316,10 +367,23 @@ export function GlbViewer({ url, filename, filePath, onFileSelect }: GlbViewerPr
       modelMaterialsRef.current = [];
       edgeObjectsRef.current = [];
       lightsRef.current = null;
+      animationMixerRef.current = null;
+      animationClipsRef.current = [];
       resetViewRef.current = null;
       setViewRef.current = null;
     };
   }, [url, filename, effectiveFilePath, t]);
+
+  useEffect(() => {
+    const mixer = animationMixerRef.current;
+    if (!mixer) return;
+    mixer.stopAllAction();
+    if (selectedAnimation !== null) {
+      const clip = animationClipsRef.current[selectedAnimation];
+      if (clip) mixer.clipAction(clip).reset().play();
+    }
+    renderRef.current?.();
+  }, [selectedAnimation]);
 
   useEffect(() => {
     if (sceneRef.current) sceneRef.current.background = new THREE.Color(backgroundColor);
@@ -403,6 +467,23 @@ export function GlbViewer({ url, filename, filePath, onFileSelect }: GlbViewerPr
       {!loading && !error && modelInfo && <>
         <div className="stl-viewer-toolbar">
           <span className="stl-viewer-info">{t('fileViewerModal.glbStats', { objects: modelInfo.objects.toLocaleString(), triangles: modelInfo.triangles.toLocaleString() })} · {modelInfo.dimensions.map(formatDimension).join(' × ')}</span>
+          {animationOptions.length > 0 && (
+            <label className="glb-animation-selector">
+              <span>{t('fileViewerModal.animation')}</span>
+              <select
+                value={selectedAnimation ?? ''}
+                onChange={(event) => setSelectedAnimation(event.target.value === '' ? null : Number(event.target.value))}
+                aria-label={t('fileViewerModal.animation')}
+              >
+                <option value="">{t('fileViewerModal.staticPose')}</option>
+                {animationOptions.map((animation) => (
+                  <option key={animation.index} value={animation.index}>
+                    {animation.label} · {animation.duration.toFixed(2)}s
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <ThreeViewShortcuts onView={setStandardView} />
           <button type="button" onClick={resetView}>{t('fileViewerModal.resetView')}</button>
           <button type="button" className={areaPanelOpen ? 'active' : undefined} onClick={() => { setAreaPanelOpen((open) => !open); setPlacementShape(null); }}>{t('fileViewerModal.areas')}{areas.length ? ` (${areas.length})` : ''}</button>

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.216.0] - 2026-09-01
+
+### Added
+- **GLB animation playback** — the 3D file viewer now detects authored animation clips, plays them with Three.js, and provides a responsive selector for named clips or a static pose in English and Spanish.
+
 ## [1.215.0] - 2026-09-01
 
 ### Added

@@ -995,6 +995,8 @@
     "glbStats": "{{objects}} objetos · {{triangles}} triángulos",
     "emptyGlb": "El archivo GLB no contiene mallas compatibles",
     "glbLoadError": "No se pudo cargar este archivo GLB",
+    "animation": "Animación",
+    "staticPose": "Pose estática",
     "viewerSettings": "Ajustes",
     "modelColor": "Color del modelo",
     "backgroundColor": "Fondo",
