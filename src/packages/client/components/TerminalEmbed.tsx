@@ -17,7 +17,7 @@
 import React, { useRef, useEffect, useCallback, useMemo, useState, memo } from 'react';
 import type { Terminal } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
-import { authUrl } from '../utils/storage';
+import { authUrl, getApiBaseUrl } from '../utils/storage';
 import { Icon } from './Icon';
 import nerdSymbolsFontUrl from '../assets/fonts/SymbolsNerdFontMono-Regular.woff2';
 import { getXtermTheme } from '../utils/themes';
@@ -492,8 +492,15 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
       resizeObs = new ResizeObserver(() => debouncedFit!());
       resizeObs.observe(containerRef.current);
 
-      // Fetch ttyd's credential token before connecting WebSocket
-      const basePath = terminalUrl.endsWith('/') ? terminalUrl.slice(0, -1) : terminalUrl;
+      // Resolve the terminal URL against the CONFIGURED BACKEND, never against
+      // window.location. The server hands back a relative path
+      // (/api/terminal/<id>/), which only resolves correctly when the page was
+      // served by the backend itself. Inside the packaged APK the page origin
+      // is the app's own bundled assets (capacitor androidScheme 'http' →
+      // http://localhost), so a relative URL looked for ttyd on the phone and
+      // the socket closed instantly ("[Terminal disconnected]").
+      const relPath = terminalUrl.endsWith('/') ? terminalUrl.slice(0, -1) : terminalUrl;
+      const basePath = /^https?:\/\//i.test(relPath) ? relPath : `${getApiBaseUrl()}${relPath}`;
       const tokenUrl = authUrl(`${basePath}/token`);
       log('Fetching ttyd token from:', tokenUrl);
       let ttydToken = '';
@@ -520,10 +527,10 @@ const TerminalEmbed = memo(function TerminalEmbed({ terminalUrl, visible }: Term
 
       if (destroyed) return;
 
-      // Connect WebSocket to ttyd
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsPath = authUrl(`${basePath}/ws`);
-      const wsUrl = `${wsProtocol}//${window.location.host}${wsPath}`;
+      // Connect WebSocket to ttyd. basePath is absolute, so the ws scheme comes
+      // from the backend's own scheme (http→ws, https→wss) rather than from the
+      // page's — those differ in the APK and behind an https proxy.
+      const wsUrl = authUrl(`${basePath}/ws`).replace(/^http/i, 'ws');
       log('Connecting WebSocket to:', wsUrl);
 
       ws = new WebSocket(wsUrl, ['tty']);

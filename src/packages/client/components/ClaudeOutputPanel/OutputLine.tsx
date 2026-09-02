@@ -241,7 +241,10 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
   const [execDetailExpanded, setExecDetailExpanded] = useState(false);
   const [grepResultsModal, setGrepResultsModal] = useState<CodexGrepResults | null>(null);
   const { text: rawText, isStreaming, isUserPrompt, timestamp, skillUpdate, _toolKeyParam, _editData, _todoInput, _bashOutput, _bashCommand, _isRunning } = output;
-  const text = filterCostText(rawText, hideCost);
+  // hideCost hides what the *session* spent, so it must never touch what the
+  // user typed — a pasted invoice or bank statement is theirs to read back
+  // verbatim.
+  const text = filterCostText(rawText, hideCost && !isUserPrompt);
 
   // Extract tool info from payload (for real-time display before look-ahead completes)
   const payloadToolName = output.toolName;

@@ -99,22 +99,39 @@ const FILTER_COST_MAX_CHARS = 8 * 1024 * 1024;
 const filterCostCache = new Map<string, string>();
 let filterCostCacheChars = 0;
 
+// What an API/session cost actually looks like: a plain, small amount —
+// `$0.05`, `~$1.23`, `$12.4567`, `$2`. Deliberately NOT matched: amounts with
+// thousands separators (`$217,501.30`) and bare amounts of $10,000 or more.
+// Those are real-world money the user or an agent is talking ABOUT — invoices,
+// salaries, budgets — and silently deleting them from a message is far worse
+// than leaving a session cost visible. The trailing `(?![\d,.])` is what makes
+// that hold: without it `$217,501.30` would match its `$217` prefix and render
+// as a mangled `,501.30`.
+const COST_AMOUNT = String.raw`~?\$\d{1,4}(?:\.\d{1,6})?(?![\d,.])`;
+const HAS_COST_AMOUNT = new RegExp(COST_AMOUNT);
+
+const BARE_AMOUNT_RE = new RegExp(String.raw`[^\S\n]*\(?[^\S\n]*${COST_AMOUNT}(?:[^\S\n]*\))?`, 'g');
+const COST_LABEL_RE = new RegExp(String.raw`[^\S\n]*cost[:\s]+${COST_AMOUNT}`, 'gi');
+const PRICE_LABEL_RE = new RegExp(String.raw`[^\S\n]*price[:\s]+${COST_AMOUNT}`, 'gi');
+const PARENTHESISED_RE = new RegExp(String.raw`[^\S\n]*\(${COST_AMOUNT}[^\S\n]*(?:USD|cost|spent)?\)`, 'gi');
+const TRAILING_DASH_RE = new RegExp(String.raw`[^\S\n]*-[^\S\n]*${COST_AMOUNT}[^\S\n]*$`, 'g');  // trailing " - $0.05"
+
 function filterCostTextUncached(text: string): string {
-  // Only spend the regex passes when there is a `$<digit>` to strip — the
+  // Only spend the regex passes when there is an amount worth stripping — the
   // common case (prose, and code full of shell `$VAR`s) returns the exact
   // input, preserving indentation.
-  if (text.indexOf('$') === -1 || !/\$[\d.]/.test(text)) return text;
+  if (text.indexOf('$') === -1 || !HAS_COST_AMOUNT.test(text)) return text;
   // Remove patterns like "$0.05", "cost: $1.23", "(cost $0.50)", "~$0.10", etc.
   // Whitespace is only touched around a removed match (the leading `\s*` in
   // each pattern absorbs the space before it); a blanket collapse would
   // destroy code indentation / table alignment in messages that mention a
   // price once.
   return text
-    .replace(/[^\S\n]*\(?[^\S\n]*~?\$[\d,.]+(?:[^\S\n]*\))?/g, '')
-    .replace(/[^\S\n]*cost[:\s]+~?\$[\d,.]+/gi, '')
-    .replace(/[^\S\n]*price[:\s]+~?\$[\d,.]+/gi, '')
-    .replace(/[^\S\n]*\(~?\$[\d,.]+[^\S\n]*(?:USD|cost|spent)?\)/gi, '')
-    .replace(/[^\S\n]*-[^\S\n]*~?\$[\d,.]+[^\S\n]*$/g, '')  // trailing " - $0.05"
+    .replace(BARE_AMOUNT_RE, '')
+    .replace(COST_LABEL_RE, '')
+    .replace(PRICE_LABEL_RE, '')
+    .replace(PARENTHESISED_RE, '')
+    .replace(TRAILING_DASH_RE, '')
     .replace(/[^\S\n]+$/gm, '')  // trailing spaces left behind on a line
     .trim();
 }

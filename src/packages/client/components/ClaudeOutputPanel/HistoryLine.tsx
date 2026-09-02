@@ -136,7 +136,10 @@ export const HistoryLine = memo(function HistoryLine({
   const matchingPendingPrompt = _pendingPromptId
     ? { id: _pendingPromptId }
     : (toolUseId ? pendingAgentPrompts.find((p) => p.id === toolUseId) : undefined);
-  const content = filterCostText(rawContent, hideCost);
+  // hideCost hides what the *session* spent, so it must never touch what the
+  // user typed — a pasted invoice or bank statement is theirs to read back
+  // verbatim.
+  const content = filterCostText(rawContent, hideCost && type !== 'user');
   const { toggle: toggleTTS, speaking } = useTTS();
   // Agent cwd — resolves relative file references for the Ctrl+hover preview,
   // matching how onFileClick resolves them for the click that opens the modal.

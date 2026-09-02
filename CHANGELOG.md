@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.216.1] - 2026-09-02
+
+### Fixed
+- **Terminal in the Android app** — the embedded terminal resolved its ttyd token and WebSocket URLs against the page origin, which inside the packaged APK is the app's own bundled assets (`http://localhost`), so every terminal opened straight to "Terminal disconnected". Both URLs now resolve against the configured backend, and the WebSocket scheme follows the backend's scheme instead of the page's (also fixes `ws://` being chosen for an `https://` backend).
+- **Cost filtering no longer eats real money amounts** — hiding session cost stripped any `$` amount from a message, mangling invoices, budgets and salaries (`$217,501.30` rendered as `,501.30`). Amounts with thousands separators and bare amounts of $10,000 or more are now left alone.
+- **Your own messages are never cost-filtered** — text you typed or pasted is shown back verbatim regardless of the hide-cost setting.
+
 ## [1.216.0] - 2026-09-01
 
 ### Added

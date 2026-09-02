@@ -28,6 +28,16 @@ describe('filterCostText', () => {
     expect(filterCostText('| a | b |\n|---|---|\n| 1 | $2 |', true)).toBe('| a | b |\n|---|---|\n| 1 | |');
   });
 
+  it('leaves real-world money alone (grouped or >= $10,000)', () => {
+    const statement = 'GNP SAB GNP9211244P0 COYOACAN\n$217,501.30\n20 ago 2026';
+    expect(filterCostText(statement, true)).toBe(statement);
+    expect(filterCostText('El pago fue de $1,234.56 MXN', true)).toBe('El pago fue de $1,234.56 MXN');
+    expect(filterCostText('Budget is $250000 this year', true)).toBe('Budget is $250000 this year');
+    // and never mangles a grouped amount down to its leading digits
+    expect(filterCostText('Total: $217,501.30', true)).not.toContain(',501.30\n');
+    expect(filterCostText('cost: $217,501.30', true)).toBe('cost: $217,501.30');
+  });
+
   it('memoizes by text (same reference back on repeat calls)', () => {
     const text = 'Total cost: $0.05 for ' + 'x'.repeat(10_000);
     const a = filterCostText(text, true);
