@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { store, useIsConnected, useResyncInProgress, useConnectionFailing } from '../store';
+import { store, useIsConnected, useResyncInProgress, useConnectionFailing, useAuthRejected } from '../store';
 import { reconnect } from '../websocket/connection';
 import {
   getBackendUrl,
@@ -25,6 +25,7 @@ export function NotConnectedOverlay() {
   const isConnected = useIsConnected();
   const resyncInProgress = useResyncInProgress();
   const connectionFailing = useConnectionFailing();
+  const authRejected = useAuthRejected();
   const [dismissed, setDismissed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [gracePeriod, setGracePeriod] = useState(true);
@@ -263,7 +264,11 @@ export function NotConnectedOverlay() {
     <div className="not-connected-overlay">
       <div className="not-connected-panel">
         <h2 className="not-connected-title">Tide Commander</h2>
-        {connectionFailing && (
+        {authRejected ? (
+          <div className="not-connected-failing" role="alert" aria-live="polite">
+            The server rejected the auth token. Enter the correct token below and connect.
+          </div>
+        ) : connectionFailing && (
           <div className="not-connected-failing" role="alert" aria-live="polite">
             Cannot reach server — retrying in the background.
           </div>

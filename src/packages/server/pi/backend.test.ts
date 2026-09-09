@@ -55,7 +55,7 @@ describe('PiBackend.buildArgs', () => {
     });
     expect(withModel[withModel.indexOf('--model') + 1]).toBe('anthropic/claude-sonnet-4-5');
 
-    for (const leaked of ['claude-opus-4-8[1m]', 'gpt-5.6-luna', 'grok-4.5']) {
+    for (const leaked of ['claude-opus-4-8[1m]', 'gpt-5.6-luna', 'gpt-6-astra', 'grok-4.5']) {
       const args = backend.buildArgs({ workingDir: '/tmp/project', model: leaked, prompt: 'hi' });
       expect(args).not.toContain('--model');
     }

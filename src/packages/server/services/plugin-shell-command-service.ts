@@ -1,4 +1,5 @@
 import * as fs from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -217,12 +218,16 @@ export class PluginShellCommandService {
   private loaded = false;
   private loadPromise: Promise<void> | null = null;
   private mutationQueue: Promise<void> = Promise.resolve();
+  private socatPath: string | undefined;
 
   constructor(options: {
     dataDir?: string;
     sudoSocketDir?: string;
     sudoPasswordValidator?: SudoPasswordValidator;
+    /** Absolute path to socat; defaults to a PATH lookup (Linux, macOS/Homebrew, ...). */
+    socatPath?: string;
   } = {}) {
+    this.socatPath = options.socatPath;
     this.dataDir = options.dataDir ?? path.join(getDataDir(), 'plugins', 'shell-commands');
     this.stateFile = path.join(this.dataDir, 'commands.json');
     this.runDir = path.join(this.dataDir, 'runs');
@@ -418,6 +423,25 @@ export class PluginShellCommandService {
     };
   }
 
+  /** Locate socat: explicit option, then PATH, then the usual absolute locations. */
+  private async resolveSocat(): Promise<string> {
+    const candidates: string[] = [];
+    if (this.socatPath) candidates.push(this.socatPath);
+    for (const dir of (process.env.PATH ?? '').split(path.delimiter)) {
+      if (dir) candidates.push(path.join(dir, 'socat'));
+    }
+    candidates.push('/usr/bin/socat', '/usr/local/bin/socat', '/opt/homebrew/bin/socat');
+    for (const candidate of candidates) {
+      const ok = await fs.access(candidate, fsConstants.X_OK).then(() => true, () => false);
+      if (ok) return candidate;
+    }
+    throw new PluginShellCommandError(
+      'sudo password support requires socat on the Commander host (install it or set socatPath)',
+      503,
+      'SUDO_ASKPASS_UNAVAILABLE',
+    );
+  }
+
   async materializeScript(script: string, sudoEnabled = false): Promise<{
     filePath: string;
     sudoEnv?: Record<string, string>;
@@ -440,16 +464,10 @@ export class PluginShellCommandService {
       const sudoSocketPath = path.join(this.sudoSocketDir, `${randomUUID()}.sock`);
       // askpass receives only an ephemeral Unix-socket path. The password is
       // delivered by Commander when sudo asks; it never enters argv/env/files.
-      await fs.access('/usr/bin/socat').catch(() => {
-        throw new PluginShellCommandError(
-          'sudo password support requires /usr/bin/socat on the Commander host',
-          503,
-          'SUDO_ASKPASS_UNAVAILABLE',
-        );
-      });
+      const socat = await this.resolveSocat();
       await fs.writeFile(
         askpassPath,
-        '#!/bin/sh\nexec /usr/bin/socat - "UNIX-CONNECT:${TIDE_SUDO_SOCKET}"\n',
+        `#!/bin/sh\nexec ${shellQuote(socat)} - "UNIX-CONNECT:\${TIDE_SUDO_SOCKET}"\n`,
         { encoding: 'utf8', mode: 0o700 },
       );
       await fs.writeFile(

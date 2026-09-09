@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.218.0] - 2026-09-09
+
+### Added
+- **GPT-6 Astra** — OpenAI's `gpt-6-astra` is selectable for Codex agents across the model registry, pickers and provider docs. The Pi backend knows not to pass it through as a Pi model name.
+- **Wrong auth token is told apart from an unreachable server** — a browser cannot read the HTTP status of a rejected WebSocket upgrade, so a stale token looked exactly like a network outage and the client retried forever. After a failed handshake the client now probes the authenticated `GET /api/auth/check` endpoint; a 401 surfaces "the server rejected the auth token" in the connection overlay with the token field, and retries slow to once every 30 s instead of hammering the server.
+- **JAVA_HOME is repaired instead of propagated** — a `JAVA_HOME` left dangling by a JDK upgrade is detected at server boot and when launching a PM2 building, falling back to a real JDK (or being unset) rather than being inherited by every building and agent shell.
+
+### Changed
+- **PM2 buildings get exponential restart backoff** — a process that dies on boot was relaunched about 90 times a second, flooding `pm2.log` with gigabytes; failed launches now back off to roughly one attempt every 15 s.
+- **Plugin edits no longer restart the dev server** — `npm run dev:server` goes through a launcher that excludes installed external plugin roots from the `tsx watch` set, so editing a plugin in a sibling checkout stops dropping live exec registries, agent streams and WebSocket clients.
+- **WebSocket connect/disconnect logs name the why** — connections log client IP, origin and user agent, and disconnects add the close code, reason and connection lifetime, separating a client-side close from a transport that died underneath.
+
+### Fixed
+- **"Reconnecting" loop every 5 minutes** — the backend prober accepted any HTTP 200 for `/api/health`, but the Vite dev server and most SPA hosts answer every path with `index.html`. It kept selecting a URL whose `/ws` upgrade could never succeed, burning about 20 s of failed handshakes before demoting it and being dragged back the moment the 5-minute demotion expired. The probe now requires the real JSON health document.
+- **Slack shutdown no longer stalls** — stopping a polling client waited one rate-limiter refill interval per channel, so a workspace with many channels held up shutdown past the server's forced-shutdown timeout. Parked workers are now woken immediately and the in-flight cycle gets a short grace period.
+- **PM2 status with many processes** — `pm2 jlist` embeds each process's full environment, overflowing Node's 1 MiB output buffer at around 40 processes and failing with "stdout maxBuffer length exceeded". The buffer is now 64 MB.
+- **Sudo slash commands work outside Debian/Ubuntu layouts** — the secure sudo password channel required `socat` to sit exactly at `/usr/bin/socat` and failed on hosts that install it elsewhere (macOS/Homebrew, `/usr/local/bin`, custom PATH entries). Commander now looks it up on `PATH` and in the usual absolute locations, and the path can be set explicitly.
+
 ## [1.217.0] - 2026-09-09
 
 ### Added

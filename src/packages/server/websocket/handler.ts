@@ -446,7 +446,11 @@ export function init(server: HttpServer | HttpsServer): WebSocketServer {
       (ws as TaggedSocket).__tcNotifyOnly = true;
     }
 
-    log.log(`${notifyOnly ? 'Notification-only client' : 'Client'} connected (total: ${clients.size})`);
+    const clientInfo = (ws as WebSocket & { __tcClient?: { ip: string; userAgent: string; origin: string } }).__tcClient;
+    const clientLabel = clientInfo
+      ? `from ${clientInfo.ip || '?'} origin=${clientInfo.origin || 'no-origin'} ua="${clientInfo.userAgent.slice(0, 60)}"`
+      : 'from unknown';
+    log.log(`${notifyOnly ? 'Notification-only client' : 'Client'} connected (total: ${clients.size}) ${clientLabel}`);
 
     if (!notifyOnly) {
       // Send initial state immediately – status sync runs in background
@@ -552,11 +556,20 @@ export function init(server: HttpServer | HttpsServer): WebSocketServer {
       }
     });
 
-    ws.on('close', () => {
+    // Close code + reason + lifetime name the WHY: 1000/1001 with a reason is
+    // the client (unload, zombie kill, superseded), 1005/1006 without one is
+    // the transport dying underneath (network, proxy, sleeping device).
+    const connectedAtMs = Date.now();
+    ws.on('error', (err) => {
+      log.warn(`Client socket error ${clientLabel}: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    ws.on('close', (code, reasonBuf) => {
       clients.delete(ws);
       setWsClientsCount(clients.size);
       gitWatchService.removeSocket(ws);
-      log.log(`Client disconnected (remaining: ${clients.size})`);
+      const reason = reasonBuf?.toString() || '';
+      const lifeSec = Math.round((Date.now() - connectedAtMs) / 1000);
+      log.log(`Client disconnected (remaining: ${clients.size}) code=${code}${reason ? ` reason="${reason}"` : ''} after ${lifeSec}s ${clientLabel}`);
     });
 
     // Background sync – refreshes agent status after initial data is sent.

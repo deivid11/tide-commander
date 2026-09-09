@@ -1,6 +1,6 @@
 {
   "name": "tide-commander",
-  "version": "1.217.0",
+  "version": "1.218.0",
   "description": "Visual multi-agent orchestrator and manager for Claude Code with 3D/2D interface",
   "repository": {
     "type": "git",
@@ -20,7 +20,7 @@
   "scripts": {
     "dev": "concurrently \"bun run dev:client\" \"bun run dev:server\"",
     "dev:client": "vite",
-    "dev:server": "tsx watch src/packages/server/index.ts",
+    "dev:server": "node scripts/dev-server.mjs",
     "docs:dev": "npm --prefix src/packages/landing run dev",
     "docs:build": "npm --prefix src/packages/landing run build",
     "docs:preview": "npm --prefix src/packages/landing run preview",

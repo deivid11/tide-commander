@@ -184,6 +184,7 @@ export const DEFAULT_PI_MODEL = '';
 export type CodexApprovalMode = 'untrusted' | 'on-failure' | 'on-request' | 'never';
 export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 export type CodexModel =
+  | 'gpt-6-astra'
   | 'gpt-5.6-luna'
   | 'gpt-5.6-terra'
   | 'gpt-5.6-sol';
@@ -211,6 +212,11 @@ export interface CodexConfig {
 }
 
 export const CODEX_MODELS: Record<CodexModel, { label: string; description: string; icon: string }> = {
+  'gpt-6-astra': {
+    label: 'GPT-6 Astra',
+    description: 'GPT-6 Astra — OpenAI frontier model (Sep 2026)',
+    icon: '✨',
+  },
   'gpt-5.6-luna': {
     label: 'GPT-5.6 Luna',
     description: 'GPT-5.6 Luna model',

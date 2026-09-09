@@ -156,20 +156,28 @@ describe('PluginShellCommandService', () => {
   });
 
   it('materializes sudo helpers without writing a password into files or environment', async () => {
-    const { service: commands } = service();
-    const materialized = await commands.materializeScript('sudo id', true);
+    // CI runners do not ship socat; point the service at a fake executable.
+    const { dataDir } = service();
+    const socatPath = path.join(dataDir, 'fake-socat');
+    fs.writeFileSync(socatPath, '#!/bin/sh\nexit 0\n', { mode: 0o700 });
+    const withSocat = new PluginShellCommandService({
+      dataDir,
+      sudoSocketDir: path.join(dataDir, 'sockets'),
+      socatPath,
+    });
+    const materialized = await withSocat.materializeScript('sudo id', true);
     const wrapper = fs.readFileSync(path.join(path.dirname(materialized.filePath), 'bin', 'sudo'), 'utf8');
     const askpass = fs.readFileSync(materialized.sudoEnv!.SUDO_ASKPASS, 'utf8');
 
     expect(wrapper).toContain('/usr/bin/sudo -A');
-    expect(askpass).toContain('/usr/bin/socat');
+    expect(askpass).toContain(socatPath);
     expect(materialized.sudoEnv).toMatchObject({ SUDO_ASKPASS_REQUIRE: 'force' });
     expect(Buffer.byteLength(materialized.sudoSocketPath!)).toBeLessThan(104);
     expect(materialized.sudoSocketPath).not.toContain(path.dirname(materialized.filePath));
     expect(JSON.stringify(materialized.sudoEnv)).not.toContain('secret');
 
     const password = Buffer.from('secret');
-    const channel = await commands.openSudoCredentialChannel(materialized.sudoSocketPath!, password);
+    const channel = await withSocat.openSudoCredentialChannel(materialized.sudoSocketPath!, password);
     const received = await new Promise<string>((resolve, reject) => {
       const socket = createConnection(materialized.sudoSocketPath!);
       let value = '';

@@ -15,6 +15,7 @@ import { createApp } from './app.js';
 import { agentService, runtimeService, bossService, skillService, customClassService, secretsService, buildingService, eventRetentionService, triggerService, autoCollapseService, workflowService, databaseService } from './services/index.js';
 import * as websocket from './websocket/handler.js';
 import { getDataDir } from './data/index.js';
+import { repairProcessJavaHome } from './utils/java-home.js';
 import { initEventDb, closeEventDb } from './data/event-db.js';
 import * as eventQueries from './data/event-queries.js';
 import { logger, closeFileLogging, getLogFilePath, createLogger } from './utils/logger.js';
@@ -81,6 +82,13 @@ process.on('SIGPIPE', () => {
 });
 
 async function main(): Promise<void> {
+  // Every building and agent shell inherits our env: a JAVA_HOME left dangling
+  // by a JDK upgrade must not propagate (it crash-looped Maven buildings under PM2).
+  const javaRepair = repairProcessJavaHome();
+  if (javaRepair) {
+    logger.server.warn(`JAVA_HOME "${javaRepair.from}" has no bin/java; `
+      + (javaRepair.to ? `using ${javaRepair.to}` : 'unset it (no JDK found)'));
+  }
   // Initialize event database FIRST — before any service that logs events
   initEventDb();
   eventRetentionService.init();

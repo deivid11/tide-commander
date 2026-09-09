@@ -111,6 +111,15 @@ export function createApp(): Express {
   // Authentication middleware (must be before routes)
   app.use('/api', authMiddleware);
 
+  // Cheap authenticated probe. Browsers cannot read the HTTP status of a
+  // failed WebSocket upgrade, so a client whose stored token is wrong sees
+  // the same "connection lost" as a network outage and retries forever
+  // (spamming "[WS] Connection rejected"). The client hits this after a
+  // failed handshake to tell the two apart and surface the token field.
+  app.get('/api/auth/check', (_req, res) => {
+    res.json({ ok: true, authEnabled: isAuthEnabled() });
+  });
+
   // Log auth status on app creation
   if (isAuthEnabled()) {
     logger.server.log(`Authentication enabled (token: ${getAuthTokenPreview()})`);

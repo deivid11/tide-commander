@@ -10,6 +10,7 @@ import { exec, spawn, ChildProcess } from 'child_process';
 import { promisify } from 'util';
 import type { Building, PM2Status } from '../../shared/types.js';
 import { createLogger } from '../utils/index.js';
+import { resolveJavaHome } from '../utils/java-home.js';
 
 // Track active log streams by building ID
 const activeLogStreams = new Map<string, ChildProcess>();
@@ -184,10 +185,23 @@ export async function startProcess(building: Building): Promise<{ success: boole
     parts.push('--', args);
   }
 
+  // Crash-loop guard: a process that dies on boot (missing JAVA_HOME, bad
+  // port, ...) would otherwise be relaunched ~90x/s by PM2, flooding pm2.log.
+  // Exponential backoff caps that at one attempt every ~15s.
+  parts.splice(2, 0, '--exp-backoff-restart-delay', '1000');
+
   // Build environment prefix if any
+  const spawnEnv: Record<string, string> = { ...(env ?? {}) };
+  if (!spawnEnv.JAVA_HOME) {
+    const javaHome = resolveJavaHome();
+    if (javaHome && javaHome !== process.env.JAVA_HOME) {
+      log.warn(`JAVA_HOME "${process.env.JAVA_HOME ?? ''}" has no bin/java; using ${javaHome} for ${name}`);
+      spawnEnv.JAVA_HOME = javaHome;
+    }
+  }
   let envPrefix = '';
-  if (env && Object.keys(env).length > 0) {
-    envPrefix = Object.entries(env)
+  if (Object.keys(spawnEnv).length > 0) {
+    envPrefix = Object.entries(spawnEnv)
       .map(([k, v]) => `${k}="${v}"`)
       .join(' ') + ' ';
   }
@@ -280,11 +294,16 @@ export async function getLogs(building: Building, lines: number = 100): Promise<
  * Returns a map of PM2 process name -> PM2Status
  * Includes auto-detected listening ports for each process
  */
+// `pm2 jlist` embeds every process's full pm2_env (environment copy, PATH,
+// axm metadata): ~30 KB per process. Node's default 1 MiB maxBuffer overflows
+// at ~40 processes and rejects with "stdout maxBuffer length exceeded".
+const PM2_JLIST_MAX_BUFFER = 64 * 1024 * 1024; // 64MB
+
 export async function getAllStatus(): Promise<Map<string, PM2Status>> {
   const statusMap = new Map<string, PM2Status>();
 
   try {
-    const { stdout } = await execAsync('pm2 jlist', { timeout: 10000 });
+    const { stdout } = await execAsync('pm2 jlist', { timeout: 10000, maxBuffer: PM2_JLIST_MAX_BUFFER });
     const processes = JSON.parse(stdout);
 
     // First, collect all TC processes
@@ -339,7 +358,7 @@ export async function getStatus(building: Building): Promise<PM2Status | null> {
   const name = getPM2Name(building);
 
   try {
-    const { stdout } = await execAsync('pm2 jlist', { timeout: 10000 });
+    const { stdout } = await execAsync('pm2 jlist', { timeout: 10000, maxBuffer: PM2_JLIST_MAX_BUFFER });
     const processes = JSON.parse(stdout);
     const proc = processes.find((p: any) => p.name === name);
 

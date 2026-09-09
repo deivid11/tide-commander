@@ -437,6 +437,43 @@ describe('SlackPollingClient', () => {
     expect(dispatched.length).toBe(before);
   });
 
+  it('stop() unwinds workers parked on the rate limiter immediately instead of one per refill interval', async () => {
+    // 12 channels, burst capacity 5, one token every 5s: workers 6..12 park on
+    // the bucket. Before the fix stop() waited for each of them to win a token
+    // (~5s apiece) only to throw "stopped" — well past the server's 4.5s
+    // forced-shutdown budget. Now stop() wakes them and returns in one tick.
+    const store = await makeStore();
+    const { scheduler } = createManualScheduler();
+    const ids = Array.from({ length: 12 }, (_, i) => `C${i + 100}`);
+    const { client } = buildMockClient({
+      channels: ids.map((id) => ({ id, is_member: true })),
+      history: Object.fromEntries(ids.map((id) => [id, [{ ts: '1700000040.000040', user: 'U1', text: 'x' }]])),
+    });
+
+    const polling = new SlackPollingClient({
+      webClient: client,
+      watermarkStore: store,
+      dispatch: () => {},
+      intervalSec: 30,
+      backfillMessageCap: 5,
+      backfillSeconds: 24 * 60 * 60,
+      concurrency: 12,
+      minMsBetweenCalls: 5000,
+      channelListRefreshEveryNCycles: 999,
+      scheduler,
+    });
+
+    await polling.start();
+    const cycle = polling.runOnce();
+    // Let the first burst of workers consume the 5 tokens and the rest park.
+    await new Promise((r) => setTimeout(r, 50));
+
+    const startedAt = Date.now();
+    await polling.stop();
+    expect(Date.now() - startedAt).toBeLessThan(1000);
+    await cycle;
+  });
+
   it('respects an allowlist while still keeping DMs when keepAllDms is on', async () => {
     const dispatched: SocketLikeMessageEvent[] = [];
     const store = await makeStore();

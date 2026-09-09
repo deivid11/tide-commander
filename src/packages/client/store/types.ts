@@ -272,6 +272,8 @@ export interface StoreState {
   isConnected: boolean;
   resyncInProgress: boolean;
   connectionFailing: boolean;
+  /** The server answered but rejected our auth token (401): the fix is the token, not the network. */
+  authRejected: boolean;
   // Drawing areas
   areas: Map<string, DrawingArea>;
   activeTool: DrawingTool;

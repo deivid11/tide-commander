@@ -958,6 +958,12 @@ export function useConnectionFailing(): boolean {
   );
 }
 
+export function useAuthRejected(): boolean {
+  return useSelector(
+    useCallback((state: StoreState) => state.authRejected, [])
+  );
+}
+
 /**
  * Get an agent-scoped history revision. Background session updates advance
  * only their own value, so the open pane does not rerender for other agents.

@@ -39,6 +39,7 @@ describe('modelTier / isModelAlias', () => {
     expect(modelTier('claude-fable-5[1m]')).toBe('fable');
     expect(modelTier('claude-3-5-sonnet-20241022')).toBe('sonnet');
     expect(modelTier('gpt-5.6-luna')).toBeNull();
+    expect(modelTier('gpt-6-astra')).toBeNull();
   });
 
   it('recognizes bare family aliases', () => {

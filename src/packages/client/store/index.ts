@@ -147,6 +147,7 @@ export {
   useReconnectCount,
   useResyncInProgress,
   useConnectionFailing,
+  useAuthRejected,
   useHistoryRefreshTrigger,
   useMouseControls,
   useCameraSensitivity,
@@ -237,6 +238,7 @@ class Store
       isConnected: false,
       resyncInProgress: false,
       connectionFailing: false,
+      authRejected: false,
       areas: new Map(),
       activeTool: null,
       selectedAreaId: null,
@@ -464,7 +466,14 @@ class Store
     this.state.isConnected = isConnected;
     if (isConnected) {
       this.state.connectionFailing = false;
+      this.state.authRejected = false;
     }
+    this.notify();
+  }
+
+  setAuthRejected(value: boolean): void {
+    if (this.state.authRejected === value) return;
+    this.state.authRejected = value;
     this.notify();
   }
 
@@ -1653,7 +1662,7 @@ declare global {
 // v10: exec PTY replay — handleExecTaskStarted/Output route through TerminalRenderer.
 // v11: exec tasks snapshot — handleExecTasksSnapshot seeds running exec cards on (re)connect.
 // v12: snapshot carries recently-completed exec tasks too (cards attach on late open).
-const STORE_VERSION = 12;
+const STORE_VERSION = 13;
 
 // Singleton store instance - persisted on window for HMR
 function getOrCreateStore(): Store {

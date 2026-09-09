@@ -364,12 +364,30 @@ async function probeBackend(httpUrl: string, timeoutMs: number): Promise<boolean
       cache: 'no-store',
       signal: controller.signal,
     });
-    return resp.ok;
+    if (!resp.ok) return false;
+    // A 200 alone proves nothing: the Vite dev server, any SPA host and most
+    // captive portals answer EVERY path with index.html. Treating that as
+    // healthy made the prober keep picking a URL whose /ws upgrade can never
+    // succeed — the UI then burned ~20 s of failed handshakes, demoted it,
+    // connected to the next URL, and the failback watch dragged it back the
+    // moment the 5-minute demotion expired: a "reconnecting" loop every 300 s.
+    // Only the real API returns the JSON health document.
+    const contentType = resp.headers.get('content-type') || '';
+    if (!contentType.toLowerCase().includes('application/json')) return false;
+    const body: unknown = await resp.json().catch(() => null);
+    return isHealthyBody(body);
   } catch {
     return false;
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** True for the API's health document (`{status:'ok'}` today; `ok:true` tolerated). */
+function isHealthyBody(body: unknown): boolean {
+  if (!body || typeof body !== 'object') return false;
+  const record = body as Record<string, unknown>;
+  return record.status === 'ok' || record.ok === true;
 }
 
 /**
@@ -668,7 +686,13 @@ async function openSocket(): Promise<void> {
     if (getReconnectAttempts() >= failingThresholdAttempts) {
       store.setConnectionFailing(true);
     }
-    handleReconnectDelay();
+    if (!opened && probeVerified && chosenHttpUrl) {
+      // Health answered but the upgrade died: ask the server whether it is our
+      // token it dislikes before hammering it with reconnects.
+      void reconnectAfterAuthProbe(chosenHttpUrl);
+    } else {
+      handleReconnectDelay();
+    }
   };
 
   socket.onerror = () => {
@@ -678,6 +702,44 @@ async function openSocket(): Promise<void> {
 
   // Set up store to use this connection
   store.setSendMessage(sendMessage);
+}
+
+/** Retry cadence once the server has told us the auth token is wrong. */
+const AUTH_REJECTED_RETRY_MS = 30000;
+
+/**
+ * Distinguish "wrong token" from "server unreachable" after a failed
+ * handshake: `/api/auth/check` sits behind the auth middleware, so a 401
+ * means the token is the problem. Reconnect slowly in that case (the token
+ * will not fix itself) and surface it in the overlay; otherwise back off as usual.
+ */
+async function reconnectAfterAuthProbe(httpUrl: string): Promise<void> {
+  let rejected = false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+  try {
+    const token = getAuthToken();
+    const resp = await fetch(`${httpUrl.replace(/\/$/, '')}/api/auth/check`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: token ? { 'X-Auth-Token': token } : {},
+      signal: controller.signal,
+    });
+    rejected = resp.status === 401;
+  } catch {
+    rejected = false;
+  } finally {
+    clearTimeout(timer);
+  }
+  // A newer connect() (manual retry, foreground resume) already owns recovery.
+  if (getWs() !== null || getIsConnecting() || getReconnectTimeout() !== null) return;
+  store.setAuthRejected(rejected);
+  if (rejected) {
+    store.setConnectionFailing(true);
+    setReconnectTimeout(setTimeout(connect, AUTH_REJECTED_RETRY_MS));
+  } else {
+    handleReconnectDelay();
+  }
 }
 
 /** Schedule a reconnection with exponential backoff (250ms→8s). */

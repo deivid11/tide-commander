@@ -420,8 +420,17 @@ export class SlackPollingClient {
       this.scheduler.clearTimeout(this.timer);
       this.timer = null;
     }
+    // Wake every worker parked on the token bucket so the in-flight cycle
+    // fails fast. Without this each channel waited one refill interval only
+    // to throw "stopped", and a workspace with N channels stalled shutdown
+    // for ~N seconds — past the server's forced-shutdown timeout.
+    this.bucket?.releaseWaiters();
     if (this.inFlight) {
-      await this.inFlight.catch(() => undefined);
+      const grace = new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, STOP_INFLIGHT_GRACE_MS);
+        t.unref?.();
+      });
+      await Promise.race([this.inFlight.catch(() => undefined), grace]);
     }
   }
 
@@ -1094,6 +1103,9 @@ function tsCmp(a: string, b: string): number {
   return ab < bb ? -1 : ab > bb ? 1 : 0;
 }
 
+/** Max time stop() waits for the in-flight cycle after waking the bucket waiters. */
+const STOP_INFLIGHT_GRACE_MS = 1500;
+
 // ─── Token bucket rate limiter ───
 //
 // Refills `1` token every `refillIntervalMs` up to `capacity`. Workers
@@ -1114,6 +1126,7 @@ class TokenBucket {
   private tokens: number;
   private lastRefillMs: number;
   private waiters: Array<() => void> = [];
+  private sleepers = new Set<() => void>();
   private pumpScheduled = false;
   private readonly capacity: number;
   private readonly refillIntervalMs: number;
@@ -1147,7 +1160,7 @@ class TokenBucket {
     // entire workspace honors Retry-After.
     const pauseRemaining = this.globalPauseUntilFn() - this.nowFn();
     if (pauseRemaining > 0) {
-      await new Promise<void>((r) => setTimeout(r, pauseRemaining));
+      await this.sleep(pauseRemaining);
       if (!this.isRunningFn()) throw new Error('SlackPollingClient stopped');
     }
     this.refillNow();
@@ -1155,9 +1168,35 @@ class TokenBucket {
       this.tokens -= 1;
       return;
     }
-    return new Promise<void>((resolve) => {
+    await new Promise<void>((resolve) => {
       this.waiters.push(resolve);
       this.schedulePump();
+    });
+    // Woken by releaseWaiters() on stop rather than by a token.
+    if (!this.isRunningFn()) throw new Error('SlackPollingClient stopped');
+  }
+
+  /**
+   * Wake every queued waiter and interrupt 429-pause sleeps. Callers re-check
+   * `isRunning` after waking and throw, so a stopping client unwinds in one
+   * tick instead of one refill interval per parked worker.
+   */
+  releaseWaiters(): void {
+    const waiters = this.waiters;
+    this.waiters = [];
+    for (const resolve of waiters) resolve();
+    for (const wake of Array.from(this.sleepers)) wake();
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const wake = (): void => {
+        clearTimeout(timer);
+        this.sleepers.delete(wake);
+        resolve();
+      };
+      const timer = setTimeout(wake, ms);
+      this.sleepers.add(wake);
     });
   }
 
