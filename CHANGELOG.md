@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.217.0] - 2026-09-09
+
+### Added
+- **Image generation** — agents can turn a prompt into real image files through `POST /api/images/generate`, backed by the OpenAI image models (`gpt-image-1` by default). Pick the output directory, filename, size, quality, transparent background, format and how many variations; the response carries the absolute paths that were written. `GET /api/images/status` reports whether a key is configured and where it came from. The API key is resolved server-side only — from a secret named `OPENAI_API_KEY` (Settings → Secrets), the `OPENAI_API_KEY` environment variable, or a key file — and is never accepted as a request field, so it cannot leak into an agent transcript.
+- **"Image Generation" built-in skill** — opt-in (enable it per agent or class in the Skills panel, since every call spends money). Documents the API, prompt-writing rules, cost and refusal handling, and how to show a result inline in the terminal.
+- **Delete Slack messages** — `DELETE /api/slack/messages` removes a message the connected bot or user posted, with the Slack skill updated to match.
+
+### Fixed
+- **Generated and on-disk images render inline again** — an `[Image: /absolute/path.png]` reference (and a markdown `![](…)` pointing at a local file) built an `<img>` src from the raw filesystem path, which the browser requested against the app origin and could not load. Those paths now stream through the files API, the way the hover preview already did. Static web assets, uploads and attachment URLs are untouched.
+- **Failed file previews are no longer silent** — `GET /api/files/binary` now logs the path it could not resolve, so a broken thumbnail in the client is diagnosable from the server log instead of guesswork.
+
 ## [1.216.1] - 2026-09-02
 
 ### Fixed

@@ -36,6 +36,7 @@ import { browserControl } from './browser-control.js';
 import { runTests } from './run-tests.js';
 import { httpRequests } from './http-requests.js';
 import { computerUse } from './computer-use.js';
+import { imageGeneration } from './image-generation.js';
 import { mermaidDiagrams } from './mermaid-diagrams.js';
 
 // Re-export types
@@ -73,6 +74,7 @@ export const BUILTIN_SKILLS: BuiltinSkillDefinition[] = [
   httpRequests,
   computerUse,
   mermaidDiagrams,
+  imageGeneration,
 ];
 
 /**

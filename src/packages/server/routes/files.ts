@@ -1397,6 +1397,10 @@ router.get('/binary', async (req: Request, res: Response) => {
       req.query.baseDir as string | undefined,
     );
     if (!resolution.ok) {
+      // A failed binary fetch is invisible to the user beyond a broken <img>,
+      // so name the path that could not be resolved — otherwise every "broken
+      // image in the client" report starts with guessing which URL was asked for.
+      log.warn(` /binary ${resolution.status}: ${resolution.error} (requested: ${req.query.path})`);
       const body: Record<string, unknown> = { error: resolution.error };
       if (resolution.requested) body.path = resolution.requested;
       if (resolution.tried) body.triedRoots = resolution.tried;

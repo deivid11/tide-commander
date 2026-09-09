@@ -55,6 +55,11 @@ export function getImageWebUrl(imagePath: string): string {
     // Browser-extension attachments / element shots are served at /attachments.
     const imageName = imagePath.split('/').pop() || 'image';
     return `${baseUrl}/attachments/${imageName}`;
+  } else if (imagePath.startsWith('/')) {
+    // Any other absolute path (a screenshot, a generated image an agent just
+    // wrote) is not reachable as a web path — stream its bytes through the
+    // files API instead of rendering a broken thumbnail.
+    return getLocalFileImageUrl(imagePath);
   } else {
     // Default: assume it's a relative path
     return imagePath;

@@ -95,6 +95,11 @@ export interface SendMessageParams {
   workflowInstanceId?: string;
 }
 
+export interface DeleteMessageParams {
+  channel: string;
+  ts: string;
+}
+
 export interface AddReactionParams {
   channel: string;
   ts: string;
@@ -743,6 +748,20 @@ export class SlackInstance {
     } satisfies SlackMessageEvent);
 
     return { ts, channel };
+  }
+
+  async deleteMessage(params: DeleteMessageParams): Promise<{ ts: string; channel: string }> {
+    if (!this.webClient) throw new Error('Slack not connected');
+
+    const result = await this.webClient.chat.delete({
+      channel: params.channel,
+      ts: params.ts,
+    });
+
+    return {
+      ts: result.ts ?? params.ts,
+      channel: result.channel ?? params.channel,
+    };
   }
 
   // ─── Reactions ───

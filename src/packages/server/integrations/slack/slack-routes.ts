@@ -269,6 +269,25 @@ router.post('/send', async (req: Request, res: Response) => {
   }
 });
 
+// DELETE /api/slack/messages — Delete a message posted by the connected Slack bot/user
+router.delete('/messages', async (req: Request, res: Response) => {
+  try {
+    const handle = svc(req, res);
+    if (!handle) return;
+    const { channel, ts } = (req.body ?? {}) as { channel?: string; ts?: string };
+    if (!channel || !ts) {
+      res.status(400).json({ error: 'channel and ts are required' });
+      return;
+    }
+
+    const result = await handle.inst.deleteMessage({ channel, ts });
+    res.json({ success: true, ts: result.ts, channel: result.channel, instanceId: handle.id });
+  } catch (err) {
+    log.error(`Slack delete error: ${err}`);
+    res.status(500).json({ error: `Failed to delete message: ${err instanceof Error ? err.message : err}` });
+  }
+});
+
 // GET /api/slack/messages — Read channel messages
 router.get('/messages', async (req: Request, res: Response) => {
   try {

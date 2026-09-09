@@ -13,6 +13,7 @@ import notificationsRouter, { setBroadcast as setNotificationBroadcast } from '.
 import execRouter, { setBroadcast as setExecBroadcast } from './exec.js';
 import testsRouter, { setBroadcast as setTestsBroadcast } from './tests.js';
 import httpRequestsRouter, { setBroadcast as setHttpRequestsBroadcast } from './http-requests.js';
+import imagesRouter from './images.js';
 import focusAgentRouter, { setBroadcast as setFocusAgentBroadcast } from './focus-agent.js';
 import alfredRouter from './alfred.js';
 import customModelsRouter from './custom-models.js';
@@ -55,6 +56,7 @@ router.use('/notify', notificationsRouter);
 router.use('/exec', execRouter);
 router.use('/tests', testsRouter);
 router.use('/http-requests', httpRequestsRouter);
+router.use('/images', imagesRouter);
 router.use('/focus-agent', focusAgentRouter);
 router.use('/alfred', alfredRouter);
 router.use('/custom-models', customModelsRouter);

@@ -13,6 +13,7 @@ import {
   listInstances,
   clearInstances,
   type AddReactionParams,
+  type DeleteMessageParams,
   type GetMessagesParams,
   type GetThreadParams,
   type ListFilesParams,
@@ -30,6 +31,7 @@ import {
 
 export type {
   AddReactionParams,
+  DeleteMessageParams,
   GetMessagesParams,
   GetThreadParams,
   ListFilesParams,
@@ -73,6 +75,10 @@ export async function disconnect(): Promise<void> {
 
 export async function sendMessage(params: SendMessageParams): Promise<{ ts: string; channel: string }> {
   return getInstance().sendMessage(params);
+}
+
+export async function deleteMessage(params: DeleteMessageParams): Promise<{ ts: string; channel: string }> {
+  return getInstance().deleteMessage(params);
 }
 
 // ─── Reactions ───

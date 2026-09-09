@@ -8,7 +8,7 @@ import type { BuiltinSkillDefinition } from '../../data/builtin-skills/types.js'
 export const slackSkill: BuiltinSkillDefinition = {
   slug: 'slack-messaging',
   name: 'Slack Messaging',
-  description: 'Send and receive messages via Slack',
+  description: 'Send, receive, and delete your messages via Slack',
   allowedTools: ['Bash(curl:*)'],
   content: `# Slack Messaging
 
@@ -25,6 +25,18 @@ curl -s -X POST http://localhost:5174/api/slack/send \\
 To reply in a thread, add \`"threadTs":"THREAD_TIMESTAMP"\`.
 
 To track which agent sent the message, add \`"agentId":"YOUR_AGENT_ID"\`.
+
+## Delete a Message
+
+Delete a message posted by the connected Slack bot or user:
+
+\`\`\`bash
+curl -s -X DELETE http://localhost:5174/api/slack/messages \\
+  -H "Content-Type: application/json" \\
+  -d '{"channel":"CHANNEL_ID","ts":"MESSAGE_TIMESTAMP"}'
+\`\`\`
+
+Required: \`channel\` and \`ts\` from a send, channel messages, or thread response. For a non-default Slack connection, also pass \`instanceId\`. Slack only allows the authenticated bot or user to delete its own messages.
 
 ## Send a Direct Message
 

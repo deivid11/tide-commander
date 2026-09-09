@@ -11,6 +11,7 @@ import { highlightCode, isLanguageSupported, ensureLanguageLoaded } from '../Fil
 import { MermaidDiagram } from './MermaidDiagram';
 import { filePreviewHandlers } from './toolPreviewHover';
 import { InlineModelPreview } from './InlineModelPreview';
+import { getImagePreviewUrl } from './contentRendering';
 
 interface MarkdownComponentOptions {
   onFileClick?: (path: string) => void;
@@ -35,6 +36,26 @@ function findAgentIdByBoldText(text: string): string | null {
     if (agent.name === stripped) return id;
   }
   return null;
+}
+
+/**
+ * Web paths the server actually serves as static assets — a markdown image
+ * pointing at one of these is already a valid URL.
+ */
+const WEB_ASSET_PREFIXES = ['/assets/', '/uploads/', '/attachments/', '/locales/', '/icons/'];
+
+/**
+ * `![](/home/me/pic.png)` points at a file on the server's disk, not at a web
+ * path: requested against the app origin the browser gets the SPA shell (or a
+ * 404) and shows a broken image. Stream those through the files API instead,
+ * leaving URLs, data URIs and real static assets untouched.
+ */
+function resolveMarkdownImageSrc(src: string | undefined): string | undefined {
+  if (!src) return src;
+  if (/^(https?:|data:|blob:)/i.test(src)) return src;
+  if (!src.startsWith('/')) return src;
+  if (WEB_ASSET_PREFIXES.some(prefix => src.startsWith(prefix))) return src;
+  return getImagePreviewUrl(src);
 }
 
 function getNodeText(node: React.ReactNode): string {
@@ -332,7 +353,7 @@ export const createMarkdownComponents = ({ onFileClick, baseDir }: MarkdownCompo
     if (modelRef) {
       return <InlineModelPreview fileRef={modelRef} label={alt || undefined} baseDir={baseDir} onFileClick={onFileClick} />;
     }
-    return <img src={src} alt={alt || ''} loading="lazy" />;
+    return <img src={resolveMarkdownImageSrc(src)} alt={alt || ''} loading="lazy" />;
   },
   hr: () => <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '1em 0' }} />,
   table: ({ children }) => (
