@@ -39,6 +39,7 @@ export const TOOL_ICONS: Record<string, string> = {
 
 // Semantic Icon name per tool for React-rendered surfaces. Keep in sync with TOOL_ICONS.
 import type { IconName } from '../components/Icon';
+import { analyzeShellFileWrites, analyzeShellInspection, parseShellCommands, type ShellInspectionStep, type ShellReadStep, type ShellScriptReplacement, type ShellWord } from '../../shared/shell-file-writes';
 export const TOOL_ICON_NAMES: Record<string, IconName> = {
   Read: 'eye',
   Write: 'edit',
@@ -710,6 +711,18 @@ export function getShellReadTarget(rawCommand: string): CodexExecFileTarget | nu
 /** All sed/head/cat read targets in a possibly chained shell command. */
 export function getShellReadTargets(rawCommand: string): CodexExecFileTarget[] {
   const command = normalizeShellWrapper(rawCommand);
+  // Lexer first: it resolves paths against a leading `cd` and ignores `echo`
+  // separators, so the click target matches the chip the row shows.
+  const inspected = analyzeShellInspection(command);
+  if (inspected) {
+    const reads = inspected.filter((step): step is ShellReadStep => step.kind === 'read');
+    if (reads.length > 0) {
+      return reads.map((read) => ({
+        path: read.path,
+        ...(read.range ? { highlightRange: { offset: read.range.start, limit: Math.max(1, read.range.end - read.range.start + 1) } } : {}),
+      }));
+    }
+  }
   const targets: CodexExecFileTarget[] = [];
   for (const sed of command.matchAll(/\bsed\s+-n\s+["']?(\d+)\s*,\s*(\d+)p["']?\s+(?:--\s+)?["']?([^"';&|]+?)["']?(?=\s*(?:;|&&|\||$))/g)) {
     const start = Number(sed[1]);
@@ -852,8 +865,128 @@ function substantiveShellSteps(command: string): string[] {
     .filter((step) => !SHELL_SETUP_STEP.test(step));
 }
 
+/** What a Bash row should headline when its command writes files. */
+export interface ShellWriteSummary {
+  toolName: 'Write' | 'Edit';
+  /** Written files, resolved against a static `cd` in the chain when relative. */
+  paths: string[];
+  /** Other commands the chain runs, e.g. ['curl', 'python3']; empty for a pure write. */
+  otherCommands: string[];
+  /**
+   * Per path, the literal replacements the command performed — an inline patch
+   * script (`s.replace(a, b)`) carries its own diff, so the viewer can show the
+   * modified lines without git or a before-snapshot.
+   */
+  replacements: Record<string, ShellScriptReplacement[]>;
+}
+
+const SHELL_WRITE_SUMMARY_CACHE_MAX = 300;
+const shellWriteSummaryCache = new Map<string, ShellWriteSummary | null>();
+
+/**
+ * File writes worth headlining on a Bash row: every write of a chain that
+ * only writes files, or the heredoc-backed writes (`cat > f <<'EOF'`) of a
+ * longer chain, where the heredoc body is what otherwise floods the row.
+ * Plain redirects inside a bigger script (`npm test > log`) stay BASH.
+ * Memoized: rows re-render often and heredoc commands can be 100 KB.
+ */
+export function getShellWriteSummary(command: string): ShellWriteSummary | null {
+  if (!command || !/[>]|<<|\b(?:sed|perl|tee|python3?|node|deno|bun|ruby)\b/.test(command)) return null;
+  const cached = shellWriteSummaryCache.get(command);
+  if (cached !== undefined) return cached;
+
+  const { writes, pure, otherCommands } = analyzeShellFileWrites(normalizeShellWrapper(command));
+  // In a mixed chain, headline the writes whose body IS the row: a heredoc, or
+  // an inline python/node script that patches files.
+  const shown = pure
+    ? writes
+    : writes.filter((write) => write.content !== undefined || write.fromScript || write.operation === 'in_place_edit');
+  const summary: ShellWriteSummary | null = shown.length === 0
+    ? null
+    : {
+        // A script write rewrites an existing file — that reads as an edit.
+        toolName: shown.every((write) => write.operation === 'overwrite' && !write.fromScript) ? 'Write' : 'Edit',
+        paths: shown.map((write) => write.path),
+        otherCommands: pure ? [] : otherCommands,
+        replacements: Object.fromEntries(
+          shown
+            .filter((write) => write.replacements && write.replacements.length > 0)
+            .map((write) => [write.path, write.replacements as ShellScriptReplacement[]]),
+        ),
+      };
+
+  if (shellWriteSummaryCache.size >= SHELL_WRITE_SUMMARY_CACHE_MAX) {
+    const oldest = shellWriteSummaryCache.keys().next().value;
+    if (oldest !== undefined) shellWriteSummaryCache.delete(oldest);
+  }
+  shellWriteSummaryCache.set(command, summary);
+  return summary;
+}
+
+function formatReadRange(read: ShellReadStep): string | null {
+  if (!read.range) return null;
+  return read.range.start === read.range.end ? `${read.range.start}` : `${read.range.start}–${read.range.end}`;
+}
+
+/** READ/GREP presentation for a chain that only inspects files; labelled by its first step. */
+function presentShellInspection(steps: ShellInspectionStep[]): CodexExecPresentation {
+  const reads = steps.filter((step): step is ShellReadStep => step.kind === 'read');
+  if (steps[0].kind === 'search' || reads.length === 0) {
+    const searches = steps.flatMap((step) => (step.kind === 'search' ? [step] : []));
+    const patterns = Array.from(new Set(searches.map((search) => search.pattern).filter((pattern): pattern is string => !!pattern)));
+    const searchPaths = Array.from(new Set(searches.flatMap((search) => search.paths)));
+    if (patterns.length === 0) return { toolName: 'Grep', detail: searches.map((search) => search.command).join('; ') };
+    const first = patterns[0];
+    const quoted = `"${first.length > 60 ? `${first.slice(0, 60)}…` : first}"${patterns.length > 1 ? ` +${patterns.length - 1}` : ''}`;
+    const single = searchPaths.length === 1 ? searchPaths[0] : null;
+    // A single file becomes a chip, so naming it again in the detail is noise.
+    const chipPath = single && /\.[A-Za-z0-9]+$/.test(single) ? single : null;
+    const where = chipPath || single === '.' || single === './'
+      ? ''
+      : single ? ` in ${single.split('/').pop() || single}`
+      : searchPaths.length > 1 ? ` in ${searchPaths.length} files` : '';
+    return {
+      toolName: 'Grep',
+      detail: `${quoted}${where}`,
+      // Only a real file opens usefully in the viewer; a directory operand doesn't.
+      ...(chipPath ? { filePaths: [chipPath] } : {}),
+    };
+  }
+  const filePaths = Array.from(new Set(reads.map((read) => read.path)));
+  const ranges = reads.map(formatReadRange);
+  let detail: string;
+  if (reads.length === 1) {
+    const range = ranges[0];
+    detail = range ? `${range.includes('–') ? 'lines' : 'line'} ${range}` : 'viewed';
+  } else if (filePaths.length === 1 && ranges.every(Boolean)) {
+    const shown = ranges.slice(0, 3).join(', ');
+    detail = `lines ${shown}${ranges.length > 3 ? ` +${ranges.length - 3}` : ''}`;
+  } else {
+    detail = `${reads.length} ranges`;
+  }
+  return { toolName: 'Read', detail, filePaths };
+}
+
+/** `then sed, curl, python3 +2` — the steps a write chain runs besides writing. */
+export function formatShellWriteFollowUp(otherCommands: string[]): string {
+  const unique = Array.from(new Set(otherCommands));
+  if (unique.length === 0) return '';
+  const shown = unique.slice(0, 3).join(', ');
+  return unique.length > 3 ? `then ${shown} +${unique.length - 3}` : `then ${shown}`;
+}
+
 function classifyTerminalCommand(command: string): CodexExecPresentation {
   const clean = normalizeShellWrapper(command);
+  // File writes stay on the Bash row, which headlines them (WRITE + file chip)
+  // while keeping exec/test cards attached. Checked first: `cat > f <<'EOF'`
+  // starts with `cat` and used to land in the Read branch below.
+  if (getShellWriteSummary(clean)) {
+    return { toolName: 'Bash', detail: summarizeShellCommand(clean) };
+  }
+  // Inspection chains (`cd repo; sed -n 1,20p a.ts; echo ---; grep -n x b.ts`)
+  // read as READ/GREP instead of a raw BASH one-liner.
+  const inspection = analyzeShellInspection(clean);
+  if (inspection) return presentShellInspection(inspection);
   // Reads take precedence: a filename/path may itself contain words such as
   // "grep", which must not turn `sed -n ... GrepPanel.tsx` into GREP.
   if (/^(?:sed\s+-n|cat|head|tail)\b/.test(clean)) {
@@ -888,7 +1021,11 @@ function classifyTerminalCommand(command: string): CodexExecPresentation {
   const subject = steps.length === 1 ? steps[0] : clean;
 
   if (/\b(?:rg\s+--files|find|ls)(?:\s|$)/.test(subject)) {
-    return { toolName: 'Glob', detail: clean };
+    const [first] = parseShellCommands(subject);
+    const target = first?.words
+      .slice(1)
+      .find((word) => !word.value.startsWith('-') && word.value !== '--files' && !word.dynamic)?.value;
+    return { toolName: 'Glob', detail: target ? `listed ${target}` : clean };
   }
   if (/\b(?:rg|grep)\b/.test(subject)) {
     return { toolName: 'Grep', detail: clean };
@@ -924,25 +1061,193 @@ export function normalizeShellCommand(command: string): string {
   return normalizeShellWrapper(command).replace(/\s+/g, ' ').trim();
 }
 
+const SHELL_STEP_SCAFFOLD = new Set([
+  'cd', 'pushd', 'popd', 'export', 'set', 'source', '.', 'echo', 'printf', 'true', ':',
+  // Conditional / loop-body keywords are structure, not steps of their own.
+  'do', 'done', 'if', 'then', 'else', 'elif', 'fi', 'case', 'esac', '{', '}', '!',
+]);
+/** `for f in …; do …` — the loop header is worth one step, its keywords are not. */
+const SHELL_LOOP_KEYWORDS = new Set(['for', 'while', 'until']);
+/** CLIs shaped `tool <verb> [target]`, where the verb alone is not the story. */
+const SUBCOMMAND_CLIS = new Set(['git', 'docker', 'podman', 'pm2', 'systemctl', 'kubectl', 'gh', 'docker-compose']);
+/** Verbs whose target (container, service, unit) is the interesting part. */
+const SUBCOMMAND_TARGET_VERBS = new Set([
+  'exec', 'run', 'logs', 'restart', 'start', 'stop', 'kill', 'rm', 'inspect', 'attach', 'pull', 'push',
+  'status', 'describe', 'delete', 'apply', 'reload', 'enable', 'disable', 'show',
+]);
+/**
+ * Options whose VALUE is the next word, so that word is never the file/target
+ * to name. Only unambiguous ones: short flags differ per tool (`grep -n` is a
+ * flag, `head -n` takes a count), and guessing wrong drops a real filename.
+ */
+const SHELL_VALUE_OPTIONS = new Set([
+  '-e', '-c', '--eval', '--exec', '--output', '--format', '--filter', '--tail', '--lines', '--since',
+  '--until', '--limit', '--env', '--volume', '--label', '--workdir', '--user', '--name', '--type',
+]);
+
+/** A literal path we can show as a chip — not a fragment of an inline script. */
+function looksLikeStepPath(value: string): boolean {
+  if (!value || value.length > 80) return false;
+  if (/[\s'"();|&<>$`]/.test(value)) return false;
+  return /\.[A-Za-z0-9]{1,6}$/.test(value) || value.includes('/');
+}
+/** Package runners: the interesting name is what they run, not the runner. */
+const SHELL_RUNNERS = new Set(['npx', 'pnpm', 'yarn', 'bun', 'bunx', 'sudo', 'env', 'time', 'nohup', 'command']);
+
+/**
+ * The part of a file a Read/Edit row touched: `lines 450–889`, `3 edits`,
+ * `line 128`. Five consecutive reads of one file are otherwise identical rows,
+ * and pi/Codex send the range in the tool input already.
+ */
+export function getFileToolDetail(toolName: string, input: unknown): string | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const record = input as Record<string, unknown>;
+  if (toolName === 'Read' || toolName === 'NotebookEdit') {
+    const offset = typeof record.offset === 'number' ? record.offset : undefined;
+    const limit = typeof record.limit === 'number' ? record.limit : undefined;
+    if (offset !== undefined && limit !== undefined) return `lines ${offset}–${offset + limit - 1}`;
+    if (offset !== undefined) return `from line ${offset}`;
+    if (limit !== undefined) return `first ${limit} lines`;
+    return null;
+  }
+  if (toolName === 'Edit' || toolName === 'MultiEdit') {
+    const edits = Array.isArray(record.edits) ? record.edits.length : 0;
+    if (edits > 1) return `${edits} edits`;
+    const line = typeof record.first_changed_line === 'number' ? record.first_changed_line : undefined;
+    if (line !== undefined) return `line ${line}`;
+    return null;
+  }
+  return null;
+}
+
+/** One step of a chain: what it runs, and the file it touches (full path, for a chip). */
+export interface BashRowStep {
+  label: string;
+  file?: string;
+}
+
+/** Short label for one step of a chain: the tool it runs and the file it touches. */
+function describeShellStep(name: string, args: ShellWord[]): BashRowStep {
+  let effectiveName = name;
+  let effectiveArgs = args;
+  // `npm run build` / `npx tsc …` — step past the runner to the real tool.
+  while (SHELL_RUNNERS.has(effectiveName) || effectiveName === 'npm') {
+    const runnerOperands = effectiveArgs.filter((arg) => !arg.value.startsWith('-'));
+    const skip = effectiveName === 'npm' && (runnerOperands[0]?.value === 'run' || runnerOperands[0]?.value === 'run-script') ? 2 : 1;
+    const next = runnerOperands[skip - 1];
+    if (!next) break;
+    effectiveName = next.value;
+    effectiveArgs = effectiveArgs.slice(effectiveArgs.indexOf(next) + 1);
+    if (!SHELL_RUNNERS.has(effectiveName) && effectiveName !== 'npm') break;
+  }
+  if (effectiveName.includes('/')) effectiveName = effectiveName.slice(effectiveName.lastIndexOf('/') + 1);
+
+  const operands: string[] = [];
+  for (let index = 0; index < effectiveArgs.length; index += 1) {
+    const arg = effectiveArgs[index];
+    // `node -e "…"` / `python3 -c "…"`: the next word is a script, not a file.
+    if (SHELL_VALUE_OPTIONS.has(arg.value)) { index += 1; continue; }
+    if (arg.value.startsWith('-') || arg.dynamic) continue;
+    operands.push(arg.value);
+  }
+  // Name the file a step touches — a bare tool name leaves the reader guessing
+  // which file the row is about.
+  const file = operands.find(looksLikeStepPath);
+  const step = (label: string, withFile = true): BashRowStep => (withFile && file ? { label, file } : { label });
+
+  if (SHELL_LOOP_KEYWORDS.has(effectiveName)) return step('loop');
+  if (/vitest|jest/.test(effectiveName)) return step('tests');
+  if (effectiveName === 'tsc') return step('type check', false);
+  if (effectiveName === 'eslint') return step('lint');
+  if (effectiveName === 'build' || effectiveName === 'vite') return step('build', false);
+  if (effectiveName === 'playwright') return step('browser tests');
+
+  const firstOperand = operands[0];
+  const operand = firstOperand && firstOperand.length <= 24
+    ? (firstOperand.includes('/') ? firstOperand.split('/').pop() || firstOperand : firstOperand)
+    : undefined;
+  if (effectiveName === 'git' && operand === 'diff' && effectiveArgs.some((arg) => arg.value === '--check')) return step('check diff', false);
+  if (SUBCOMMAND_CLIS.has(effectiveName)) {
+    // `docker exec` says nothing about WHICH container; `docker exec api-1` does.
+    // A count (`docker logs --tail 80`) is not the container we want to name.
+    const candidate = operands[1];
+    const target = candidate && candidate !== file && candidate.length <= 32 && !/^\d+$/.test(candidate)
+      ? candidate
+      : undefined;
+    const parts = [effectiveName, operand, SUBCOMMAND_TARGET_VERBS.has(operand ?? '') ? target : undefined];
+    return step(parts.filter(Boolean).join(' '));
+  }
+  return step(effectiveName);
+}
+
+/** The steps of a chain, skipping cd/echo scaffolding. */
+function shellRowSteps(command: string): BashRowStep[] {
+  const steps: BashRowStep[] = [];
+  for (const cmd of parseShellCommands(command)) {
+    const words = cmd.words;
+    if (words.length === 0) continue;
+    let index = 0;
+    while (index < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[index].value)) index += 1;
+    const raw = words[index]?.value;
+    if (!raw) continue;
+    const name = raw.includes('/') ? raw.slice(raw.lastIndexOf('/') + 1) : raw;
+    if (SHELL_STEP_SCAFFOLD.has(name)) continue;
+    const step = describeShellStep(name, words.slice(index + 1));
+    const previous = steps[steps.length - 1];
+    if (previous && previous.label === step.label && previous.file === step.file) continue;
+    steps.push(step);
+  }
+  return steps;
+}
+
+const stepText = (step: BashRowStep): string => (step.file ? `${step.label} ${step.file.split('/').pop() || step.file}` : step.label);
+
+/** `4 steps · type check → lint a.ts → build +1` for a chain; the command itself when it is one short step. */
 function summarizeShellCommand(command: string): string {
   if (!command) return 'Run terminal command';
-  const steps = command.split(/\s*(?:&&|;)\s*/).filter(Boolean);
+  const steps = shellRowSteps(command);
   if (steps.length > 1) {
-    const labels = steps.slice(0, 3).map((step) => {
-      if (/\bvitest\b/.test(step)) return 'tests';
-      if (/\btsc\b/.test(step)) return 'type check';
-      if (/\b(?:vite|npm\s+run)\s+build\b/.test(step)) return 'build';
-      if (/\beslint\b/.test(step)) return 'lint';
-      if (/\bgit\s+diff\s+--check\b/.test(step)) return 'check diff';
-      return step.trim().split(/\s+/).slice(0, 2).join(' ');
-    });
-    return `${steps.length} steps · ${labels.join(' → ')}`;
+    const shown = steps.slice(0, 3).map(stepText).join(' → ');
+    return `${steps.length} steps · ${shown}${steps.length > 3 ? ` +${steps.length - 3}` : ''}`;
   }
   if (/\bvitest\b/.test(command)) return `Tests · ${command.replace(/^.*?\bvitest\s+(?:run\s+)?/, '') || 'test suite'}`;
   if (/\btsc\b/.test(command)) return 'Type check';
   if (/\b(?:vite|npm\s+run)\s+build\b/.test(command)) return 'Build project';
   if (/\beslint\b/.test(command)) return 'Lint project';
   return command;
+}
+
+/** Longer than a row can show, or multi-line: the raw text is noise, summarize it. */
+const BASH_ROW_SUMMARY_MIN_CHARS = 180;
+
+export interface BashRowSummary {
+  /** Up to 3 steps, each with the file it touches (rendered as a chip). */
+  steps: BashRowStep[];
+  /** Steps beyond the shown ones. */
+  extraSteps: number;
+  totalSteps: number;
+  lineCount: number;
+  charCount: number;
+}
+
+/**
+ * A compact stand-in for a Bash row whose command is too long or too multi-line
+ * to read inline (a heredoc script, a 10-step chain). Null when the command is
+ * short enough to show verbatim, which is what most rows want.
+ */
+export function getBashRowSummary(command: string): BashRowSummary | null {
+  if (!command) return null;
+  const lineCount = command.split('\n').length;
+  if (lineCount < 3 && command.length <= BASH_ROW_SUMMARY_MIN_CHARS) return null;
+  const steps = shellRowSteps(command);
+  if (steps.length === 0) return null;
+  return {
+    steps: steps.slice(0, 3),
+    extraSteps: Math.max(0, steps.length - 3),
+    totalSteps: steps.length,
+    lineCount,
+    charCount: command.length,
+  };
 }
 
 /**

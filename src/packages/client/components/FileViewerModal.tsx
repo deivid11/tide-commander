@@ -68,6 +68,8 @@ interface FileViewerModalProps {
     newString?: string;
     operation?: string;
     unifiedDiff?: string;
+    /** Literal replacements a shell/script edit performed, newest state last. */
+    replacements?: Array<{ oldText: string; newText: string }>;
     // For Read tool - highlight these lines
     highlightRange?: { offset: number; limit: number };
     // For direct file references like path/to/file.ts:16
@@ -521,7 +523,23 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     if (!fileData || !editData) return null;
     // Skip if this is a highlight range (not an edit)
     if (editData.highlightRange) return null;
-    const { oldString = '', newString = '', operation } = editData;
+    const { oldString = '', newString = '', operation, replacements } = editData;
+
+    // An inline patch script states its own diff (`s.replace(a, b)`): undo each
+    // pair to rebuild the pre-command file, no git history needed.
+    if (replacements && replacements.length > 0) {
+      let restored = fileData.content;
+      let applied = 0;
+      for (let index = replacements.length - 1; index >= 0; index -= 1) {
+        const { oldText, newText } = replacements[index];
+        if (!newText) continue;
+        const at = restored.indexOf(newText);
+        if (at === -1) continue;
+        restored = restored.slice(0, at) + oldText + restored.slice(at + newText.length);
+        applied += 1;
+      }
+      if (applied > 0) return restored;
+    }
 
     if (!oldString && !newString) return null;
 
@@ -558,6 +576,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     || !!editData.newString
     || editData.operation === 'codex-patch'
     || editData.operation === 'pi-edit'
+    // A shell write (`sed -i`, `cat > f`, an inline python patch) knows the file
+    // but not the strings; the git-diff/original fetches below fill that in.
+    || editData.operation === 'shell-write'
   );
   const resolvedUnifiedDiff = editData?.unifiedDiff || fetchedUnifiedDiff;
   const hasUnifiedDiff = !!resolvedUnifiedDiff;

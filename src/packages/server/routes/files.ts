@@ -2882,7 +2882,10 @@ router.get('/git-original', async (req: Request, res: Response) => {
     // Get original content from HEAD
     let originalBuffer: Buffer;
     try {
-      originalBuffer = execFileSync('git', ['show', `HEAD:${relativePath}`], {
+      // cat-file, not `git show`: a new file whose name has glob characters
+      // (`app/[slug]/page.tsx`) makes show fall back to a pathspec and print
+      // the HEAD commit with exit 0, which rendered as the "original" content.
+      originalBuffer = execFileSync('git', ['cat-file', 'blob', `HEAD:${relativePath}`], {
         cwd: gitRoot,
         maxBuffer: 10 * 1024 * 1024, // 10MB
       });
@@ -2948,7 +2951,7 @@ router.get('/git-original-binary', async (req: Request, res: Response) => {
       res.status(400).json({ error: 'Path is outside the git repository' });
       return;
     }
-    const buffer = execFileSync('git', ['show', `HEAD:${relativePath}`], {
+    const buffer = execFileSync('git', ['cat-file', 'blob', `HEAD:${relativePath}`], {
       cwd: gitRoot,
       maxBuffer: 50 * 1024 * 1024,
     });

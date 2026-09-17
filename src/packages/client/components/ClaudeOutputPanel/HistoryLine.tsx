@@ -13,6 +13,9 @@ import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting'
 import { getToolIconName, extractToolKeyParam, findExecTaskForCurlRow, extractExecWrappedCommand, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch,
   isCurlCommandTo,
   bashCommandDisplaySlice,
+  getShellWriteSummary,
+  getBashRowSummary,
+  getFileToolDetail,
 } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
@@ -41,6 +44,9 @@ import { useTTS } from '../../hooks/useTTS';
 import { ansiToHtml } from '../../utils/ansiToHtml';
 import { Icon } from '../Icon';
 import { FileTypeIcon } from './FileTypeIcon';
+import { ShellWriteParam } from './ShellWriteParam';
+import { parseEditReplacements } from '../shared/useFilteredOutputs';
+import { BashSummaryParam } from './BashSummaryParam';
 import { AgentIcon } from '../AgentIcon';
 import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
 import { copyRichContentToClipboard, inlineStylesForRichCopy } from '../../utils/clipboard';
@@ -720,6 +726,8 @@ export const HistoryLine = memo(function HistoryLine({
         }
       } catch { /* ignore */ }
       const bashCommand = _bashCommand || keyParam || bashDescription || '';
+      // Parity with OutputLine: name the slice of the file the row touched.
+      const fileToolDetail = getFileToolDetail(toolName || '', parsedToolInput);
       const bashReadTarget = isBashTool && bashCommand ? getShellReadTarget(bashCommand) : null;
       const isBashClickable = isBashTool && (!!onBashClick || (!!bashReadTarget && !!onFileClick));
       // Grok early tool_started cards arrive with empty toolInput {}. Hide them
@@ -772,6 +780,20 @@ export const HistoryLine = memo(function HistoryLine({
         && !isCurlExecCommand
         && looksLikeCurl(bashCommand)
       ) ? (() => { try { return parseCurlCommand(bashCommand); } catch { return null; } })() : null;
+      // Parity with OutputLine: a file-writing command headlines its files.
+      const bashShellWrite = (
+        isBashTool
+        && bashCommand
+        && !bashTrackingStatusCommand
+        && !bashNotificationCommand
+        && !bashTaskLabelCommand
+        && !bashReportTaskCommand
+        && !bashMemoryCommand
+        && !bashSearchCommand
+        && !bashCurlParsed
+      ) ? getShellWriteSummary(bashCommand) : null;
+      // Too long / multi-line to read inline; the click modal keeps the full text.
+      const bashRowSummary = !bashShellWrite && isBashTool ? getBashRowSummary(bashCommand) : null;
 
       // Ctrl+hover preview for this row — parity with the live OutputLine row so
       // a reloaded conversation previews exactly like a streaming one. Built
@@ -833,6 +855,7 @@ export const HistoryLine = memo(function HistoryLine({
                   newString: parsed.new_string || '',
                   operation: typeof parsed.operation === 'string' ? parsed.operation : undefined,
                   unifiedDiff: typeof parsed.unified_diff === 'string' ? parsed.unified_diff : undefined,
+                  replacements: parseEditReplacements(parsed.replacements),
                 });
                 return;
               }
@@ -871,6 +894,9 @@ export const HistoryLine = memo(function HistoryLine({
       const renderBashCommandWithFileLinks = () => {
         const fullCmd = bashCommand || keyParam;
         if (!fullCmd) return null;
+        if (bashRowSummary) {
+          return <BashSummaryParam summary={bashRowSummary} agentCwd={agentCwd} onFileClick={onFileClick} />;
+        }
         // One-line chip: highlight/link only what can be shown (see helper).
         const cmd = bashCommandDisplaySlice(fullCmd);
         if (!onFileClick) {
@@ -1108,8 +1134,8 @@ export const HistoryLine = memo(function HistoryLine({
           >
             {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-            <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
-            <span className="output-tool-name">{displayToolName}</span>
+            <span className="output-tool-icon"><Icon name={bashShellWrite ? getToolIconName(bashShellWrite.toolName) : iconName} size={14} /></span>
+            <span className="output-tool-name">{bashShellWrite ? getLocalizedToolName(bashShellWrite.toolName, t) : displayToolName}</span>
             {isBashTool && bashTrackingStatusCommand ? (() => {
               const status = bashTrackingStatusCommand.trackingStatus;
               const detail = bashTrackingStatusCommand.trackingStatusDetail;
@@ -1198,6 +1224,14 @@ export const HistoryLine = memo(function HistoryLine({
               <div className="output-tool-param bash-curl-param">
                 <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} output={_bashOutput} />
               </div>
+            ) : bashShellWrite ? (
+              <ShellWriteParam
+                summary={bashShellWrite}
+                agentCwd={agentCwd}
+                onFileClick={onFileClick}
+                onClick={onBashClick ? handleBashClick : undefined}
+                title={onBashClick ? t('tools:display.clickToViewOutput') : undefined}
+              />
             ) : isBashTool && bashCommand ? (
               <span
                 className="output-tool-param bash-command"
@@ -1221,6 +1255,7 @@ export const HistoryLine = memo(function HistoryLine({
                     return iconPath ? <img className="output-tool-file-icon" src={iconPath} alt="" /> : null;
                   })()}
                   {(['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName || '') && isFilePath ? getBasenameFromPath(keyParam) : keyParam)}
+                  {fileToolDetail && <span className="output-tool-subparam">{fileToolDetail}</span>}
                 </span>
               )
             )}
@@ -1593,6 +1628,16 @@ export const HistoryLine = memo(function HistoryLine({
           && !isCurlExecCommand
           && looksLikeCurl(bashCommand)
         ) ? (() => { try { return parseCurlCommand(bashCommand); } catch { return null; } })() : null;
+        const bashShellWrite = (
+          !bashTrackingStatusCommand
+          && !bashNotificationCommand
+          && !bashTaskLabelCommand
+          && !bashReportTaskCommand
+          && !bashMemoryCommand
+          && !bashSearchCommand
+          && !bashCurlParsed
+        ) ? getShellWriteSummary(bashCommand) : null;
+        const bashRowSummary = !bashShellWrite ? getBashRowSummary(bashCommand) : null;
 
         const handleBashClick = onBashClick
           ? () => onBashClick(bashCommand, _bashOutput || t('tools:display.noOutputAvailable'))
@@ -1676,6 +1721,22 @@ export const HistoryLine = memo(function HistoryLine({
           <div className="output-tool-param bash-curl-param">
             <CurlCard parsed={bashCurlParsed} rawCommand={bashCommand} output={_bashOutput} />
           </div>
+        ) : bashShellWrite ? (
+          <ShellWriteParam
+            summary={bashShellWrite}
+            agentCwd={agentCwd}
+            onFileClick={onFileClick}
+            onClick={handleBashClick}
+            title={handleBashClick ? t('tools:display.clickToViewOutput') : undefined}
+          />
+        ) : bashRowSummary ? (
+          <BashSummaryParam
+            summary={bashRowSummary}
+            agentCwd={agentCwd}
+            onFileClick={onFileClick}
+            onClick={handleBashClick}
+            title={handleBashClick ? t('tools:display.clickToViewOutput') : undefined}
+          />
         ) : (
           <pre
             className="output-tool-param output-input-content bash-command"
@@ -1691,8 +1752,8 @@ export const HistoryLine = memo(function HistoryLine({
             <div className="output-line output-tool-use output-tool-simple">
               {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr} <span style={{fontSize: '9px', color: '#888', fontFamily: 'monospace'}}>[{debugHash}]</span></span>}
               {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-              <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
-              <span className="output-tool-name">{displayToolName}</span>
+              <span className="output-tool-icon"><Icon name={bashShellWrite ? getToolIconName(bashShellWrite.toolName) : iconName} size={14} /></span>
+              <span className="output-tool-name">{bashShellWrite ? getLocalizedToolName(bashShellWrite.toolName, t) : displayToolName}</span>
               {chip}
               <BashInlineToggle enabled={settings.inlineBashOutputs} />
             </div>

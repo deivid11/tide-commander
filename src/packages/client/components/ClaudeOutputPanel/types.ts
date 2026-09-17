@@ -114,6 +114,8 @@ export interface EditData {
   newString: string;
   operation?: string;
   unifiedDiff?: string;
+  /** Literal replacements a shell/script edit performed (see FileViewerModal). */
+  replacements?: Array<{ oldText: string; newText: string }>;
 }
 
 // Enriched history message with linked tool results

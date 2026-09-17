@@ -20,6 +20,7 @@ import type { AttachedFile } from './types';
 import { Icon } from '../Icon';
 import { ActivityGlyph } from '../shared/ActivityGlyph';
 import { getPendingMessagesForAgent, removePendingMessageForAgent } from '../../websocket/send';
+import { enterInsertsNewline } from '../../utils/composerEnter';
 import { useServerMessageQueue } from '../../hooks/useServerMessageQueue';
 import { QueuedMessagesBar } from './QueuedMessagesBar';
 import { apiUrl, authFetch } from '../../utils/storage';
@@ -913,7 +914,8 @@ export const TerminalInputArea = memo(function TerminalInputArea({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    const isMobile = window.innerWidth <= 768;
+    // Touch-first or narrow screen: Enter adds a line and only the Send button sends (utils/composerEnter).
+    const isMobile = enterInsertsNewline();
 
     // Slash-command dropdown keyboard navigation
     if (slashActive) {

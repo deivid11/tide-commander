@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeTideFileHref, isImageViewTool, getImageViewTarget, extractExecWrappedCommand, extractExecPayloadCommand, shellSplitWords, findExecTaskForCurlRow, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName, summarizeWebSearch, isCurlCommandTo, bashCommandDisplaySlice, formatTimestamp } from './outputRendering';
+import { decodeTideFileHref, isImageViewTool, getImageViewTarget, extractExecWrappedCommand, extractExecPayloadCommand, shellSplitWords, findExecTaskForCurlRow, linkifyFilePathsForMarkdown, parseBashNotificationCommand, parseBashSearchCommand, parseBashTrackingStatusCommand, getTrackingStatusIcon, summarizeCodexExecScript, extractToolKeyParam, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, prettifyToolName, summarizeWebSearch, isCurlCommandTo, bashCommandDisplaySlice, formatTimestamp, getShellWriteSummary, formatShellWriteFollowUp, getFileToolDetail, getBashRowSummary } from './outputRendering';
 
 describe('Codex exec activity summaries', () => {
   it('describes parallel terminal commands without exposing orchestration code', () => {
@@ -26,11 +26,11 @@ describe('Codex exec activity summaries', () => {
 
   it('classifies terminal commands like familiar Claude tools', () => {
     expect(getCodexExecPresentation('const r = await tools.exec_command({ cmd: "rg -n \\\"needle\\\" src" });'))
-      .toEqual({ toolName: 'Grep', detail: 'rg -n "needle" src' });
+      .toEqual({ toolName: 'Grep', detail: '"needle" in src' });
     expect(getCodexExecPresentation('const r = await tools.exec_command({ cmd: "sed -n \\\"1,80p\\\" src/App.tsx" });'))
       .toEqual({ toolName: 'Read', detail: 'lines 1–80', filePaths: ['src/App.tsx'] });
     expect(getCodexExecPresentation('const r = await tools.exec_command({ cmd: "rg --files src" });'))
-      .toEqual({ toolName: 'Glob', detail: 'rg --files src' });
+      .toEqual({ toolName: 'Glob', detail: 'listed src' });
     expect(getCodexExecPresentation({
       input: `const r = await tools.exec_command({ cmd: "/usr/bin/zsh -lc \\\"sed -n '1335,1362p' src/GrepPanel.tsx\\\"" });`,
     })).toEqual({ toolName: 'Read', detail: 'lines 1335–1362', filePaths: ['src/GrepPanel.tsx'] });
@@ -54,9 +54,66 @@ describe('Codex exec activity summaries', () => {
 
   it('still classifies a single search step behind a cd', () => {
     expect(getShellCommandPresentation('cd /repo && rg -n needle src'))
-      .toEqual({ toolName: 'Grep', detail: 'cd /repo && rg -n needle src' });
+      .toEqual({ toolName: 'Grep', detail: '"needle" in src' });
     expect(getShellCommandPresentation('rg -n needle src'))
-      .toEqual({ toolName: 'Grep', detail: 'rg -n needle src' });
+      .toEqual({ toolName: 'Grep', detail: '"needle" in src' });
+  });
+
+  it('summarizes a long chain by step, naming containers, services and files', () => {
+    const docker = 'docker exec -it tide-api-1 sh -lc "npm run migrate && npm run seed" && docker logs --tail 80 tide-api-1 | grep -iE "error|warn" | head -20 && docker inspect tide-api-1 --format "{{.State.Status}}" && echo "--- checks done ---"';
+    const summary = getBashRowSummary(docker);
+    // `docker exec` alone hides WHICH container ran.
+    expect(summary?.steps.map((step) => step.label)).toEqual(['docker exec tide-api-1', 'docker logs tide-api-1', 'grep']);
+    expect(summary?.totalSteps).toBe(5);
+
+    const loop = "for f in lib/game/match.ts lib/game/locomotion.ts lib/game/nana.ts lib/game/stages.ts lib/game/custom/tanjiro-specials.ts lib/game/link-actions.ts lib/game/cpu.ts tests/unit/stages-real.test.ts; do stat -c '%y %n' $f; done 2>/dev/null | sort -r";
+    expect(getBashRowSummary(loop)?.steps).toEqual([{ label: 'loop', file: 'lib/game/match.ts' }, { label: 'sort' }]);
+
+    // An inline script is not a file path: `node -e "…"` must not leak a fragment.
+    const script = `node -e "const p=require('fs').readFileSync('cpu.cpuprofile','utf8'); ${'console.log(1); '.repeat(14)}"`;
+    expect(getBashRowSummary(script)?.steps).toEqual([{ label: 'node' }]);
+
+    // Short commands stay verbatim — the raw text is the most readable form.
+    expect(getBashRowSummary('git status --short')).toBeNull();
+  });
+
+  it('names the slice of a file a Read/Edit row touched', () => {
+    expect(getFileToolDetail('Read', { path: 'a.ts', offset: 450, limit: 440 })).toBe('lines 450–889');
+    expect(getFileToolDetail('Read', { file_path: 'a.ts' })).toBeNull();
+    expect(getFileToolDetail('Edit', { path: 'a.ts', edits: [{}, {}, {}] })).toBe('3 edits');
+    expect(getFileToolDetail('Edit', { path: 'a.ts', first_changed_line: 128 })).toBe('line 128');
+    expect(getFileToolDetail('Bash', { command: 'ls' })).toBeNull();
+  });
+
+  it('reads cd-prefixed inspection chains with echo separators as READ/GREP', () => {
+    expect(getShellCommandPresentation("cd /home/riven/d/tide-commander; sed -n 713,730p src/HistoryLine.tsx; echo '-----'; sed -n 763,775p src/HistoryLine.tsx"))
+      .toEqual({ toolName: 'Read', detail: 'lines 713–730, 763–775', filePaths: ['/home/riven/d/tide-commander/src/HistoryLine.tsx'] });
+    expect(getShellCommandPresentation('cd /repo; grep -nE "import .*FileTypeIcon" src/A.tsx src/B.tsx'))
+      .toEqual({ toolName: 'Grep', detail: '"import .*FileTypeIcon" in 2 files' });
+    // One file becomes a chip, so the detail stays just the pattern.
+    expect(getShellCommandPresentation('grep -n TODO src/a.ts'))
+      .toEqual({ toolName: 'Grep', detail: '"TODO"', filePaths: ['src/a.ts'] });
+    expect(getShellCommandPresentation('grep -rn TODO src'))
+      .toEqual({ toolName: 'Grep', detail: '"TODO" in src' });
+    expect(getShellReadTargets("cd /repo; sed -n 5,9p a.ts; echo ---; head -n 3 b.ts")).toEqual([
+      { path: '/repo/a.ts', highlightRange: { offset: 5, limit: 5 } },
+      { path: '/repo/b.ts', highlightRange: { offset: 1, limit: 3 } },
+    ]);
+  });
+
+  it('headlines heredoc file writes on the Bash row instead of labelling them READ', () => {
+    const command = "cd /pg/microbench && cat > parts.test.ts <<'EOF'\nimport { it } from 'vitest';\nEOF\nsed -n 1,40p /repo/lib/model.ts && curl -s -X POST http://localhost:5174/api/exec -d '{}' | python3 -c 'print(1)'";
+    expect(getShellCommandPresentation(command).toolName).toBe('Bash');
+    expect(getShellWriteSummary(command)).toEqual({ toolName: 'Write', paths: ['/pg/microbench/parts.test.ts'], otherCommands: ['sed', 'curl', 'python3'], replacements: {} });
+    expect(getShellWriteSummary("sed -i 's/a/b/' src/x.ts")).toEqual({ toolName: 'Edit', paths: ['src/x.ts'], otherCommands: [], replacements: {} });
+
+    // A patch script carries its own diff, keyed by the file it rewrites.
+    const patch = `cd /pg && python3 - <<'EOF'\np='bench.mjs'\ns=open(p).read()\ns=s.replace("--measure 3","--measure 5")\nopen(p,'w').write(s)\nEOF\nnode bench.mjs --base http://127.0.0.1:5297 --label swiftshader --players 2`;
+    expect(getShellWriteSummary(patch)?.replacements).toEqual({
+      '/pg/bench.mjs': [{ oldText: '--measure 3', newText: '--measure 5' }],
+    });
+    expect(getShellWriteSummary('npm test > out.log 2>&1')).toBeNull();
+    expect(formatShellWriteFollowUp(['sed', 'curl', 'sed', 'python3', 'cat', 'node'])).toBe('then sed, curl, python3 +2');
   });
 
   it('does not let a directory named after a tool decide the label', () => {
@@ -102,7 +159,7 @@ describe('Codex exec activity summaries', () => {
     expect(getCodexExecCommand(input)).toBe('npx vitest run src/a.test.ts && npx tsc --noEmit && git diff --check');
     expect(getCodexExecPresentation(input)).toEqual({
       toolName: 'Bash',
-      detail: '3 steps · tests → type check → check diff',
+      detail: '3 steps · tests a.test.ts → type check → check diff',
     });
   });
 
@@ -239,7 +296,7 @@ describe('Codex exec activity summaries', () => {
     const input = { command: 'const r = await tools.exec_command({cmd: "rg -n \\\"flat mode\\\" src"}); text(r.output)' };
     expect(isCodexExecWrapper(input)).toBe(true);
     expect(getCodexExecCommand(input)).toBe('rg -n "flat mode" src');
-    expect(getCodexExecPresentation(input)).toEqual({ toolName: 'Grep', detail: 'rg -n "flat mode" src' });
+    expect(getCodexExecPresentation(input)).toEqual({ toolName: 'Grep', detail: '"flat mode" in src' });
   });
 
   it('extracts commands from wrappers with JSON-style quoted keys', () => {

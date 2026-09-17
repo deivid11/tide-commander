@@ -9,6 +9,9 @@ import { filterCostText, isEmptyCodexPayloadText } from '../../utils/formatting'
 import { getToolIconName, extractToolKeyParam, extractExecWrappedCommand, findExecTaskForCurlRow, formatTimestamp, getLocalizedToolName, getCodexExecPresentation, getShellCommandPresentation, isCodexExecWrapper, getCodexExecEditPaths, getCodexExecPatchForFile, getCodexExecFileTarget, getCodexExecCommand, getShellReadTarget, getShellReadTargets, parseCodexGrepResults, type CodexGrepResults, parseBashNotificationCommand, parseBashSearchCommand, parseBashTaskLabelCommand, parseBashReportTaskCommand, parseBashTrackingStatusCommand, parseBashMemoryCommand, parseMemoryResponseInfo, getTrackingStatusIconName, splitCommandForFileLinks, isImageViewTool, getImageViewTarget, summarizeWebSearch,
   isCurlCommandTo,
   bashCommandDisplaySlice,
+  getShellWriteSummary,
+  getBashRowSummary,
+  getFileToolDetail,
 } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { getIconForExtension } from '../FileExplorerPanel/fileUtils';
@@ -39,6 +42,9 @@ import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import { useTTS } from '../../hooks/useTTS';
 import { Icon, type IconName } from '../Icon';
 import { FileTypeIcon } from './FileTypeIcon';
+import { ShellWriteParam } from './ShellWriteParam';
+import { parseEditReplacements } from '../shared/useFilteredOutputs';
+import { BashSummaryParam } from './BashSummaryParam';
 import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
 import { filePreviewHandlers, toolPreviewHandlers, type ToolPreviewTarget } from './toolPreviewHover';
 import type { EditData } from './types';
@@ -1227,6 +1233,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       : undefined;
 
     const resolvedFilePathForClick = _toolKeyParam || payloadFilePath;
+    // Which slice of the file this row touched (`lines 450–889`, `3 edits`) —
+    // without it, repeated reads of one file render as identical rows.
+    const fileToolDetail = getFileToolDetail(toolName, payloadToolInput);
     // File tools always have a file path as keyParam (even root-level files like "README.md" without slashes)
     const isFilePath = !!resolvedFilePathForClick && (isFileTool || resolvedFilePathForClick.startsWith('/') || resolvedFilePathForClick.includes('/'));
     const isFileClickable = isFileTool && isFilePath && onFileClick;
@@ -1241,6 +1250,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
           oldString: String(payloadInputRecord.old_string ?? ''),
           newString: String(payloadInputRecord.new_string ?? ''),
           operation: typeof payloadInputRecord.operation === 'string' ? payloadInputRecord.operation : undefined,
+          unifiedDiff: typeof payloadInputRecord.unified_diff === 'string' ? payloadInputRecord.unified_diff : undefined,
+          replacements: parseEditReplacements(payloadInputRecord.replacements),
         }
       : undefined;
 
@@ -1333,6 +1344,22 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
       && !isCurlExecCommand
       && looksLikeCurl(bashCommand)
     ) ? (() => { try { return parseCurlCommand(bashCommand); } catch { return null; } })() : null;
+    // A command that writes files headlines them (WRITE + file chip) instead of
+    // dumping the heredoc on one line. The special cards above keep priority.
+    const bashShellWrite = (
+      isBashTool
+      && bashCommand
+      && !bashTrackingStatusCommand
+      && !bashNotificationCommand
+      && !bashTaskLabelCommand
+      && !bashReportTaskCommand
+      && !bashMemoryCommand
+      && !bashSearchCommand
+      && !bashCurlParsed
+    ) ? getShellWriteSummary(displayCommand || bashCommand) : null;
+    // Too long / too multi-line to read inline (heredoc scripts, long chains):
+    // show what it does; the click modal keeps the full text.
+    const bashRowSummary = !bashShellWrite && isBashTool ? getBashRowSummary(displayCommand || bashCommand) : null;
 
     // Ctrl+hover preview for this row (file contents / edit diff / command
     // output). Mirrors what a click would open, so the tooltip never previews
@@ -1426,6 +1453,9 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
     const renderBashCommandWithFileLinks = () => {
       if (!displayCommand) return null;
+      if (bashRowSummary) {
+        return <BashSummaryParam summary={bashRowSummary} agentCwd={agentCwd} onFileClick={onFileClick} />;
+      }
       // One-line chip: highlight/link only what can be shown (see helper).
       const shown = bashCommandDisplaySlice(displayCommand);
       if (!onFileClick) {
@@ -1467,8 +1497,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         >
           <TimestampWithMeta output={output} timeStr={timeStr} debugHash={debugHash} agentId={agentId} />
           {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
-          <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
-          <span className="output-tool-name">{displayToolName}</span>
+          <span className="output-tool-icon"><Icon name={bashShellWrite ? getToolIconName(bashShellWrite.toolName) : iconName} size={14} /></span>
+          <span className="output-tool-name">{bashShellWrite ? getLocalizedToolName(bashShellWrite.toolName, t) : displayToolName}</span>
 
           {/* For Bash tools, show the command inline (more useful than file paths) */}
           {isBashTool && bashCommand && (
@@ -1564,6 +1594,14 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                   output={_bashOutput || (typeof payloadToolOutput === 'string' ? payloadToolOutput : undefined)}
                 />
               </div>
+            ) : bashShellWrite ? (
+              <ShellWriteParam
+                summary={bashShellWrite}
+                agentCwd={agentCwd}
+                onFileClick={onFileClick}
+                onClick={handleBashClick}
+                title={t('tools:display.clickToViewOutput')}
+              />
             ) : (
               <span
                 className="output-tool-param bash-command"
@@ -1590,6 +1628,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 return iconPath ? <img className="output-tool-file-icon" src={iconPath} alt="" /> : null;
               })()}
               {['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName) && isFilePath ? getBasenameFromPath(toolKeyParamOrFallback) : toolKeyParamOrFallback}
+              {fileToolDetail && <span className="output-tool-subparam">{fileToolDetail}</span>}
             </span>
           )}
 

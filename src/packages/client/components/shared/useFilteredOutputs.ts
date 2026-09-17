@@ -9,11 +9,28 @@ import { extractToolKeyParam } from '../../utils/outputRendering';
 import { debugLog } from '../../services/agentDebugger';
 
 // Edit data for file viewer
+/**
+ * `replacements` on an inferred shell edit: the literal pairs an inline patch
+ * script performed. The viewer undoes them to rebuild the pre-edit file, which
+ * is the only accurate "before" for a file outside git.
+ */
+export function parseEditReplacements(raw: unknown): Array<{ oldText: string; newText: string }> | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const pairs = raw.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const { oldText, newText } = entry as { oldText?: unknown; newText?: unknown };
+    return typeof oldText === 'string' && typeof newText === 'string' ? [{ oldText, newText }] : [];
+  });
+  return pairs.length > 0 ? pairs : undefined;
+}
+
 export interface EditData {
   oldString: string;
   newString: string;
   operation?: string;
   unifiedDiff?: string;
+  /** Literal replacements a shell/script edit performed (see FileViewerModal). */
+  replacements?: Array<{ oldText: string; newText: string }>;
 }
 
 // Extended output type with tool enrichment
@@ -208,6 +225,7 @@ function computeToolRowEnrichment(toolName: string, inputJson: string, parsed: R
         newString: (parsed.new_string as string) || '',
         operation: typeof parsed.operation === 'string' ? parsed.operation : undefined,
         unifiedDiff: typeof parsed.unified_diff === 'string' ? parsed.unified_diff : undefined,
+        replacements: parseEditReplacements(parsed.replacements),
       };
     }
   }

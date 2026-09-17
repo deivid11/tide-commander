@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.219.0] - 2026-09-17
+
+### Added
+- **Bash rows say what a command actually did** — a command that writes files is headlined by those files (with the other steps it runs summarized as `then sed, curl, python3 +2`) instead of dumping a 100 KB heredoc into the row, and a chain that only inspects files reads as READ/GREP labelled by its first step. Read and Edit rows now carry the part of the file they touched (`lines 450-889`, `3 edits`, `line 128`), so five consecutive reads of one file are no longer five identical rows.
+- **Inline patch scripts show their own diff** — the literal pairs an inline script performs (`s.replace(a, b)`) are extracted, so the file viewer rebuilds the pre-command file by undoing them. A file edited by a shell script outside git now has an accurate "before" with no history and no snapshot.
+- **Enter adds a line on touch-first screens** — both message composers treat a coarse pointer or a narrow window as a phone, where Enter inserts a newline and only the Send button sends, so an Enter meant as a line break no longer fires a half-written message. A phone in landscape counts too (width alone missed it); desktop keeps Enter = send, Shift+Enter = newline, and Ctrl/Cmd+Enter always sends.
+
+### Changed
+- **Shell write detection moved to a real lexer** — a shared quote- and heredoc-aware shell lexer is now the authority on which files a command writes (unquoted redirects outside heredoc bodies, `tee` arguments, the file operands of `sed -i` / `perl -i`), and targets built from expansions or unquoted globs are dropped rather than guessed. The Codex event parser uses it in place of its own regexes.
+
+### Fixed
+- **Phantom Edit rows after a Bash command** — inferring writes with regexes over the raw command string invented files: a `;` inside a quoted `sed` script split the command and the regex fragment `.*` became a "file", and `=> [...new Set()]` inside a heredoc body of TypeScript read as a redirect to `[...new`. Only writes bash would really perform are reported now.
+- **"Original" file content for paths with glob characters** — fetching the pre-edit version of a new file whose name contains brackets (`app/[slug]/page.tsx`) made `git show HEAD:<path>` fall back to a pathspec and print the HEAD commit with exit 0, which was then rendered as the file's original content. Both original-content endpoints use `git cat-file blob` instead.
+
 ## [1.218.0] - 2026-09-09
 
 ### Added

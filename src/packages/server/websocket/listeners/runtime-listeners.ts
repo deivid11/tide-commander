@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { AgentTodoItem, AgentTodoStatus, ContextStats, ServerMessage, Subagent } from '../../../shared/types.js';
 import { detectModelFallback, formatModelName } from '../../../shared/model-fallback.js';
+import { getShellFileWrites } from '../../../shared/shell-file-writes.js';
 import { parseContextOutput } from '../../claude/backend.js';
 import type { OutputMetadata } from '../../claude/types.js';
 import { parseAllFormats } from '../handlers/agent-handler.js';
@@ -21,6 +22,8 @@ interface InferredEditInput extends Record<string, unknown> {
   old_string: string;
   new_string: string;
   operation: 'append' | 'in_place_edit' | 'overwrite';
+  /** Literal replacements an inline patch script performed, when it stated them. */
+  replacements?: Array<{ oldText: string; newText: string }>;
 }
 
 interface RuntimeListenerContext {
@@ -54,6 +57,11 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
   });
 
   const pendingBashCommands = new Map<string, string>();
+  // Contents of the files a Bash command is about to write, captured BEFORE it
+  // runs. Without this the "before" side came from `git show HEAD:…`, so an
+  // edit in a scratch directory (no repo) diffed against nothing and the modal
+  // showed the whole file as added instead of the modified lines.
+  const pendingBashSnapshots = new Map<string, Map<string, string | null>>();
   // Accumulate all text emitted during a boss agent's turn so we can parse
   // delegation/spawn blocks even when the boss calls a tool after outputting them
   // (resultText in step_complete only contains the final text, not earlier text blocks).
@@ -367,12 +375,14 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
     } else if (event.type === 'tool_result' && event.toolName === 'Bash') {
       const command = pendingBashCommands.get(agentId);
       pendingBashCommands.delete(agentId);
+      const before = pendingBashSnapshots.get(agentId);
+      pendingBashSnapshots.delete(agentId);
       if (!command) {
         return;
       }
 
       const agent = agentService.getAgent(agentId);
-      const inferredEdits = inferEditInputsFromBash(command, agent?.cwd || process.cwd());
+      const inferredEdits = inferEditInputsFromBash(command, agent?.cwd || process.cwd(), before);
       for (const inferredEdit of inferredEdits) {
         const now = Date.now();
         ctx.broadcast({
@@ -537,6 +547,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
         const command = typeof toolInput?.command === 'string' ? toolInput.command : undefined;
         if (command && text.startsWith('Using tool:')) {
           pendingBashCommands.set(agentId, command);
+          pendingBashSnapshots.set(agentId, snapshotShellWriteTargets(command, agentService.getAgent(agentId)?.cwd || process.cwd()));
         }
       }
 
@@ -562,6 +573,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
   runtimeService.on('complete', (agentId, success) => {
     pendingBashCommands.delete(agentId);
+    pendingBashSnapshots.delete(agentId);
     clearBashToolCalls(agentId);
     ctx.sendActivity(agentId, success ? 'Task completed' : 'Task failed');
 
@@ -584,6 +596,7 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
 
   runtimeService.on('error', (agentId, error) => {
     pendingBashCommands.delete(agentId);
+    pendingBashSnapshots.delete(agentId);
     clearBashToolCalls(agentId);
     ctx.sendActivity(agentId, `Error: ${error}`);
   });
@@ -603,54 +616,45 @@ export function setupRuntimeListeners(ctx: RuntimeListenerContext): void {
   });
 }
 
-function inferEditInputsFromBash(command: string, cwd: string): InferredEditInput[] {
-  const shell = extractShellCommand(command);
-  const candidates = new Map<string, InferredEditInput['operation']>();
-
-  for (const regex of [
-    /\b(?:printf|echo)\s+(['"])([\s\S]*?)\1\s*>>\s*([^\s;|&]+)/g,
-  ]) {
-    let match: RegExpExecArray | null;
-    while ((match = regex.exec(shell)) !== null) {
-      const filePath = normalizeCandidatePath(match[3]);
-      if (!filePath) continue;
-      candidates.set(filePath, 'append');
+/** Read the files a command is about to write, so the diff has a real "before". */
+function snapshotShellWriteTargets(command: string, cwd: string): Map<string, string | null> {
+  const snapshot = new Map<string, string | null>();
+  try {
+    for (const write of getShellFileWrites(extractShellCommand(command))) {
+      const absolutePath = resolveAbsolutePath(write.path, cwd);
+      if (!absolutePath || snapshot.has(absolutePath)) continue;
+      // null = did not exist yet, so the row can say "created" rather than diff.
+      snapshot.set(absolutePath, fs.existsSync(absolutePath) ? readTextFileIfSmall(absolutePath) : null);
     }
+  } catch {
+    /* best-effort: a snapshot is a nicety, never a reason to drop the row */
   }
+  return snapshot;
+}
 
-  for (const segment of shell.split(/&&|\|\||;|\|/).map((s) => s.trim()).filter(Boolean)) {
-    if ((/\bsed\s+-i\b/.test(segment) || /\bperl\s+-pi\b/.test(segment))) {
-      const filePath = extractLastLikelyFilePath(segment);
-      if (filePath) {
-        candidates.set(filePath, 'in_place_edit');
-      }
-    }
-  }
-
-  const overwriteRegex = /(?<![0-9>])>(?!>)\s*([^\s;|&]+)/g;
-  let overwriteMatch: RegExpExecArray | null;
-  while ((overwriteMatch = overwriteRegex.exec(shell)) !== null) {
-    const filePath = normalizeCandidatePath(overwriteMatch[1]);
-    if (!filePath || filePath === '/dev/null') continue;
-    if (!candidates.has(filePath)) {
-      candidates.set(filePath, 'overwrite');
-    }
-  }
-
+function inferEditInputsFromBash(
+  command: string,
+  cwd: string,
+  before?: Map<string, string | null>,
+): InferredEditInput[] {
   const edits: InferredEditInput[] = [];
-  for (const [filePath, operation] of candidates.entries()) {
-    const snapshot = buildFileSnapshot(filePath, cwd);
+  // Quote/heredoc-aware: regexes over the raw string turned a `;` inside a sed
+  // script (`.*`) and `=> [...new Set()]` inside heredoc code into phantom files.
+  for (const write of getShellFileWrites(extractShellCommand(command))) {
+    const snapshot = buildFileSnapshot(write.path, cwd, before);
     if (!snapshot) continue;
     if (snapshot.old_string === snapshot.new_string) continue;
     edits.push({
-      file_path: normalizePathForUi(filePath),
+      file_path: normalizePathForUi(write.path),
       old_string: snapshot.old_string,
       new_string: snapshot.new_string,
-      operation,
+      operation: write.operation,
       ...(snapshot.unified_diff ? { unified_diff: snapshot.unified_diff } : {}),
+      // The script's own `s.replace(a, b)` pairs: an exact diff even when the
+      // file lives outside git and no before-snapshot was captured.
+      ...(write.replacements && write.replacements.length > 0 ? { replacements: write.replacements } : {}),
     });
   }
-
   return edits;
 }
 
@@ -670,28 +674,6 @@ function extractShellCommand(command: string): string {
   return command;
 }
 
-function normalizeCandidatePath(value: string): string | undefined {
-  const candidate = value.trim().replace(/^['"]|['"]$/g, '');
-  if (!candidate) return undefined;
-  if (candidate === '/') return undefined;
-  if (candidate.startsWith('&') || candidate.startsWith('(')) return undefined;
-  if (candidate.startsWith('-')) return undefined;
-  if (/^[><|&]+$/.test(candidate)) return undefined;
-  if (/^\d+$/.test(candidate)) return undefined;
-  if (!/[/.~]/.test(candidate) && !/^[A-Z][A-Za-z0-9_-]*$/.test(candidate)) return undefined;
-  if (/^(one|two|three|four|five|six|seven|eight|nine|ten)$/i.test(candidate)) return undefined;
-  return candidate;
-}
-
-function extractLastLikelyFilePath(segment: string): string | undefined {
-  const tokens = segment.match(/'[^']*'|"[^"]*"|\S+/g) || [];
-  for (let i = tokens.length - 1; i >= 0; i -= 1) {
-    const candidate = normalizeCandidatePath(tokens[i]);
-    if (candidate) return candidate;
-  }
-  return undefined;
-}
-
 function normalizePathForUi(filePath: string): string {
   if (filePath.startsWith('/') || filePath.startsWith('./') || filePath.startsWith('../') || filePath.startsWith('~')) {
     return filePath;
@@ -699,12 +681,27 @@ function normalizePathForUi(filePath: string): string {
   return `./${filePath}`;
 }
 
-function buildFileSnapshot(filePath: string, cwd: string): { old_string: string; new_string: string; unified_diff?: string } | null {
+function buildFileSnapshot(
+  filePath: string,
+  cwd: string,
+  before?: Map<string, string | null>,
+): { old_string: string; new_string: string; unified_diff?: string } | null {
   const absolutePath = resolveAbsolutePath(filePath, cwd);
-  if (!absolutePath) return null;
+  if (!absolutePath || !fs.existsSync(absolutePath)) return null;
 
   const newContent = readTextFileIfSmall(absolutePath);
   if (newContent === null) return null;
+
+  // The pre-command snapshot is the truth: it works outside git, and inside a
+  // repo it still beats HEAD when the file had uncommitted changes already.
+  if (before?.has(absolutePath)) {
+    const oldContent = before.get(absolutePath);
+    if (oldContent !== null && oldContent !== undefined) {
+      return { old_string: oldContent, new_string: newContent };
+    }
+    // The file did not exist before: a creation, not an edit.
+    return { old_string: '', new_string: newContent };
+  }
 
   const gitRoot = findGitRoot(path.dirname(absolutePath));
   if (!gitRoot) {
@@ -875,10 +872,14 @@ function parseTodoWriteInput(
 function readHeadFileIfSmall(gitRoot: string, relativePath: string): string | null {
   const gitPath = relativePath.split(path.sep).join(path.posix.sep);
   try {
-    const output = execFileSync('git', ['show', `HEAD:${gitPath}`], {
+    // cat-file, not `git show`: show treats a path with glob characters that
+    // is missing from HEAD as a pathspec, exits 0 and prints the HEAD commit,
+    // which then rendered as the file's "original" content.
+    const output = execFileSync('git', ['cat-file', 'blob', `HEAD:${gitPath}`], {
       cwd: gitRoot,
       encoding: 'utf8',
       maxBuffer: MAX_SYNTHETIC_DIFF_FILE_BYTES + 4096,
+      stdio: ['ignore', 'pipe', 'ignore'],
     });
     if (Buffer.byteLength(output, 'utf8') > MAX_SYNTHETIC_DIFF_FILE_BYTES) {
       return null;

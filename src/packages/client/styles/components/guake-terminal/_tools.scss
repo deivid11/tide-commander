@@ -90,6 +90,69 @@
   color: var(--text-muted);
 }
 
+// Bash row that writes files: chips + a quiet "then curl, python3" tail
+// instead of the one-line heredoc dump.
+.bash-write-param {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+// `lines 450–889` / `3 edits` next to a file name on Read/Edit rows.
+.output-tool-subparam {
+  margin-left: 6px;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 0.85em;
+}
+
+.bash-summary-param {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.bash-summary-count,
+.bash-summary-arrow {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-family: $font-mono;
+}
+
+.bash-summary-text {
+  flex-shrink: 0;
+  color: var(--text-secondary, #aaa);
+  font-family: $font-mono;
+}
+
+// "42 lines" / "890 chars": the row is a summary, the full command is one click away.
+.bash-summary-lines {
+  margin-left: 6px;
+  padding: 1px 6px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  border-radius: 999px;
+  font-family: $font-mono;
+  font-size: 0.8em;
+}
+
+.bash-write-follow-up {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: $font-mono;
+  font-size: 0.85em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 // vscode-icons glyph inside file chips (and any other inline file reference).
 // Never shrinks — the filename label is what gets ellipsized instead.
 .file-type-icon {

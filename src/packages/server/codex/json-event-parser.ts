@@ -4,6 +4,7 @@ import * as path from 'path';
 import type { RuntimeEvent } from '../runtime/types.js';
 import { createLogger } from '../utils/logger.js';
 import { materializeCodexGeneratedImage } from './generated-image.js';
+import { getShellFileWrites } from '../../shared/shell-file-writes.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -1290,32 +1291,35 @@ export class CodexJsonEventParser {
       add(op);
     }
 
-    // 2) Common shell writes/appends
+    // 2) Shell writes. The quote/heredoc-aware lexer is the authority on which
+    // files a command writes: regexes over the raw string read `;` inside a
+    // sed script and `=>` inside heredoc code as shell syntax (phantom files).
+    const shellWrites = getShellFileWrites(shell);
+    const appendTargets = new Set(shellWrites.filter((write) => write.operation === 'append').map((write) => write.path));
     for (const appendEdit of this.extractAppendEdits(shell)) {
-      add(appendEdit);
+      // Keeps the echoed text as new_string; the lexer confirms the target.
+      if (appendTargets.has(this.stringField(appendEdit.toolInput.file_path) || '')) add(appendEdit);
     }
-    for (const path of this.extractRedirectTargets(shell, '>>')) {
-      add({
-        toolName: 'Edit',
-        toolInput: {
-          file_path: path,
-          operation: 'append',
-          old_string: '',
-          new_string: '',
-        },
-      });
-    }
-    for (const path of this.extractRedirectTargets(shell, '>')) {
-      if (path === '/dev/null') continue;
-      add({
-        toolName: 'Write',
-        toolInput: { file_path: path },
-      });
-    }
-
-    // 3) In-place edit commands
-    for (const edit of this.extractInPlaceEdits(shell)) {
-      add(edit);
+    for (const write of shellWrites) {
+      if (write.operation === 'append') {
+        add({
+          toolName: 'Edit',
+          toolInput: { file_path: write.path, operation: 'append', old_string: '', new_string: '' },
+        });
+      } else if (write.operation === 'overwrite') {
+        add({ toolName: 'Write', toolInput: { file_path: write.path } });
+      } else {
+        // 3) In-place edits (sed -i / perl -i)
+        add({
+          toolName: 'Edit',
+          toolInput: {
+            file_path: write.path,
+            operation: 'in_place_edit',
+            old_string: this.extractRemovalHint(write.segment) || '',
+            new_string: '',
+          },
+        });
+      }
     }
 
     // 4) Read commands
@@ -1464,55 +1468,6 @@ export class CodexJsonEventParser {
     return calls;
   }
 
-  private extractRedirectTargets(shell: string, operator: '>' | '>>'): string[] {
-    const targets = new Set<string>();
-    const escaped = operator === '>>' ? '>>' : '(?<![0-9>])>(?!>)';
-    const quoted = new RegExp(`${escaped}\\s*['"]([^'"]+)['"]`, 'g');
-    const unquoted = new RegExp(`${escaped}\\s*([^\\s;|&]+)`, 'g');
-
-    for (const regex of [quoted, unquoted]) {
-      let match: RegExpExecArray | null;
-      while ((match = regex.exec(shell)) !== null) {
-        const candidate = this.normalizeCandidatePath(match[1]);
-        if (!candidate) continue;
-        targets.add(candidate);
-      }
-    }
-
-    return Array.from(targets);
-  }
-
-  private extractInPlaceEdits(shell: string): InferredToolCall[] {
-    const edits: InferredToolCall[] = [];
-    const seen = new Set<string>();
-    const segments = shell.split(/&&|\|\||;|\|/).map((s) => s.trim()).filter(Boolean);
-
-    for (const segment of segments) {
-      const isInPlaceEdit = /\bsed\s+-i\b/.test(segment) || /\bperl\s+-pi\b/.test(segment);
-      if (!isInPlaceEdit) continue;
-
-      const filePath = this.extractLastLikelyFilePath(segment);
-      if (!filePath) continue;
-
-      const oldLineHint = this.extractRemovalHint(segment);
-      const key = `${filePath}:${oldLineHint || ''}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      edits.push({
-        toolName: 'Edit',
-        toolInput: {
-          file_path: filePath,
-          operation: 'in_place_edit',
-          old_string: oldLineHint || '',
-          new_string: '',
-        },
-      });
-    }
-
-    return edits;
-  }
-
   private extractReadTargets(shell: string): string[] {
     const targets = new Set<string>();
     const patterns = [
@@ -1566,15 +1521,6 @@ export class CodexJsonEventParser {
     if (/^(one|two|three|four|five|six|seven|eight|nine|ten)$/i.test(candidate)) return undefined;
 
     return candidate;
-  }
-
-  private extractLastLikelyFilePath(segment: string): string | undefined {
-    const tokens = segment.match(/'[^']*'|"[^"]*"|\S+/g) || [];
-    for (let i = tokens.length - 1; i >= 0; i -= 1) {
-      const candidate = this.normalizeCandidatePath(tokens[i]);
-      if (candidate) return candidate;
-    }
-    return undefined;
   }
 
   private normalizePathForUi(path: string): string | undefined {
@@ -1737,10 +1683,13 @@ export class CodexJsonEventParser {
     const gitPath = relativePath.split(path.sep).join(path.posix.sep);
 
     try {
-      const output = execFileSync('git', ['show', `HEAD:${gitPath}`], {
+      // cat-file, not `git show`: a glob-looking path missing from HEAD makes
+      // show fall back to a pathspec and print the HEAD commit (exit 0).
+      const output = execFileSync('git', ['cat-file', 'blob', `HEAD:${gitPath}`], {
         cwd: gitRoot,
         encoding: 'utf8',
         maxBuffer: MAX_DIFF_FILE_BYTES + 4096,
+        stdio: ['ignore', 'pipe', 'ignore'],
       });
       if (Buffer.byteLength(output, 'utf8') > MAX_DIFF_FILE_BYTES) {
         return null;

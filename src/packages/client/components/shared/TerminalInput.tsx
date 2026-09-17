@@ -9,6 +9,7 @@
  * - Auto-resize textarea
  */
 
+import { enterInsertsNewline } from '../../utils/composerEnter';
 import React, { useRef, useEffect, useCallback } from 'react';
 import type { AttachedFile } from './outputTypes';
 import { Icon } from '../Icon';
@@ -161,6 +162,17 @@ export function TerminalInput({
   }, [uploadFile, onAddFile]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Touch-first or narrow screen: Enter adds a line and only the Send button sends, the same rule
+    // as the agent panel (utils/composerEnter). Ctrl/Cmd+Enter still sends.
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && enterInsertsNewline()) {
+      if (!useTextarea) {
+        // The single-line input cannot hold the break: switch to the textarea carrying it.
+        e.preventDefault();
+        onForceTextarea(true);
+        onCommandChange(command + '\n');
+      }
+      return;
+    }
     // Shift+Enter: switch to textarea mode or add newline
     if (e.key === 'Enter' && e.shiftKey) {
       if (!useTextarea) {
@@ -174,7 +186,7 @@ export function TerminalInput({
       e.preventDefault();
       onSend();
     }
-  }, [useTextarea, onForceTextarea, onSend]);
+  }, [useTextarea, onForceTextarea, onSend, command, onCommandChange]);
 
   // Allow normal mouse events on input/textarea
   // Middle-click paste is now only disabled on the container itself
