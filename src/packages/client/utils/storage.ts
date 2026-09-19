@@ -128,6 +128,11 @@ export const STORAGE_KEYS = {
 
   // Pending messages (queued when offline)
   PENDING_MESSAGES: 'tide-pending-messages',
+
+  // Set the first time a WebSocket connection succeeds on this device. Once
+  // set, a dropped connection shows the slim non-blocking status bar instead of
+  // the full-screen setup overlay (which only helps someone who never got in).
+  HAS_CONNECTED_BEFORE: 'tide-has-connected-before',
 } as const;
 
 export const BACKEND_URL_CHANGE_EVENT = 'tide-backend-url-change';

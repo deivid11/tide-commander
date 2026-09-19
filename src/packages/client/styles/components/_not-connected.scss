@@ -30,6 +30,7 @@
 }
 
 .not-connected-panel {
+  position: relative;
   max-width: 520px;
   width: 90%;
   padding: 40px 36px;
@@ -236,35 +237,137 @@
   }
 }
 
-// Small non-blocking toast shown during server reconnection
-.reconnecting-toast {
+// Slim, non-blocking connection banner shown instead of the full-screen
+// overlay once the device has reached the server at least once. It hugs its
+// content at the top of the viewport so reading a conversation or typing a
+// prompt is never interrupted by a connection blip.
+.connection-bar {
   position: fixed;
-  // Prefer top so it never collides with the mobile bottom nav / composer
-  top: max(8px, env(safe-area-inset-top, 0px));
-  bottom: auto;
+  top: 0;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 9999;
+  // Above content and the update banner (1900), below toasts (2000) and modals
+  z-index: 1950;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  background: color-mix(in srgb, var(--bg-tertiary) 96%, transparent);
+  gap: 10px;
+  width: max-content;
+  max-width: min(680px, calc(100vw - 16px));
+  box-sizing: border-box;
+  margin-top: max(8px, env(safe-area-inset-top, 0px));
+  padding: 6px 8px 6px 12px;
+  background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
   font-size: 0.78rem;
   color: var(--text-secondary);
   animation: not-connected-fade-in 0.3s ease-out;
-  pointer-events: none;
-  max-width: calc(100vw - 24px);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 
   @media (max-width: 768px) {
-    // Slim top strip under the status bar — not over the nav
-    top: max(6px, env(safe-area-inset-top, 0px));
-    padding: 5px 12px;
+    margin-top: max(6px, env(safe-area-inset-top, 0px));
+    gap: 8px;
+    padding: 5px 6px 5px 10px;
     font-size: 0.72rem;
   }
+}
+
+.connection-bar-offline {
+  border-color: color-mix(in srgb, var(--accent-orange) 55%, var(--border-color));
+  color: var(--accent-orange);
+}
+
+.connection-bar-auth {
+  border-color: color-mix(in srgb, var(--accent-red) 60%, var(--border-color));
+  color: var(--accent-red);
+}
+
+.connection-bar-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.connection-bar-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.connection-bar-label {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.connection-bar-detail {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  // The headline alone carries the meaning — drop the detail before wrapping
+  @media (max-width: 560px) {
+    display: none;
+  }
+}
+
+.connection-bar-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.connection-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+
+  &:hover:not(:disabled) {
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.connection-bar-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+
+  &:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.07);
+  }
+}
+
+// Stack other fixed top banners below the connection bar
+body.has-connection-bar .update-banner {
+  margin-top: calc(max(8px, env(safe-area-inset-top, 0px)) + 42px);
 }
 
 .reconnecting-spinner {
@@ -278,4 +381,29 @@
 
 @keyframes reconnecting-spin {
   to { transform: rotate(360deg); }
+}
+
+// Close button for the setup panel when it is opened on demand from the
+// connection bar (the first-run panel has nothing to go back to, so it has none)
+.not-connected-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+
+  &:hover {
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+  }
 }

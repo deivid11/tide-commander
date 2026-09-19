@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { store, useIsConnected, useResyncInProgress, useConnectionFailing, useAuthRejected } from '../store';
 import { reconnect } from '../websocket/connection';
+import { hasPendingMessages } from '../websocket/send';
 import {
   getBackendUrl,
   getBackendUrls,
@@ -9,16 +10,98 @@ import {
   subscribeBackendUrlChange,
   getAuthToken,
   setStorageString,
+  setStorageBoolean,
+  getStorageBoolean,
   STORAGE_KEYS,
 } from '../utils/storage';
 import { validateBackendUrlInput, checkBackendReachability } from '../utils/backendConnection';
 import { Icon } from './Icon';
 
 const CONNECT_TIMEOUT_MS = 4000;
-// How long to show the small "Reconnecting…" toast before revealing the full
-// overlay. The window is (re)started from scratch whenever the app returns to
-// the foreground, so a reopen always gets the full grace — never an instant modal.
+// How long a fresh drop stays in the quiet "Reconnecting…" state before the
+// status bar escalates to the louder "Can't reach server" styling. The window is
+// (re)started from scratch whenever the app returns to the foreground, so a
+// reopen always gets the full grace — a blip never escalates.
 const RECONNECT_GRACE_MS = 15000;
+
+type BarTone = 'reconnecting' | 'offline' | 'auth';
+
+interface ConnectionStatusBarProps {
+  tone: BarTone;
+  retrying: boolean;
+  onRetry?: () => void;
+  onOpenSettings?: () => void;
+  onDismiss?: () => void;
+}
+
+/**
+ * Slim, non-blocking connection banner. It sits at the top of the viewport and
+ * never covers the app: reading a conversation or typing a prompt keeps working
+ * through a connection blip, and outbound messages are queued and flushed on
+ * reconnect (see websocket/send.ts), so the only thing the user needs is to
+ * *know* the link is down — not to be interrupted by a modal.
+ */
+function ConnectionStatusBar({ tone, retrying, onRetry, onOpenSettings, onDismiss }: ConnectionStatusBarProps) {
+  const queued = tone !== 'reconnecting' && hasPendingMessages();
+
+  const label =
+    tone === 'auth' ? 'Auth token rejected'
+    : tone === 'offline' ? "Can't reach server"
+    : 'Reconnecting…';
+
+  const detail =
+    tone === 'auth' ? 'Update the token to reconnect.'
+    : tone === 'offline' ? (queued ? 'Retrying — your messages will send once back.' : 'Retrying in the background.')
+    : null;
+
+  return (
+    <div className={`connection-bar connection-bar-${tone}`} role="status" aria-live="polite">
+      <span className="connection-bar-icon">
+        {tone === 'reconnecting' || retrying
+          ? <span className="reconnecting-spinner" />
+          : <Icon name={tone === 'auth' ? 'warn' : 'plug'} size={13} />}
+      </span>
+      <span className="connection-bar-text">
+        <span className="connection-bar-label">{label}</span>
+        {detail && <span className="connection-bar-detail">{detail}</span>}
+      </span>
+      <span className="connection-bar-actions">
+        {onRetry && (
+          <button
+            type="button"
+            className="connection-bar-btn"
+            onClick={onRetry}
+            disabled={retrying}
+            title="Retry now"
+          >
+            <Icon name="refresh" size={11} /> {retrying ? 'Retrying' : 'Retry'}
+          </button>
+        )}
+        {onOpenSettings && (
+          <button
+            type="button"
+            className="connection-bar-btn"
+            onClick={onOpenSettings}
+            title="Connection settings"
+          >
+            <Icon name="gear" size={11} /> Settings
+          </button>
+        )}
+        {onDismiss && (
+          <button
+            type="button"
+            className="connection-bar-close"
+            onClick={onDismiss}
+            title="Hide until the connection changes"
+            aria-label="Hide connection banner"
+          >
+            <Icon name="close" size={11} />
+          </button>
+        )}
+      </span>
+    </div>
+  );
+}
 
 export function NotConnectedOverlay() {
   const { t } = useTranslation(['config']);
@@ -30,6 +113,15 @@ export function NotConnectedOverlay() {
   const [copied, setCopied] = useState(false);
   const [gracePeriod, setGracePeriod] = useState(true);
   const [reconnecting, setReconnecting] = useState(false);
+  // True once this device has ever reached the server. From then on a drop is a
+  // transient network problem, not a setup problem, so it gets the slim bar.
+  const [hasConnectedBefore, setHasConnectedBefore] = useState(
+    () => getStorageBoolean(STORAGE_KEYS.HAS_CONNECTED_BEFORE, false),
+  );
+  // The full setup panel, opened on demand from the bar's "Settings" action.
+  const [panelOpen, setPanelOpen] = useState(false);
+  // Banner hidden by the user for the current outage; resets on reconnect.
+  const [barHidden, setBarHidden] = useState(false);
   const [backendUrlDraft, setBackendUrlDraft] = useState(() => getBackendUrl());
   const [authTokenDraft, setAuthTokenDraft] = useState(() => getAuthToken());
   const [showAuthToken, setShowAuthToken] = useState(false);
@@ -71,9 +163,9 @@ export function NotConnectedOverlay() {
     return () => clearTimeout(timer);
   }, []);
 
-  // (Re)start the "Reconnecting…" grace window: show the small toast for
-  // RECONNECT_GRACE_MS before revealing the full overlay. Held in a ref so both
-  // the drop-triggered and the foreground-triggered paths share one timer
+  // (Re)start the "Reconnecting…" grace window: the quiet state is shown for
+  // RECONNECT_GRACE_MS before the bar escalates. Held in a ref so both the
+  // drop-triggered and the foreground-triggered paths share one timer
   // (restarting cancels any in-flight countdown instead of racing it).
   const startReconnectGrace = useCallback(() => {
     setGracePeriod(true);
@@ -87,11 +179,16 @@ export function NotConnectedOverlay() {
   }, []);
 
   // Reconnection grace period: when the connection drops after having been
-  // connected, show the small toast before the full overlay.
+  // connected, stay in the quiet state before escalating the bar.
   useEffect(() => {
     if (isConnected) {
       wasConnectedRef.current = true;
       setReconnecting(false);
+      setBarHidden(false);
+      if (!hasConnectedBefore) {
+        setHasConnectedBefore(true);
+        setStorageBoolean(STORAGE_KEYS.HAS_CONNECTED_BEFORE, true);
+      }
       if (graceTimerRef.current) {
         clearTimeout(graceTimerRef.current);
         graceTimerRef.current = null;
@@ -102,13 +199,13 @@ export function NotConnectedOverlay() {
     if (wasConnectedRef.current) {
       startReconnectGrace();
     }
-  }, [isConnected, startReconnectGrace]);
+  }, [isConnected, startReconnectGrace, hasConnectedBefore]);
 
   // Returning to the foreground restarts the grace window from scratch. The
   // countdown started at drop time may have elapsed while the app was
-  // backgrounded (mobile/PWA), which would otherwise flash the full overlay the
-  // instant the user reopens Tide Commander. Restarting here gives the fresh
-  // reconnect its full window measured from when the user is actually looking.
+  // backgrounded (mobile/PWA), which would otherwise show the escalated banner
+  // the instant the user reopens Tide Commander. Restarting here gives the
+  // fresh reconnect its full window measured from when the user is looking.
   useEffect(() => {
     const restartIfDisconnected = () => {
       if (store.getState().isConnected) return;
@@ -235,34 +332,96 @@ export function NotConnectedOverlay() {
     setDismissed(true);
   }, []);
 
-  if (isConnected && resyncInProgress && !dismissed) {
+  const handleClosePanel = useCallback(() => {
+    setPanelOpen(false);
+    setConnectError(null);
+    setConnectStatus(null);
+  }, []);
+
+  // Retry straight from the bar: kick the socket and keep the spinner up while
+  // the attempt is in flight, without opening anything.
+  const [barRetrying, setBarRetrying] = useState(false);
+  const handleBarRetry = useCallback(() => {
+    if (barRetrying) return;
+    setBarRetrying(true);
+    startReconnectGrace();
+    reconnect();
+    void waitForWsConnected(7000).finally(() => {
+      if (mountedRef.current) setBarRetrying(false);
+    });
+  }, [barRetrying, startReconnectGrace, waitForWsConnected]);
+
+  // Escape closes the on-demand panel (never the first-run one, which has
+  // nothing behind it to go back to).
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleClosePanel();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [panelOpen, handleClosePanel]);
+
+  // Let other fixed top banners (e.g. the update banner) stack below the
+  // connection bar instead of overlapping it.
+  const barVisible =
+    (!isConnected && !panelOpen && !barHidden && (hasConnectedBefore || dismissed || reconnecting))
+    || (isConnected && resyncInProgress && !dismissed);
+  useEffect(() => {
+    document.body.classList.toggle('has-connection-bar', barVisible);
+    return () => document.body.classList.remove('has-connection-bar');
+  }, [barVisible]);
+
+  // Connected: only the resync hint (no actions — the link is up).
+  if (isConnected) {
+    if (resyncInProgress && !dismissed) {
+      return <ConnectionStatusBar tone="reconnecting" retrying={false} />;
+    }
+    return null;
+  }
+
+  // Someone who has reached the server before (or who chose to explore) never
+  // gets the blocking overlay again — a drop shows the slim bar, and the setup
+  // panel is one click away behind "Settings".
+  if (!panelOpen && (hasConnectedBefore || dismissed)) {
+    if (barHidden) return null;
+    const tone: BarTone = authRejected ? 'auth' : (reconnecting && !connectionFailing) ? 'reconnecting' : 'offline';
     return (
-      <div className="reconnecting-toast">
-        <span className="reconnecting-spinner" />
-        Reconnecting…
-      </div>
+      <ConnectionStatusBar
+        tone={tone}
+        retrying={barRetrying}
+        onRetry={tone === 'auth' ? undefined : handleBarRetry}
+        onOpenSettings={() => setPanelOpen(true)}
+        onDismiss={() => setBarHidden(true)}
+      />
     );
   }
 
-  if (isConnected || dismissed) return null;
-
-  // Active reconnection grace: show the small toast for the whole window, even
-  // if a stale `connectionFailing` flag survived from before a background/resume
-  // — the fresh reconnect earns its full grace before the full overlay appears.
-  if (reconnecting) {
-    return (
-      <div className="reconnecting-toast">
-        <span className="reconnecting-spinner" />
-        Reconnecting…
-      </div>
-    );
+  // First run, connection dropped before it ever succeeded: stay quiet during
+  // the grace window, then show the bar-shaped "Reconnecting…" hint.
+  if (!panelOpen && reconnecting) {
+    return <ConnectionStatusBar tone="reconnecting" retrying={false} />;
   }
 
-  if (gracePeriod && !connectionFailing) return null;
+  if (!panelOpen && gracePeriod && !connectionFailing) return null;
 
   return (
-    <div className="not-connected-overlay">
+    <div
+      className="not-connected-overlay"
+      onClick={panelOpen ? (e) => { if (e.target === e.currentTarget) handleClosePanel(); } : undefined}
+    >
       <div className="not-connected-panel">
+        {panelOpen && (
+          <button
+            type="button"
+            className="not-connected-close"
+            onClick={handleClosePanel}
+            title="Close"
+            aria-label="Close connection settings"
+          >
+            <Icon name="close" size={14} />
+          </button>
+        )}
         <h2 className="not-connected-title">Tide Commander</h2>
         {authRejected ? (
           <div className="not-connected-failing" role="alert" aria-live="polite">
@@ -355,8 +514,8 @@ export function NotConnectedOverlay() {
           <button className="not-connected-btn not-connected-btn-retry" onClick={() => { void handleConnect(); }} disabled={isConnecting}>
             {isConnecting ? 'Connecting...' : <><Icon name="refresh" size={12} /> Connect</>}
           </button>
-          <button className="not-connected-btn not-connected-btn-explore" onClick={handleExplore}>
-            Explore
+          <button className="not-connected-btn not-connected-btn-explore" onClick={panelOpen ? handleClosePanel : handleExplore}>
+            {panelOpen ? 'Back to app' : 'Explore'}
           </button>
         </div>
       </div>

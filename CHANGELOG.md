@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.220.0] - 2026-09-18
+
+### Added
+- **A connection drop no longer blocks the app** — losing the server used to throw up a full-screen "Cannot reach server" modal that covered the conversation you were reading and the prompt you were typing. It is now a slim pill at the top of the screen: the app stays fully usable, so you can finish reading and finish writing while the client retries. Outbound messages were already queued and flushed on reconnect, so nothing typed during an outage is lost. The pill states what is wrong (`Reconnecting…`, then `Can't reach server`, or `Auth token rejected`), offers **Retry** and **Settings**, and can be dismissed with × until the connection state changes.
+
+### Changed
+- **The full setup screen is now first-run only** — it still appears for a device that has never reached the server, where entering a backend URL and token is genuinely the only way forward. Once a device has connected successfully that fact is remembered, so later drops — including a reload made while the server is down — get the pill instead of the modal. The setup panel is one click away behind the pill's **Settings** action, and closes with Escape, the backdrop, × or "Back to app".
+
 ## [1.219.0] - 2026-09-17
 
 ### Added
