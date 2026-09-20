@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Agent, CustomAgentClass, AnimationMapping } from '../../shared/types';
 import { store } from '../store';
 import { isAgentVisibleInWorkspace, getActiveWorkspaceState } from '../components/WorkspaceSwitcher';
-import { CharacterLoader, CharacterFactory, type AgentMeshData } from './characters';
+import { CharacterLoader, CharacterFactory, applyBodyTransform, type AgentMeshData } from './characters';
 import { MovementAnimator, EffectsManager, ANIMATIONS } from './animation';
 import { ProceduralAnimator, type ProceduralAnimationState } from './animation/ProceduralAnimator';
 
@@ -95,13 +95,15 @@ export class AgentManager {
 
   setCharacterScale(scale: number): void {
     this.characterScale = scale;
-    for (const meshData of this.agentMeshes.values()) {
+    for (const [agentId, meshData] of this.agentMeshes) {
       const body = meshData.group.getObjectByName('characterBody');
       if (body) {
-        const customModelScale = body.userData.customModelScale ?? 1.0;
         const isBoss = meshData.group.userData.isBoss === true;
-        const bossMultiplier = isBoss ? 1.5 : 1.0;
-        body.scale.setScalar(customModelScale * scale * bossMultiplier);
+        applyBodyTransform(body, scale, isBoss);
+        // applyBodyTransform rescales the model offset, so the procedural
+        // animator's cached base would otherwise snap the body back to the
+        // position captured at the previous character scale.
+        this.proceduralAnimator.updateBasePosition(agentId, body.position);
         this.refreshAgentBodyLayout(meshData.group, body, isBoss);
       }
     }
@@ -486,10 +488,8 @@ export class AgentManager {
 
         const newBody = newMeshData.group.getObjectByName('characterBody');
         if (newBody) {
-          const customModelScale = newBody.userData.customModelScale ?? 1.0;
           const upgradeIsBoss = agent.isBoss === true || agent.class === 'boss';
-          const bossMultiplier = upgradeIsBoss ? 1.5 : 1.0;
-          newBody.scale.setScalar(customModelScale * this.characterScale * bossMultiplier);
+          applyBodyTransform(newBody, this.characterScale, upgradeIsBoss);
           this.refreshAgentBodyLayout(newMeshData.group, newBody, upgradeIsBoss);
 
           this.proceduralAnimator.unregister(agentId);
@@ -635,9 +635,7 @@ export class AgentManager {
     const body = meshData.group.getObjectByName('characterBody');
     const isBoss = agent.isBoss || agent.class === 'boss';
     if (body) {
-      const customModelScale = body.userData.customModelScale ?? 1.0;
-      const bossMultiplier = isBoss ? 1.5 : 1.0;
-      body.scale.setScalar(customModelScale * this.characterScale * bossMultiplier);
+      applyBodyTransform(body, this.characterScale, isBoss);
       this.refreshAgentBodyLayout(meshData.group, body, isBoss);
 
       if (meshData.animations.size === 0) {

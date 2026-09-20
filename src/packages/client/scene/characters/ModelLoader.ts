@@ -24,6 +24,44 @@ export interface ModelInfo {
 }
 
 /**
+ * Apply the body scale and the class model offset together.
+ *
+ * `modelOffset` exists to cancel an origin shift baked into the GLB geometry
+ * (several Sketchfab rips sit tens of units away from their own origin). That
+ * shift lives in model space, so it grows with every factor the body is scaled
+ * by. The stored value is authored against `modelScale` alone — that is what
+ * ModelPreview renders while the sliders are dragged — which leaves
+ * `characterScale` and the boss multiplier to be applied here. Skipping them
+ * left models whose baked shift is large visibly adrift from their agent's
+ * spot at any character scale other than 1.0 (hoppip, at modelScale 0.036 over
+ * a 66-unit shift, landed ~2.4 world units away at the default scale of 2.0).
+ *
+ * Returns the scale that was applied.
+ */
+export function applyBodyTransform(
+  body: THREE.Object3D,
+  characterScale: number,
+  isBoss: boolean
+): number {
+  const customModelScale = (body.userData.customModelScale as number | undefined) ?? 1.0;
+  const bossMultiplier = isBoss ? 1.5 : 1.0;
+  const scale = customModelScale * characterScale * bossMultiplier;
+  body.scale.setScalar(scale);
+
+  const offset = body.userData.modelOffset as { x: number; y: number; z: number } | undefined;
+  if (offset) {
+    const offsetScale = characterScale * bossMultiplier;
+    body.position.set(
+      offset.x * offsetScale,
+      offset.z * offsetScale,
+      offset.y * offsetScale
+    );
+  }
+
+  return scale;
+}
+
+/**
  * Handles 3D model resolution, body creation, model upgrades, and disposal.
  */
 export class ModelLoader {
@@ -117,6 +155,7 @@ export class ModelLoader {
       cloneResult.mesh.userData.isCustomModel = modelInfo.isCustomModel;
 
       if (modelInfo.offset && (modelInfo.offset.x !== 0 || modelInfo.offset.y !== 0 || modelInfo.offset.z !== 0)) {
+        cloneResult.mesh.userData.modelOffset = modelInfo.offset;
         cloneResult.mesh.position.set(modelInfo.offset.x, modelInfo.offset.z, modelInfo.offset.y);
       }
 
@@ -244,6 +283,7 @@ export class ModelLoader {
     cloneResult.mesh.userData.isCustomModel = modelInfo.isCustomModel;
 
     if (modelInfo.offset && (modelInfo.offset.x !== 0 || modelInfo.offset.y !== 0 || modelInfo.offset.z !== 0)) {
+      cloneResult.mesh.userData.modelOffset = modelInfo.offset;
       cloneResult.mesh.position.set(modelInfo.offset.x, modelInfo.offset.z, modelInfo.offset.y);
     }
 

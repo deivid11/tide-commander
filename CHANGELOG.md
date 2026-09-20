@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.220.1] - 2026-09-19
+
+### Fixed
+- **Agent models sit on their own spot again** — a class's model offset exists to cancel an origin shift baked into the GLB itself, so it has to grow with every factor the model is scaled by. It was being applied at a fixed size while the model around it scaled by the character-size setting (default 2x) and the 1.5x boss multiplier, so the correction under-compensated and the model drifted away from its agent. 404 of 500 classes carried an offset and were affected; the drift was subtle for most (median 0.14 units) but reached 2.4 units for Hoppip, whose source model sits 66 units from its own origin. Raising the character-size slider or making the agent a boss made it worse. Offsets tuned in the class editor's preview now match what the world renders, so the sliders mean what they show.
+
 ## [1.220.0] - 2026-09-18
 
 ### Added

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Agent } from '../../shared/types';
 import { store } from '../store';
-import { CharacterFactory, type AgentMeshData } from './characters';
+import { CharacterFactory, applyBodyTransform, type AgentMeshData } from './characters';
 import { ProceduralAnimator, type ProceduralAnimationState } from './animation/ProceduralAnimator';
 
 /**
@@ -169,9 +169,7 @@ export class SelectionManager {
           const newBody = updatedMeshData.group.getObjectByName('characterBody');
           const isBoss = agent.isBoss || agent.class === 'boss';
           if (newBody) {
-            const customModelScale = newBody.userData.customModelScale ?? 1.0;
-            const bossMultiplier = isBoss ? 1.5 : 1.0;
-            newBody.scale.setScalar(customModelScale * this.characterScale * bossMultiplier);
+            applyBodyTransform(newBody, this.characterScale, isBoss);
 
             // Update status bar position based on actual scaled model height
             const statusBar = updatedMeshData.group.getObjectByName('statusBar') as THREE.Sprite;

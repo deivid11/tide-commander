@@ -1,7 +1,7 @@
 export { CharacterLoader } from './CharacterLoader';
 export { CharacterFactory } from './CharacterFactory';
 export type { AgentMeshData } from './CharacterFactory';
-export { ModelLoader } from './ModelLoader';
+export { ModelLoader, applyBodyTransform } from './ModelLoader';
 export { AnimationConfigurator } from './AnimationConfigurator';
 export { VisualConfig } from './VisualConfig';
 

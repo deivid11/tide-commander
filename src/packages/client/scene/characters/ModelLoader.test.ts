@@ -55,7 +55,7 @@ vi.mock('../config', () => ({
   },
 }));
 
-import { ModelLoader } from './ModelLoader';
+import { ModelLoader, applyBodyTransform } from './ModelLoader';
 import type { Agent, CustomAgentClass } from '../../../shared/types';
 
 function createMockCharacterLoader() {
@@ -418,5 +418,56 @@ describe('ModelLoader', () => {
       loader.disposeMaterial(simpleMat);
       expect(simpleMat.dispose).toHaveBeenCalled();
     });
+  });
+});
+
+describe('applyBodyTransform', () => {
+  const makeBody = (userData: Record<string, unknown>) => ({
+    userData,
+    scale: { setScalar: vi.fn() },
+    position: { set: vi.fn() },
+  }) as any;
+
+  it('multiplies the model scale by the character scale and boss multiplier', () => {
+    const body = makeBody({ customModelScale: 0.5 });
+
+    expect(applyBodyTransform(body, 2.0, false)).toBe(1.0);
+    expect(body.scale.setScalar).toHaveBeenCalledWith(1.0);
+
+    expect(applyBodyTransform(body, 2.0, true)).toBe(1.5);
+    expect(body.scale.setScalar).toHaveBeenLastCalledWith(1.5);
+  });
+
+  it('defaults to a model scale of 1 when the class has none', () => {
+    const body = makeBody({});
+    expect(applyBodyTransform(body, 1.5, false)).toBe(1.5);
+  });
+
+  it('scales the model offset by the same factors, swizzling y/z', () => {
+    // hoppip: 66.67 units of baked-in Z shift, cancelled by modelOffset.y at
+    // modelScale 0.036. The offset has to grow with characterScale or the model
+    // drifts away from its agent.
+    const body = makeBody({ customModelScale: 0.036, modelOffset: { x: 0, y: -2.4, z: 0 } });
+
+    applyBodyTransform(body, 2.0, false);
+    // set(x, offset.z, offset.y) — depth lands on THREE's z axis
+    expect(body.position.set).toHaveBeenCalledWith(0, 0, -4.8);
+
+    applyBodyTransform(body, 1.0, false);
+    expect(body.position.set).toHaveBeenLastCalledWith(0, 0, -2.4);
+  });
+
+  it('applies the boss multiplier to the offset too', () => {
+    const body = makeBody({ customModelScale: 1.0, modelOffset: { x: 1, y: 2, z: 3 } });
+
+    applyBodyTransform(body, 2.0, true);
+    expect(body.position.set).toHaveBeenCalledWith(3, 9, 6);
+  });
+
+  it('leaves the position untouched for classes with no offset', () => {
+    const body = makeBody({ customModelScale: 1.0 });
+
+    applyBodyTransform(body, 2.0, false);
+    expect(body.position.set).not.toHaveBeenCalled();
   });
 });
