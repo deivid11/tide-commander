@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
-import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_AGENT_SKILL_SLUGS, grokSupportsEffort } from '../../shared/types';
+import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_AGENT_SKILL_SLUGS, DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_EFFORT, grokSupportsEffort, migrateRetiredClaudeModel } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
 import { ModelPreview } from './ModelPreview';
@@ -114,8 +114,8 @@ export function SpawnModal({
     search: false,
   });
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
-  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('claude-opus-4-8[1m]'); // Default to latest Opus with 1M context
-  const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>('xHigh'); // Default: xHigh (extra high reasoning)
+  const [selectedModel, setSelectedModel] = useState<ClaudeModel>(DEFAULT_CLAUDE_MODEL); // Latest Opus with 1M context
+  const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>(DEFAULT_CLAUDE_EFFORT);
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.6-luna');
   const [opencodeModel, setOpencodeModel] = useState<string>('minimax/MiniMax-M1-80k');
   const [grokModel, setGrokModel] = useState<string>(DEFAULT_GROK_MODEL);
@@ -162,8 +162,9 @@ export function SpawnModal({
         setSelectedProvider(initialSession.provider);
 
         if (initialSession.model) {
-          if (initialSession.provider === 'claude' && initialSession.model in CLAUDE_MODELS) {
-            setSelectedModel(initialSession.model as ClaudeModel);
+          const claudeModel = migrateRetiredClaudeModel(initialSession.model);
+          if (initialSession.provider === 'claude' && claudeModel in CLAUDE_MODELS) {
+            setSelectedModel(claudeModel as ClaudeModel);
           } else if (initialSession.provider === 'codex' && initialSession.model in CODEX_MODELS) {
             setSelectedCodexModel(initialSession.model as CodexModel);
           } else if (initialSession.provider === 'opencode') {
@@ -430,7 +431,7 @@ export function SpawnModal({
   // Boss class should default to the latest Opus with 1M context
   useEffect(() => {
     if (selectedClass === 'boss') {
-      setSelectedModel('claude-opus-4-8[1m]');
+      setSelectedModel(DEFAULT_CLAUDE_MODEL);
     }
   }, [selectedClass]);
 

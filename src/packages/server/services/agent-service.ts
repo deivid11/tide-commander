@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, AgentProvider, CodexConfig, CodexModel, OpencodeModel, GrokModel, PiModel, DrawingArea, SessionHistoryEntry } from '../../shared/types.js';
-import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA, GROK_MODELS, DEFAULT_GROK_MODEL } from '../../shared/agent-types.js';
+import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_CLAUDE_MODEL, migrateRetiredClaudeModel } from '../../shared/agent-types.js';
 import { loadAgents, saveAgents, saveAgentsAsync, getDataDir, loadAreas, saveAreas, loadSessionHistory, saveSessionHistory, addSessionHistoryEntry, getSessionHistoryForAgent } from '../data/index.js';
 import {
   listSessions,
@@ -105,8 +105,9 @@ export function sanitizeModelForProvider(
 ): ClaudeModel | undefined {
   if (provider !== 'claude') return undefined;
   if (typeof model !== 'string') return undefined;
-  if (VALID_CLAUDE_MODELS.has(model as ClaudeModel)) {
-    return model as ClaudeModel;
+  const current = migrateRetiredClaudeModel(model);
+  if (VALID_CLAUDE_MODELS.has(current as ClaudeModel)) {
+    return current as ClaudeModel;
   }
   return undefined;
 }
@@ -458,6 +459,11 @@ export async function createAgent(
   const sanitizedGrokModel = provider === 'grok'
     ? (sanitizeGrokModel(grokModel) || DEFAULT_GROK_MODEL)
     : undefined;
+  // A Claude spawn without a model (API, boss, triggers) gets the same default
+  // the spawn dialog preselects instead of whatever the CLI would pick.
+  const sanitizedClaudeModel = provider === 'claude'
+    ? (sanitizeModelForProvider(provider, model) || DEFAULT_CLAUDE_MODEL)
+    : undefined;
   const sanitizedPiModel = provider === 'pi' ? sanitizePiModel(piModel) : undefined;
   const piContextWindow = provider === 'pi'
     ? await resolvePiModelContextLimit(sanitizedPiModel)
@@ -479,7 +485,7 @@ export async function createAgent(
     cwd,
     useChrome,
     permissionMode,
-    model: sanitizeModelForProvider(provider, model),
+    model: sanitizedClaudeModel,
     effort: provider === 'claude' || provider === 'grok' || provider === 'pi' ? effort : undefined,
     codexModel: provider === 'codex' ? sanitizeCodexModel(codexModel) : undefined,
     codexConfig,
@@ -493,7 +499,7 @@ export async function createAgent(
     contextUsed: 0,
     contextLimit: getDefaultContextLimit(
       provider,
-      sanitizeModelForProvider(provider, model),
+      sanitizedClaudeModel,
       sanitizedGrokModel,
       piContextWindow,
     ),

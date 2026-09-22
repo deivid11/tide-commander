@@ -125,6 +125,29 @@ describe('agent-service context limits', () => {
     expect(agent.codexModel).toBe('gpt-5.6-luna');
   });
 
+  it('moves persisted Opus 4.8 agents to Opus 5.5 instead of dropping their model', async () => {
+    mockLoadAgents.mockReturnValue([
+      { id: 'opus48-1m', name: 'a', class: 'default', status: 'idle', cwd: '/tmp/project', provider: 'claude', model: 'claude-opus-4-8[1m]', contextLimit: 1000000 },
+      { id: 'opus48', name: 'b', class: 'default', status: 'idle', cwd: '/tmp/project', provider: 'claude', model: 'claude-opus-4-8' },
+    ]);
+
+    const agentService = await import('./agent-service.js');
+    agentService.initAgents();
+
+    expect(agentService.getAgent('opus48-1m')).toMatchObject({ model: 'claude-opus-5-5[1m]', contextLimit: 1000000 });
+    expect(agentService.getAgent('opus48')).toMatchObject({ model: 'claude-opus-5-5', contextLimit: 200000 });
+  });
+
+  it('gives a Claude spawn without a model the Opus 5.5 default', async () => {
+    mockLoadAgents.mockReturnValue([]);
+
+    const agentService = await import('./agent-service.js');
+    const agent = await agentService.createAgent('Claude Worker', 'default', '/tmp/project');
+
+    expect(agent.model).toBe('claude-opus-5-5[1m]');
+    expect(agent.contextLimit).toBe(1000000);
+  });
+
   const loadOneIdleAgent = (id: string) => {
     mockLoadAgents.mockReturnValue([
       {

@@ -68,7 +68,7 @@ function suggestedPiModel(agent: Agent): string {
   if (agent.provider === 'claude' && agent.model) {
     const aliases: Partial<Record<ClaudeModel, string>> = {
       sonnet: 'claude-sonnet-5',
-      opus: 'claude-opus-5',
+      opus: 'claude-opus-5-5',
       'opus[1m]': 'claude-opus-4-7',
     };
     const model = aliases[agent.model] || agent.model.replace(/\[1m\]$/, '');

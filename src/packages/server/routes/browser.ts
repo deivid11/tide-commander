@@ -12,10 +12,24 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { promises as fs } from 'fs';
+import path from 'path';
 import { runBrowserCommand, browserConnected, getBrowserClients } from '../services/browser-bridge-service.js';
 import * as cdp from '../services/cdp-service.js';
 
 const router = Router();
+
+const UPLOAD_MIME: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.csv': 'text/csv',
+  '.txt': 'text/plain',
+};
 
 // Run a CDP interaction and shape a uniform JSON response.
 async function drive(res: Response, fn: () => Promise<unknown>): Promise<void> {
@@ -176,6 +190,29 @@ router.post('/key', (req: Request, res: Response) =>
 router.post('/select', (req: Request, res: Response) =>
   relay(res, 'select', { ...target(req), selector: req.body?.selector, value: req.body?.value, label: req.body?.label, within: req.body?.within, timeoutMs: req.body?.timeoutMs }, DRIVE_TIMEOUT_MS),
 );
+// Put local files into an <input type="file"> (`selector`) and fire its change event.
+// `path` (one) or `paths` (many) are absolute paths on the Commander host; the bytes
+// travel base64 over the bridge and the content script builds real File objects, so it
+// works even where chrome.debugger cannot attach.
+router.post('/upload', async (req: Request, res: Response) => {
+  try {
+    const paths: string[] = Array.isArray(req.body?.paths) ? req.body.paths : req.body?.path ? [req.body.path] : [];
+    if (!req.body?.selector || paths.length === 0) {
+      res.status(400).json({ ok: false, error: 'selector and path (or paths) required' });
+      return;
+    }
+    const files = await Promise.all(
+      paths.map(async (p) => ({
+        name: typeof req.body?.filename === 'string' && paths.length === 1 ? req.body.filename : path.basename(p),
+        mime: UPLOAD_MIME[path.extname(p).toLowerCase()] || 'application/octet-stream',
+        dataB64: (await fs.readFile(p)).toString('base64'),
+      })),
+    );
+    await relay(res, 'upload', { ...target(req), selector: req.body.selector, within: req.body?.within, files, timeoutMs: req.body?.timeoutMs }, BATCH_TIMEOUT_MS);
+  } catch (err) {
+    res.status(502).json({ ok: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
 // Run arbitrary JS in the page and return its (JSON-serializable) result.
 router.post('/evaluate', (req: Request, res: Response) =>
   relay(res, 'evaluate', { ...target(req), expression: req.body?.expression ?? req.body?.script }, DRIVE_TIMEOUT_MS),

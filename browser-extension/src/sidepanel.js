@@ -1960,6 +1960,7 @@ async function execBrowserCommand(cmd, args) {
     case 'select':
     case 'evaluate':
     case 'wait':
+    case 'upload':
     case 'dialog':
     case 'cdp_raw': {
       // Wake a discarded/slept tab BEFORE driving so a backgrounded tab works (the
@@ -1974,7 +1975,7 @@ async function execBrowserCommand(cmd, args) {
         const res = await send({ type: 'cdpDrive', cmd, args, tabId });
         if (res && res.ok) return res.result;
         const err = (res && res.error) || cmd + ' failed';
-        const CONTENT_DRIVE = ['click', 'type', 'navigate', 'scroll', 'hover', 'key', 'select', 'wait', 'evaluate'];
+        const CONTENT_DRIVE = ['click', 'type', 'navigate', 'scroll', 'hover', 'key', 'select', 'wait', 'evaluate', 'upload'];
         if (/different extension|chrome-extension/i.test(err) && CONTENT_DRIVE.includes(cmd) && tabId != null) {
           let cres;
           try {

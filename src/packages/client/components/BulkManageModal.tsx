@@ -22,7 +22,7 @@ import {
   type BulkRemoveSkillsResult,
 } from '../api/bulk-agents';
 import type { Agent, DrawingArea, Skill, SessionTransferMode } from '../../shared/types';
-import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, isDeprecatedClaudeModel, supportsSessionImport, type ClaudeModel, type ClaudeEffort, type CodexModel } from '../../shared/agent-types';
+import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_EFFORT, isDeprecatedClaudeModel, supportsSessionImport, type ClaudeModel, type ClaudeEffort, type CodexModel } from '../../shared/agent-types';
 import { convertAgentRuntime } from '../api/session-transfer';
 import '../styles/components/bulk-manage-modal.scss';
 
@@ -41,7 +41,7 @@ export interface BulkManageModalProps {
 type StatusFilter = 'all' | 'idle' | 'working' | 'error' | 'stopped';
 type IdleTimeFilter = 'any' | '>1h' | '>6h' | '>1d' | '>3d' | '>7d' | '>30d';
 type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
-type ModelFilter = 'all' | 'fable-5-1' | 'fable-5-1m' | 'fable-5' | 'opus' | 'opus-5-1m' | 'opus-5' | 'opus-4-8-1m' | 'opus-4-8' | 'opus-4-7-1m' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
+type ModelFilter = 'all' | 'fable-5-1' | 'fable-5-1m' | 'fable-5' | 'opus' | 'opus-5-5-1m' | 'opus-5-5' | 'opus-5-1m' | 'opus-5' | 'opus-4-7-1m' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
 
 type ConfirmAction = 'delete' | 'clear-context' | 'change-model' | 'add-skill' | 'remove-skill' | null;
 type SkillPickerMode = 'add' | 'remove' | null;
@@ -97,13 +97,13 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const [moveAreaId, setMoveAreaId] = useState<string>('');
   const [modelProvider, setModelProvider] = useState<ModelProvider>('claude');
-  const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>('claude-opus-4-8[1m]');
+  const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>(DEFAULT_CLAUDE_MODEL);
   const [newCodexModel, setNewCodexModel] = useState<CodexModel>('gpt-5.6-luna');
   const [newPiModel, setNewPiModel] = useState<string>('');
   const [transferMode, setTransferMode] = useState<SessionTransferMode>('smart');
   const [stopActiveForTransfer, setStopActiveForTransfer] = useState(false);
   // 'default' represents "leave unchanged / use default"; other values are ClaudeEffort levels
-  const [newEffort, setNewEffort] = useState<ClaudeEffort | 'default'>('xHigh');
+  const [newEffort, setNewEffort] = useState<ClaudeEffort | 'default'>(DEFAULT_CLAUDE_EFFORT);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
@@ -163,10 +163,10 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           modelFilter === 'fable-5-1' ? agentModel === 'claude-fable-5-1' :
           modelFilter === 'fable-5-1m' ? agentModel === 'claude-fable-5[1m]' :
           modelFilter === 'fable-5' ? agentModel === 'claude-fable-5' :
+          modelFilter === 'opus-5-5-1m' ? agentModel === 'claude-opus-5-5[1m]' :
+          modelFilter === 'opus-5-5' ? agentModel === 'claude-opus-5-5' :
           modelFilter === 'opus-5-1m' ? agentModel === 'claude-opus-5[1m]' :
           modelFilter === 'opus-5' ? agentModel === 'claude-opus-5' :
-          modelFilter === 'opus-4-8-1m' ? agentModel === 'claude-opus-4-8[1m]' :
-          modelFilter === 'opus-4-8' ? agentModel === 'claude-opus-4-8' :
           modelFilter === 'opus-4-7-1m' ? agentModel === 'opus[1m]' :
           modelFilter === 'opus-4-7' ? agentModel === 'claude-opus-4-7' :
           modelFilter === 'opus-4-6' ? agentModel === 'claude-opus-4-6' :
@@ -568,11 +568,11 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 <option value="fable-5-1">Fable 5.1 [1M]</option>
                 <option value="fable-5-1m">Fable 5 [1M]</option>
                 <option value="fable-5">Fable 5 (200K)</option>
+                <option value="opus-5-5-1m">Opus 5.5 [1M]</option>
+                <option value="opus-5-5">Opus 5.5 (200K)</option>
                 <option value="opus-5-1m">Opus 5 [1M]</option>
                 <option value="opus-5">Opus 5 (200K)</option>
-                <option value="opus-4-8-1m">Opus 4.8 [1M]</option>
                 <option value="opus-4-7-1m">Opus 4.7 [1M]</option>
-                <option value="opus-4-8">Opus 4.8 (200K)</option>
                 <option value="opus-4-7">Opus 4.7 (200K)</option>
                 <option value="opus-4-6">Opus 4.6</option>
                 <option value="opus">Opus (legacy)</option>

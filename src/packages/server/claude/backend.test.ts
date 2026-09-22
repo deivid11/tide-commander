@@ -75,7 +75,8 @@ describe('ClaudeBackend', () => {
 
       it('still translates the existing [1m]-suffixed labels unchanged', () => {
         expect(modelArg('opus[1m]')).toBe('claude-opus-4-7');
-        expect(modelArg('claude-opus-4-8[1m]')).toBe('claude-opus-4-8');
+        expect(modelArg('claude-opus-5-5[1m]')).toBe('claude-opus-5-5');
+        expect(modelArg('claude-opus-5[1m]')).toBe('claude-opus-5');
         expect(modelArg('claude-fable-5[1m]')).toBe('claude-fable-5');
       });
 

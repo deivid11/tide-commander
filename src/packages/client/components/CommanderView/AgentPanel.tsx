@@ -14,6 +14,7 @@ import { formatTokens } from '../../utils/formatting';
 import { getDisplayContextInfo } from '../../utils/context';
 import { VirtualizedOutputList } from '../ClaudeOutputPanel/VirtualizedOutputList';
 import { ImageModal, BashModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
+import { buildImageGallery, useImageGalleryModal } from '../ClaudeOutputPanel/imageGallery';
 import { useTerminalInput } from '../ClaudeOutputPanel/useTerminalInput';
 import { TerminalInput } from '../shared/TerminalInput';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
@@ -111,11 +112,11 @@ export function AgentPanel({
   const isUserScrolledUpRef = useRef(false);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [pinToBottom, setPinToBottom] = useState(false);
-  const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
+  const { imageModal, openImage, navigateImage, closeImage } = useImageGalleryModal();
   const [bashModal, setBashModal] = useState<BashModalState | null>(null);
   const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
 
-  useModalStackRegistration(`commander-image-modal-${agent.id}`, imageModal !== null, () => setImageModal(null));
+  useModalStackRegistration(`commander-image-modal-${agent.id}`, imageModal !== null, closeImage);
 
   const {
     command,
@@ -310,9 +311,14 @@ export function AgentPanel({
     resetPastedCount();
   }, [agent.id, command, canSend, attachedFiles, expandPastedTexts, onClearHistory, resetPastedCount, setCommand, setForceTextarea, setPastedTexts, setAttachedFiles]);
 
+  // Latest conversation data for the image gallery. Read through a ref: the
+  // history array is declared further down, and a closure over it would keep
+  // the first render's (empty) conversation.
+  const galleryDataRef = useRef<{ history: Parameters<typeof buildImageGallery>[0]; outputs: Parameters<typeof buildImageGallery>[1] }>({ history: [], outputs: [] });
   const handleImageClick = useCallback((url: string, name: string) => {
-    setImageModal({ url, name });
-  }, []);
+    const { history: latestHistory, outputs: latestOutputs } = galleryDataRef.current;
+    openImage(url, name, buildImageGallery(latestHistory, latestOutputs, url, name, agent.cwd));
+  }, [openImage, agent.cwd]);
 
   const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => {
     const ref = resolveAgentFileReference(path, agent.cwd);
@@ -337,7 +343,7 @@ export function AgentPanel({
     setShouldAutoScroll(false);
   }, []);
 
-  const handleCloseImageModal = useCallback(() => setImageModal(null), []);
+  const handleCloseImageModal = closeImage;
   const handleCloseBashModal = useCallback(() => setBashModal(null), []);
   const handleCloseResponseModal = useCallback(() => setResponseModalContent(null), []);
 
@@ -348,6 +354,7 @@ export function AgentPanel({
 
   const statusColor = STATUS_COLORS[agent.status] || '#888888';
   const messages = history?.messages || [];
+  galleryDataRef.current = { history: messages, outputs: filteredOutputs };
 
   return (
     <div
@@ -496,7 +503,14 @@ export function AgentPanel({
         />
       </div>
 
-      {imageModal && <ImageModal url={imageModal.url} name={imageModal.name} onClose={handleCloseImageModal} />}
+      {imageModal && (
+        <ImageModal
+          url={imageModal.url}
+          name={imageModal.name}
+          onClose={handleCloseImageModal}
+          gallery={{ items: imageModal.items, index: imageModal.index, onNavigate: navigateImage }}
+        />
+      )}
       {bashModal && <BashModal state={bashModal} onClose={handleCloseBashModal} />}
       <AgentResponseModalWrapper agent={agent} content={responseModalContent} onClose={handleCloseResponseModal} />
     </div>

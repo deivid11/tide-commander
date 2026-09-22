@@ -4,7 +4,7 @@ import { store, useAgents, useCustomAgentClassesArray, useSkillsArray } from '..
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
-import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS, DEFAULT_GROK_MODEL, DEFAULT_AGENT_SKILL_SLUGS } from '../../shared/types';
+import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS, DEFAULT_GROK_MODEL, DEFAULT_AGENT_SKILL_SLUGS, DEFAULT_CLAUDE_MODEL } from '../../shared/types';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
@@ -59,7 +59,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     approvalMode: 'on-request',
     search: false,
   });
-  const [selectedModel, setSelectedModel] = useState<ClaudeModel>('claude-opus-4-8[1m]');
+  const [selectedModel, setSelectedModel] = useState<ClaudeModel>(DEFAULT_CLAUDE_MODEL);
   const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.6-luna');
   const [selectedSubordinates, setSelectedSubordinates] = useState<Set<string>>(new Set());
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());

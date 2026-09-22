@@ -9,6 +9,7 @@ import { createMarkdownComponents } from './MarkdownComponents';
 import { getApiBaseUrl, apiUrl, getAuthToken } from '../../utils/storage';
 import { linkifyFilePathsForMarkdown } from '../../utils/outputRendering';
 import { extractFileMentionBlocks } from '../../utils/fileMentions';
+import { resolveAgentFilePath } from '../../utils/filePaths';
 import i18n from '../../i18n';
 
 /**
@@ -92,17 +93,22 @@ export function isRenderableImageRef(ref: string): boolean {
  * browser. Unlike getImageWebUrl (uploads/attachments only), this works for any
  * absolute path the server can read.
  */
-export function getLocalFileImageUrl(filePath: string): string {
+export function getLocalFileImageUrl(filePath: string, cwd?: string): string {
   const token = getAuthToken();
-  return apiUrl(`/api/files/binary?path=${encodeURIComponent(filePath)}${token ? `&token=${encodeURIComponent(token)}` : ''}`);
+  // pi/Codex read images by RELATIVE path (`private/…/preview.png`); the server
+  // can't know the agent's cwd, so an unresolved path 404s and the thumbnail
+  // silently hides itself. Claude always sends absolute paths, which is why its
+  // thumbnails worked.
+  const resolved = resolveAgentFilePath(filePath, cwd);
+  return apiUrl(`/api/files/binary?path=${encodeURIComponent(resolved)}${token ? `&token=${encodeURIComponent(token)}` : ''}`);
 }
 
 /**
  * Preview URL for an arbitrary image reference an agent handed us: remote and
  * data/blob URIs render as-is, on-disk paths stream through /api/files/binary.
  */
-export function getImagePreviewUrl(ref: string): string {
-  return /^(https?:|data:|blob:)/i.test(ref) ? ref : getLocalFileImageUrl(ref);
+export function getImagePreviewUrl(ref: string, cwd?: string): string {
+  return /^(https?:|data:|blob:)/i.test(ref) ? ref : getLocalFileImageUrl(ref, cwd);
 }
 
 /**

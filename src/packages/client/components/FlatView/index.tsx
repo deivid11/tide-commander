@@ -40,6 +40,7 @@ import { getAgentStatusColor, getBuildingStatusColor } from '../../utils/colors'
 import { getDisplayContextInfo } from '../../utils/context';
 import { AgentOverviewPanel } from '../ClaudeOutputPanel/AgentOverviewPanel';
 import { AgentTerminalPane, type AgentTerminalPaneHandle } from '../ClaudeOutputPanel/AgentTerminalPane';
+import { buildImageGallery, useImageGalleryModal, type ImageGalleryPick } from '../ClaudeOutputPanel/imageGallery';
 import { useCtrlCStopAgent } from '../ClaudeOutputPanel/useCtrlCStopAgent';
 import AgentClassicTerminal from './AgentClassicTerminal';
 import { PlanLimitsTooltip, getWeeklyUsageWindow, useProviderUsageSnapshot } from './PlanLimitsTooltip';
@@ -136,7 +137,8 @@ interface ChatViewProps {
   onToggleInspector: () => void;
   /** Open the inspector on its Tracking tab (current-task banner click-through). */
   onShowTaskBoard: () => void;
-  onImageClick: (url: string, name: string) => void;
+  /** `gallery`: the conversation's images, so the viewer can browse prev/next. */
+  onImageClick: (url: string, name: string, gallery?: ImageGalleryPick) => void;
   onFileClick: (path: string, editData?: any) => void;
   onBashClick: (command: string, output: string) => void;
   onViewMarkdown: (content: string) => void;
@@ -291,6 +293,12 @@ const ChatView = React.memo(function ChatView({
   const buildings = useBuildings();
   const settings = useSettings();
   const paneRef = useRef<AgentTerminalPaneHandle>(null);
+  // The pane owns the conversation data; the modal lives in the parent. Attach
+  // the gallery here so the parent's viewer can browse every image.
+  const handlePaneImageClick = useCallback((url: string, name: string) => {
+    const pane = paneRef.current;
+    onImageClick(url, name, buildImageGallery(pane?.getDedupedHistory() ?? [], pane?.getDedupedOutputs() ?? [], url, name, agent?.cwd));
+  }, [onImageClick, agent?.cwd]);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const provider = agent?.provider ?? 'claude';
   const usageProviderSupported = provider === 'claude'
@@ -1298,7 +1306,7 @@ const ChatView = React.memo(function ChatView({
           viewMode={terminalViewMode}
           isOpen={true}
           showSlashCommandOutputs={showSlashCommandOutputs}
-          onImageClick={onImageClick}
+          onImageClick={handlePaneImageClick}
           onFileClick={onFileClick}
           onBashClick={onBashClick}
           onViewMarkdown={onViewMarkdown}
@@ -1884,13 +1892,13 @@ export function FlatView({
   const agentIds = useAgentIds();
 
   // Modal state for terminal integration (owned by parent, shown over everything)
-  const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
+  const { imageModal, openImage, navigateImage, closeImage } = useImageGalleryModal();
   const [bashModal, setBashModal] = useState<BashModalState | null>(null);
   const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
 
   // Register the image modal on the shared modal stack so ESC (handled globally
   // in useKeyboardShortcuts → closeTopModal) closes it, matching AgentPanel.
-  useModalStackRegistration('flatview-image-modal', imageModal !== null, () => setImageModal(null));
+  useModalStackRegistration('flatview-image-modal', imageModal !== null, closeImage);
   // Clear-subordinates confirmation modal — reuses the same modal component
   // the 3D overlay uses, so the two views share one source of truth for the
   // destructive action's UX.
@@ -2187,9 +2195,7 @@ export function FlatView({
   const keyboard = useKeyboardHeight();
 
   // Modal callbacks for the terminal pane
-  const handleImageClick = useCallback((url: string, name: string) => {
-    setImageModal({ url, name });
-  }, []);
+  const handleImageClick = openImage;
 
   const handleBashClick = useCallback((command: string, output: string) => {
     setBashModal({ command, output, isLive: false });
@@ -3526,7 +3532,8 @@ export function FlatView({
         <ImageModal
           url={imageModal.url}
           name={imageModal.name}
-          onClose={() => setImageModal(null)}
+          onClose={closeImage}
+          gallery={{ items: imageModal.items, index: imageModal.index, onNavigate: navigateImage }}
         />
       )}
       {bashModal && (

@@ -5,7 +5,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   CLAUDE_MODELS,
+  DEFAULT_CLAUDE_EFFORT,
+  DEFAULT_CLAUDE_MODEL,
   isDeprecatedClaudeModel,
+  migrateRetiredClaudeModel,
   providerClosesStdinAfterPrompt,
   providerDisplayName,
 } from './agent-types.js';
@@ -56,5 +59,39 @@ describe('providerDisplayName', () => {
     expect(providerDisplayName('opencode')).toBe('OpenCode');
     expect(providerDisplayName('pi')).toBe('Pi');
     expect(providerDisplayName('claude')).toBe('Claude');
+  });
+});
+
+describe('CLAUDE_MODELS — Opus 5.5', () => {
+  it('is the new-agent default: Opus 5.5 with 1M context and high effort', () => {
+    expect(DEFAULT_CLAUDE_MODEL).toBe('claude-opus-5-5[1m]');
+    expect(DEFAULT_CLAUDE_EFFORT).toBe('high');
+    expect(CLAUDE_MODELS[DEFAULT_CLAUDE_MODEL]).toMatchObject({ label: 'Opus 5.5 [1M]', contextWindow: 1000000 });
+    expect(isDeprecatedClaudeModel(DEFAULT_CLAUDE_MODEL)).toBe(false);
+  });
+
+  it('keeps the plain 200K id valid but out of the picker', () => {
+    expect(CLAUDE_MODELS['claude-opus-5-5'].contextWindow).toBe(200000);
+    expect(isDeprecatedClaudeModel('claude-opus-5-5')).toBe(true);
+  });
+});
+
+describe('retired Opus 4.8', () => {
+  it('is gone from the registry', () => {
+    expect(Object.keys(CLAUDE_MODELS).filter((id) => id.includes('4-8'))).toEqual([]);
+  });
+
+  it('moves agents to Opus 5.5, keeping the context-window variant', () => {
+    expect(migrateRetiredClaudeModel('claude-opus-4-8[1m]')).toBe('claude-opus-5-5[1m]');
+    expect(migrateRetiredClaudeModel('claude-opus-4-8')).toBe('claude-opus-5-5');
+    expect(migrateRetiredClaudeModel('claude-opus-5[1m]')).toBe('claude-opus-5[1m]');
+  });
+});
+
+describe('new/edit agent picker', () => {
+  it('offers only the current generation of each family', () => {
+    const visible = Object.keys(CLAUDE_MODELS).filter((id) => !isDeprecatedClaudeModel(id as keyof typeof CLAUDE_MODELS));
+    // Picker order is the registry's key order: Fable → Opus → Sonnet → Haiku.
+    expect(visible).toEqual(['claude-fable-5-1', 'claude-opus-5-5[1m]', 'claude-sonnet-5[1m]', 'haiku']);
   });
 });

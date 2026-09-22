@@ -118,6 +118,35 @@
   overflow: hidden;
 }
 
+// Nested inside the row's own `.output-tool-param` span: stay plain inline
+// text so the parent's ellipsis trims it character by character. (An
+// inline-flex box here is atomic — it vanished into a single `…` on phones.)
+.bash-summary-inline {
+  display: inline;
+
+  > * + * {
+    margin-left: 5px;
+  }
+
+  // The chip must be inline too: as an inline-flex box it is atomic, and one
+  // that straddles the edge vanished whole — hiding the file, the most useful
+  // part of the row. Inline, its name truncates under the parent's ellipsis.
+  .codex-file-chip {
+    display: inline;
+    max-width: none;
+    padding: 1px 6px;
+
+    > span {
+      overflow: visible;
+    }
+
+    .file-type-icon {
+      margin-right: 4px;
+      vertical-align: -2px;
+    }
+  }
+}
+
 .bash-summary-count,
 .bash-summary-arrow {
   flex-shrink: 0;

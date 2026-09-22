@@ -661,6 +661,22 @@
         tcSetValue(el, String(val == null ? '' : val));
         return { ok: true };
       }
+      case 'upload': {
+        const el = await tcWaitFor(() => tcResolve(args), args.timeoutMs, tcResolveDesc(args));
+        if (el.tagName !== 'INPUT' || el.type !== 'file') throw new Error('upload target is not an <input type="file">');
+        const dt = new DataTransfer();
+        (args.files || []).forEach((f) => {
+          const bin = atob(f.dataB64 || '');
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          dt.items.add(new File([bytes], f.name || 'file', { type: f.mime || 'application/octet-stream' }));
+        });
+        if (!dt.files.length) throw new Error('no files');
+        el.files = dt.files;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return { ok: true, files: Array.prototype.map.call(el.files, (f) => ({ name: f.name, size: f.size })) };
+      }
       case 'evaluate': {
         // Isolated-world eval: DOM access only, no page globals, and may be blocked by
         // the extension CSP. Best-effort — reads should prefer /dom or /page.

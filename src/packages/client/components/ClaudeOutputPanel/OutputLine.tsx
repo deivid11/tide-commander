@@ -1021,7 +1021,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     if (isImageViewTool(toolName)) {
       const imageTarget = getImageViewTarget(payloadToolInput) || (_toolKeyParam ? { path: _toolKeyParam } : null);
       const imagePreview = imageTarget && isThumbnailableImagePath(imageTarget.path)
-        ? { url: getImagePreviewUrl(imageTarget.path), name: getBasenameFromPath(imageTarget.path) }
+        ? { url: getImagePreviewUrl(imageTarget.path, agentCwd), name: getBasenameFromPath(imageTarget.path) }
         : null;
       if (imageTarget && imagePreview) {
         const openViewer = onImageClick ? () => onImageClick(imagePreview.url, imagePreview.name) : undefined;
@@ -1083,7 +1083,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
         ? visibleFilePaths.find((path) => isThumbnailableImagePath(path))
         : undefined;
       const execImagePreview = execImagePath
-        ? { url: getLocalFileImageUrl(execImagePath), name: getBasenameFromPath(execImagePath) }
+        ? { url: getLocalFileImageUrl(execImagePath, agentCwd), name: getBasenameFromPath(execImagePath) }
         : null;
       const opensImageViewer = !!execImagePreview && !!onImageClick;
       const execCommand = getCodexExecCommand(payloadToolInput) || nativeBashCommand;
@@ -1242,7 +1242,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
     // When Read targets an image, show an inline thumbnail preview below the line.
     const readImageThumb = (toolName === 'Read' && isFilePath && resolvedFilePathForClick && isThumbnailableImagePath(resolvedFilePathForClick))
-      ? { url: getLocalFileImageUrl(resolvedFilePathForClick), name: getBasenameFromPath(resolvedFilePathForClick) }
+      ? { url: getLocalFileImageUrl(resolvedFilePathForClick, agentCwd), name: getBasenameFromPath(resolvedFilePathForClick) }
       : null;
 
     const editDataFallback = (toolName === 'Edit' && payloadInputRecord)
@@ -1454,7 +1454,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
     const renderBashCommandWithFileLinks = () => {
       if (!displayCommand) return null;
       if (bashRowSummary) {
-        return <BashSummaryParam summary={bashRowSummary} agentCwd={agentCwd} onFileClick={onFileClick} />;
+        return <BashSummaryParam summary={bashRowSummary} agentCwd={agentCwd} onFileClick={onFileClick} variant="inline" />;
       }
       // One-line chip: highlight/link only what can be shown (see helper).
       const shown = bashCommandDisplaySlice(displayCommand);

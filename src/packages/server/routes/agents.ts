@@ -37,7 +37,7 @@ import { buildCodexUsageSnapshot } from '../services/codex-usage-service.js';
 import { buildPiSubscriptionUsageSnapshot } from '../services/pi-subscription-usage-service.js';
 import { buildOpencodeUsageSnapshot } from '../services/opencode-usage-service.js';
 import { getBackupStatus, setBackupEnabled } from '../services/backup-service.js';
-import type { Agent, AgentProvider, ClaudeEffort, CodexConfig, ServerMessage, SessionTransferMode, SessionTransferSummary } from '../../shared/types.js';
+import type { Agent, AgentProvider, ClaudeEffort, ClaudeModel, CodexConfig, ServerMessage, SessionTransferMode, SessionTransferSummary } from '../../shared/types.js';
 import { CLAUDE_MODELS, GROK_MODELS, providerDisplayName } from '../../shared/types.js';
 
 const log = createLogger('Routes');
@@ -780,8 +780,19 @@ router.post('/bulk/change-model', async (req: Request, res: Response) => {
           currentTask: undefined,
           currentTool: undefined,
         };
-        if (provider === 'claude') modelUpdates.model = sanitized;
-        else if (provider === 'codex') modelUpdates.codexModel = sanitized;
+        if (provider === 'claude') {
+          modelUpdates.model = sanitized;
+          // The window comes from the model (1M vs 200K): refresh it now, like
+          // a single-agent model change, instead of showing the old size.
+          const contextWindow = CLAUDE_MODELS[sanitized as ClaudeModel]?.contextWindow;
+          if (contextWindow) {
+            modelUpdates.contextLimit = contextWindow;
+            const statsWindow = agent.contextStats?.contextWindow;
+            if (statsWindow !== undefined && statsWindow !== contextWindow) {
+              modelUpdates.contextStats = undefined;
+            }
+          }
+        } else if (provider === 'codex') modelUpdates.codexModel = sanitized;
         else if (provider === 'opencode') modelUpdates.opencodeModel = sanitized;
         else if (provider === 'grok') modelUpdates.grokModel = sanitized;
         else if (provider === 'pi') {
@@ -1892,7 +1903,7 @@ router.post('/:id/simulate-model-fallback', (req: Request<{ id: string }>, res: 
 
     const body = (req.body ?? {}) as { requestedModel?: string; servedModel?: string };
     const requestedModel = body.requestedModel || agent.model || 'claude-fable-5-1';
-    const servedModel = body.servedModel || 'claude-opus-4-8';
+    const servedModel = body.servedModel || 'claude-opus-5-5';
 
     const emitted = runtimeService.simulateModelFallback(agentId, requestedModel, servedModel);
     log.log(`API simulate-model-fallback for ${agentId}: ${requestedModel} -> ${servedModel} (emitted=${emitted})`);

@@ -728,6 +728,116 @@
   }
 }
 
+// Gallery mode: prev/next + thumbnail strip. A fixed frame (instead of the
+// shrink-to-fit single-image box) so browsing images of different sizes
+// doesn't make the whole modal jump around under the cursor.
+.image-modal.is-gallery {
+  width: min(1600px, 94vw);
+  height: 92vh;
+  max-height: 92vh;
+
+  .image-modal-content {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+
+    .zoomable-image-viewport,
+    img {
+      max-height: 100%;
+    }
+  }
+}
+
+.image-modal-counter {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid var(--bg-tertiary);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.image-modal-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 64px;
+  transform: translateY(-50%);
+  border: 1px solid color-mix(in srgb, var(--accent-purple) 45%, transparent);
+  border-radius: $radius-md;
+  background: color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  color: var(--text-primary);
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity $transition-fast, background $transition-fast;
+
+  &.is-prev {
+    left: 12px;
+  }
+
+  &.is-next {
+    right: 12px;
+  }
+
+  &:hover:not(:disabled) {
+    opacity: 1;
+    background: color-mix(in srgb, var(--accent-purple) 35%, var(--bg-primary));
+  }
+
+  &:disabled {
+    opacity: 0.15;
+    cursor: default;
+  }
+}
+
+.image-modal-thumbs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  padding: 10px 16px 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-top: 1px solid var(--bg-tertiary);
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  scrollbar-width: thin;
+}
+
+.image-modal-thumb {
+  flex-shrink: 0;
+  width: 96px;
+  height: 60px;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: $radius-sm;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity $transition-fast, border-color $transition-fast;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  &:hover {
+    opacity: 0.9;
+  }
+
+  &.is-active {
+    border-color: var(--accent-purple);
+    opacity: 1;
+  }
+}
+
 // =============================================================================
 // Pending (Queued) Messages
 // =============================================================================

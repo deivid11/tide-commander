@@ -38,6 +38,7 @@ import {
   setStorageBoolean,
 } from '../../utils/storage';
 import { resolveAgentFileReference } from '../../utils/filePaths';
+import { buildImageGallery, type ImageGalleryModalState } from './imageGallery';
 import { getDisplayContextInfo } from '../../utils/context';
 import {
   BOTTOM_PM2_LOG_RETENTION_OPTIONS,
@@ -442,7 +443,8 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   }, []);
 
   // Modal states
-  const [imageModal, setImageModal] = useState<{ url: string; name: string } | null>(null);
+  // `items` = every image in the conversation, so the viewer can browse them.
+  const [imageModal, setImageModal] = useState<ImageGalleryModalState | null>(null);
   const [bashModal, setBashModal] = useState<BashModalState | null>(null);
   const [contextConfirm, setContextConfirm] = useState<'collapse' | 'clear' | 'clear-subordinates' | null>(null);
   const [responseModalContent, setResponseModalContent] = useState<string | null>(null);
@@ -1049,7 +1051,18 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
 
   // Memoized callbacks
   const handleImageClick = useCallback((url: string, name: string) => {
-    setImageModal({ url, name });
+    // Scan the conversation DATA (history + live outputs), not the DOM: the
+    // list is virtualized, so off-screen screenshots aren't mounted.
+    const pane = paneRef.current;
+    const gallery = buildImageGallery(pane?.getDedupedHistory() ?? [], pane?.getDedupedOutputs() ?? [], url, name, activeAgent?.cwd);
+    setImageModal({ url, name, ...gallery });
+  }, [activeAgent?.cwd]);
+
+  const handleImageNavigate = useCallback((index: number) => {
+    setImageModal((current) => {
+      const item = current?.items[index];
+      return current && item ? { ...current, url: item.url, name: item.name, index } : current;
+    });
   }, []);
 
   const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; unifiedDiff?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => {
@@ -2312,7 +2325,14 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
       )}
 
       {/* Modals */}
-      {imageModal && <ImageModal url={imageModal.url} name={imageModal.name} onClose={() => setImageModal(null)} />}
+      {imageModal && (
+        <ImageModal
+          url={imageModal.url}
+          name={imageModal.name}
+          onClose={() => setImageModal(null)}
+          gallery={{ items: imageModal.items, index: imageModal.index, onNavigate: handleImageNavigate }}
+        />
+      )}
       {bashModal && <BashModal state={bashModal} onClose={() => setBashModal(null)} />}
       {contextConfirm && (
         <ContextConfirmModal

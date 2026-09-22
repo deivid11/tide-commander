@@ -521,7 +521,7 @@ export const HistoryLine = memo(function HistoryLine({
         ? visibleFilePaths.find((path) => isThumbnailableImagePath(path))
         : undefined;
       const execImagePreview = execImagePath
-        ? { url: getLocalFileImageUrl(execImagePath), name: getBasenameFromPath(execImagePath) }
+        ? { url: getLocalFileImageUrl(execImagePath, agentCwd), name: getBasenameFromPath(execImagePath) }
         : null;
       const opensImageViewer = !!execImagePreview && !!onImageClick;
       const execCommand = getCodexExecCommand(message.toolInput || content) || nativeBashCommand;
@@ -647,7 +647,7 @@ export const HistoryLine = memo(function HistoryLine({
     if (simpleView && isImageViewTool(toolName || '')) {
       const imageTarget = getImageViewTarget(message.toolInput || content);
       const imagePreview = imageTarget && isThumbnailableImagePath(imageTarget.path)
-        ? { url: getImagePreviewUrl(imageTarget.path), name: getBasenameFromPath(imageTarget.path) }
+        ? { url: getImagePreviewUrl(imageTarget.path, agentCwd), name: getBasenameFromPath(imageTarget.path) }
         : null;
       if (imageTarget && imagePreview) {
         const openViewer = onImageClick ? () => onImageClick(imagePreview.url, imagePreview.name) : undefined;
@@ -711,7 +711,7 @@ export const HistoryLine = memo(function HistoryLine({
 
       // When Read targets an image, show an inline thumbnail preview below the line.
       const readImageThumb = (toolName === 'Read' && isFilePath && keyParam && isThumbnailableImagePath(keyParam))
-        ? { url: getLocalFileImageUrl(keyParam), name: getBasenameFromPath(keyParam) }
+        ? { url: getLocalFileImageUrl(keyParam, agentCwd), name: getBasenameFromPath(keyParam) }
         : null;
 
       // Bash is identified by tool name. Clickability is separate so we still
@@ -895,7 +895,7 @@ export const HistoryLine = memo(function HistoryLine({
         const fullCmd = bashCommand || keyParam;
         if (!fullCmd) return null;
         if (bashRowSummary) {
-          return <BashSummaryParam summary={bashRowSummary} agentCwd={agentCwd} onFileClick={onFileClick} />;
+          return <BashSummaryParam summary={bashRowSummary} agentCwd={agentCwd} onFileClick={onFileClick} variant="inline" />;
         }
         // One-line chip: highlight/link only what can be shown (see helper).
         const cmd = bashCommandDisplaySlice(fullCmd);

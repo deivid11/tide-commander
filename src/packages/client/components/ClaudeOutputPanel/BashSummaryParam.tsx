@@ -17,6 +17,14 @@ interface BashSummaryParamProps {
   onFileClick?: (path: string) => void;
   onClick?: () => void;
   title?: string;
+  /**
+   * `param` (default): the row's own param element (a flex item of the row).
+   * `inline`: nested inside an existing `.output-tool-param` span, which owns
+   * the `›` separator and the one-line ellipsis. It must then be plain inline
+   * text: an inline-flex box there is ONE atomic unit, and when it doesn't fit
+   * (a phone) CSS replaces the whole box with a lone `…` — an empty-looking row.
+   */
+  variant?: 'param' | 'inline';
 }
 
 export const BashSummaryParam = React.memo(function BashSummaryParam({
@@ -25,10 +33,11 @@ export const BashSummaryParam = React.memo(function BashSummaryParam({
   onFileClick,
   onClick,
   title,
+  variant = 'param',
 }: BashSummaryParamProps) {
   return (
     <span
-      className="output-tool-param bash-command bash-summary-param"
+      className={variant === 'inline' ? 'bash-summary-inline' : 'output-tool-param bash-command bash-summary-param'}
       onClick={onClick}
       title={title}
       style={onClick ? { cursor: 'pointer' } : undefined}

@@ -1400,6 +1400,13 @@ async function cdpDrive(cmd, args, tabId) {
       dialogArmed.set(tabId, { accept, promptText: args.promptText != null ? String(args.promptText) : '' });
       return { ok: true, armed: true, accept };
     }
+    case 'upload': {
+      // File bytes → <input type="file">: done by the content script (DataTransfer),
+      // same path the side panel uses when the debugger cannot attach.
+      const r = await chrome.tabs.sendMessage(tabId, { type: 'tcAct', cmd: 'upload', args });
+      if (!r || !r.ok) throw new Error((r && r.error) || 'upload failed');
+      return r.result;
+    }
     case 'cdp_raw': {
       // Escape hatch: run ANY DevTools Protocol command on the tab.
       if (!args.method) throw new Error('method required');

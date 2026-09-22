@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.221.0] - 2026-09-22
+
+### Added
+- **Claude Opus 5.5** — `claude-opus-5-5` and its 1M variant `claude-opus-5-5[1m]` are available across the model registry, spawn/edit/bulk pickers, model matching, boss spawning guidance and provider docs. Opus 5.5 [1M] is the new default for every new Claude agent.
+- **Image gallery in every view** — clicking an image in the Guake panel, Flat view or Commander view opens it together with the rest of the conversation's images: prev/next arrows and a thumbnail strip, sized down on phones. The gallery is built from the conversation data, not the rendered rows, so it includes images scrolled out of the virtualized list.
+- **Browser bridge file uploads** — `POST /api/browser/upload` puts one or more local files into an `<input type="file">` on the live page and fires its change event. The bytes are sent to the extension, which builds real `File` objects in the page, so uploads work even where `chrome.debugger` cannot attach.
+
+### Changed
+- **One default model and effort** — spawns that do not name a model (API, boss, triggers) now get the same default the spawn dialog preselects (Opus 5.5 [1M]) instead of whatever the CLI picks. The default reasoning effort for new agents is now `high` (was `xHigh`).
+- **Tidier model pickers** — previous generations, legacy family aliases (`sonnet`, `opus`) and plain 200K ids that have a 1M variant are hidden from the new/edit pickers. They still work for existing agents and CLI passthrough.
+
+### Removed
+- **Opus 4.8** — `claude-opus-4-8` and `claude-opus-4-8[1m]` are retired. Agents saved with them move to Opus 5.5 (200K and 1M respectively) on load and on any API update, instead of losing their model and falling back to the CLI default.
+
+### Fixed
+- **Image thumbnails from pi and Codex agents** — those runtimes read images by relative path, and the server cannot know the agent's working directory, so the preview request 404'd and the thumbnail hid itself. Paths are now resolved against the agent's cwd.
+- **Bulk model changes refresh the context window** — changing the model of several agents at once now updates their context limit (1M vs 200K) the way a single-agent change does, instead of showing the old size.
+- **Bash summaries on phones** — a summarized Bash row nested in a narrow param could collapse into a lone `…`, making the row look empty. It now renders as plain inline text that truncates normally.
+
 ## [1.220.1] - 2026-09-19
 
 ### Fixed

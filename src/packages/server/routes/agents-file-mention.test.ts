@@ -376,6 +376,29 @@ describe('POST /api/agents/bulk/change-model — context preservation', () => {
     expect(updates).not.toHaveProperty('contextStats');
   });
 
+  it('refreshes the context window when moving to a 1M model, dropping stale stats', async () => {
+    const agent = {
+      ...makeAgent(),
+      provider: 'claude',
+      contextLimit: 200_000,
+      contextStats: { totalTokens: 37_000, contextWindow: 200_000 },
+    };
+    vi.mocked(agentService.getAgent).mockReturnValue(agent as any);
+    vi.mocked(agentService.updateAgent).mockImplementation((_id, updates) => ({ ...agent, ...updates }) as any);
+    vi.mocked(agentService.sanitizeModelForProvider).mockReturnValueOnce('claude-opus-5-5[1m]' as any);
+
+    const res = await fetch(`${baseUrl}/api/agents/bulk/change-model`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ agentIds: ['agent-1'], provider: 'claude', model: 'claude-opus-5-5[1m]' }),
+    });
+
+    expect(res.status).toBe(200);
+    const updates = vi.mocked(agentService.updateAgent).mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(updates).toMatchObject({ model: 'claude-opus-5-5[1m]', contextLimit: 1_000_000 });
+    expect(updates).toHaveProperty('contextStats', undefined);
+  });
+
   it('uses the native live-session model switch without restarting the runtime', async () => {
     const agent = {
       ...makeAgent(),

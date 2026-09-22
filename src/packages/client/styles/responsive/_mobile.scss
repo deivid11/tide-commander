@@ -1730,6 +1730,32 @@
   .image-modal {
     max-width: 95vw;
     max-height: 95vh;
+
+    // Phone: the gallery frame fills the screen; arrows shrink so they don't
+    // cover the screenshot, and the strip gets smaller thumbs.
+    &.is-gallery {
+      width: 96vw;
+      height: 90vh;
+      max-height: 90vh;
+    }
+  }
+
+  .image-modal-nav {
+    width: 32px;
+    height: 48px;
+
+    &.is-prev {
+      left: 4px;
+    }
+
+    &.is-next {
+      right: 4px;
+    }
+  }
+
+  .image-modal-thumb {
+    width: 72px;
+    height: 46px;
   }
 
   // Agent response modal - reduce height to account for agent toolbar at bottom
