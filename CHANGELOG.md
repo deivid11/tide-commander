@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.221.1] - 2026-09-22
+
+### Fixed
+- **The chat send button stays reachable on mobile** — a single very long word with no spaces used to widen the whole composer row past the right edge of the screen, shoving the send button out of reach with no way to send the message. The text now wraps inside the field instead.
+- **The agent bar's collapse tab no longer covers the send button** — the ▼/▲ tab was pinned at the desktop bar's height, so on a phone it landed on top of the composer and painted over the send button whenever the keyboard was open. It now sits in its own row above the bar.
+- **Models with a class offset stay on their spot when they turn** — the offset that recentres a model was applied in a space that did not rotate with the model, so a character walking sideways or away from the camera drifted off its tile and snapped back only when walking toward the front. Hoppip drifted the furthest; every offset class is fixed.
+- **The class model preview no longer orbits when you drag it** — the same offset bug made the model swing around the turntable centre while rotating it in the class editor, so the preview did not match what the scene rendered.
+
 ## [1.221.0] - 2026-09-22
 
 ### Added
