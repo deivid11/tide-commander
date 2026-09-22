@@ -13,12 +13,26 @@ vi.mock('three', () => {
 
   return {
     Group: function (this: any) {
-      this.add = vi.fn();
       this.remove = vi.fn();
       this.children = [];
       this.userData = {};
       this.traverse = vi.fn();
       this.name = '';
+      this.position = {
+        x: 0,
+        y: 0,
+        z: 0,
+        set(x: number, y: number, z: number) { this.x = x; this.y = y; this.z = z; },
+      };
+      // Real reparenting: applyModelOffset moves the geometry under the pivot.
+      this.add = vi.fn((child: any) => {
+        if (child?.parent?.children) {
+          child.parent.children = child.parent.children.filter((c: any) => c !== child);
+        }
+        if (child) child.parent = this;
+        this.children.push(child);
+        return this;
+      });
     },
     Mesh: function (this: any) {
       this.geometry = { dispose: vi.fn() };
@@ -55,7 +69,8 @@ vi.mock('../config', () => ({
   },
 }));
 
-import { ModelLoader, applyBodyTransform } from './ModelLoader';
+import * as THREE from 'three';
+import { ModelLoader, applyBodyTransform, applyModelOffset } from './ModelLoader';
 import type { Agent, CustomAgentClass } from '../../../shared/types';
 
 function createMockCharacterLoader() {
@@ -338,10 +353,13 @@ describe('ModelLoader', () => {
       };
       loader.setCustomClasses(new Map([['offset-model', custom]]));
 
+      const geometry = { name: 'Armature', userData: {}, parent: null as any };
       const mockMesh = {
         name: '',
         userData: {} as Record<string, unknown>,
         position: { set: vi.fn() },
+        children: [geometry] as any[],
+        add: vi.fn(function (this: any, child: any) { this.children.push(child); }),
       };
       mockCharacterLoader.cloneByModelFile.mockReturnValue({
         mesh: mockMesh,
@@ -351,8 +369,14 @@ describe('ModelLoader', () => {
       const agent = createMockAgent({ class: 'offset-model' });
       loader.createCharacterBody(agent, 0x888888);
 
-      // Note: offset maps x->x, z->y (vertical), y->z (depth)
-      expect(mockMesh.position.set).toHaveBeenCalledWith(1.5, 0.5, 2.0);
+      // The offset goes on a pivot below the body, not on the body itself, so it
+      // rotates with the baked-in origin shift it cancels.
+      expect(mockMesh.position.set).not.toHaveBeenCalled();
+      const pivot = mockMesh.children.find((child: any) => child.userData?.isModelOffsetPivot);
+      expect(pivot).toBeDefined();
+      expect(pivot.children).toContain(geometry);
+      // Note: offset maps x->x, z->y (vertical), y->z (depth); modelScale is 1 here
+      expect([pivot.position.x, pivot.position.y, pivot.position.z]).toEqual([1.5, 0.5, 2.0]);
     });
   });
 
@@ -443,31 +467,65 @@ describe('applyBodyTransform', () => {
     expect(applyBodyTransform(body, 1.5, false)).toBe(1.5);
   });
 
-  it('scales the model offset by the same factors, swizzling y/z', () => {
-    // hoppip: 66.67 units of baked-in Z shift, cancelled by modelOffset.y at
-    // modelScale 0.036. The offset has to grow with characterScale or the model
-    // drifts away from its agent.
+  it('leaves the body position alone — the offset rides the pivot below it', () => {
     const body = makeBody({ customModelScale: 0.036, modelOffset: { x: 0, y: -2.4, z: 0 } });
 
     applyBodyTransform(body, 2.0, false);
-    // set(x, offset.z, offset.y) — depth lands on THREE's z axis
-    expect(body.position.set).toHaveBeenCalledWith(0, 0, -4.8);
 
-    applyBodyTransform(body, 1.0, false);
-    expect(body.position.set).toHaveBeenLastCalledWith(0, 0, -2.4);
-  });
-
-  it('applies the boss multiplier to the offset too', () => {
-    const body = makeBody({ customModelScale: 1.0, modelOffset: { x: 1, y: 2, z: 3 } });
-
-    applyBodyTransform(body, 2.0, true);
-    expect(body.position.set).toHaveBeenCalledWith(3, 9, 6);
-  });
-
-  it('leaves the position untouched for classes with no offset', () => {
-    const body = makeBody({ customModelScale: 1.0 });
-
-    applyBodyTransform(body, 2.0, false);
     expect(body.position.set).not.toHaveBeenCalled();
+  });
+});
+
+describe('applyModelOffset', () => {
+  const makeChild = (name: string) => ({ name, userData: {}, parent: null as any });
+
+  const makeBody = (...children: any[]) => {
+    const body = new (THREE as any).Group();
+    for (const child of children) body.add(child);
+    (body.add as any).mockClear?.();
+    return body;
+  };
+
+  it('reparents the geometry under a pivot carrying the offset in model space', () => {
+    const geometry = makeChild('Armature');
+    const body = makeBody(geometry);
+
+    // hoppip: 66.67 units of baked-in Z shift, cancelled by modelOffset.y at
+    // modelScale 0.036. Dividing by the scale puts the correction back into
+    // model space, where it rotates with the shift it cancels.
+    applyModelOffset(body, { x: 0, y: -2.4, z: 0 }, 0.036);
+
+    expect(body.children).toHaveLength(1);
+    const pivot = body.children[0];
+    expect(pivot.userData.isModelOffsetPivot).toBe(true);
+    expect(pivot.children).toContain(geometry);
+    // set(x, offset.z, offset.y) — depth lands on THREE's z axis
+    expect(pivot.position.x).toBeCloseTo(0);
+    expect(pivot.position.y).toBeCloseTo(0);
+    expect(pivot.position.z).toBeCloseTo(-2.4 / 0.036);
+  });
+
+  it('reuses the existing pivot instead of nesting a second one', () => {
+    const body = makeBody(makeChild('Armature'));
+
+    applyModelOffset(body, { x: 0, y: -2.4, z: 0 }, 0.036);
+    const pivot = body.children[0];
+
+    applyModelOffset(body, { x: 0, y: -1.2, z: 0 }, 0.036);
+
+    expect(body.children).toHaveLength(1);
+    expect(body.children[0]).toBe(pivot);
+    expect(pivot.position.z).toBeCloseTo(-1.2 / 0.036);
+  });
+
+  it('falls back to a scale of 1 rather than dividing by zero', () => {
+    const body = makeBody(makeChild('Armature'));
+
+    applyModelOffset(body, { x: 1, y: 2, z: 3 }, 0);
+
+    const pivot = body.children[0];
+    expect(pivot.position.x).toBe(1);
+    expect(pivot.position.y).toBe(3);
+    expect(pivot.position.z).toBe(2);
   });
 });

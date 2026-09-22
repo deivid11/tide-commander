@@ -24,17 +24,58 @@ export interface ModelInfo {
 }
 
 /**
- * Apply the body scale and the class model offset together.
+ * Name of the group inserted between a model root and its geometry to carry
+ * the class model offset. Marked in userData too, since a GLB node could in
+ * principle share the name.
+ */
+export const MODEL_OFFSET_PIVOT = 'modelOffsetPivot';
+
+/**
+ * Install the class model offset *inside* the body, as a pivot wrapping the
+ * geometry.
  *
- * `modelOffset` exists to cancel an origin shift baked into the GLB geometry
- * (several Sketchfab rips sit tens of units away from their own origin). That
- * shift lives in model space, so it grows with every factor the body is scaled
- * by. The stored value is authored against `modelScale` alone — that is what
- * ModelPreview renders while the sliders are dragged — which leaves
- * `characterScale` and the boss multiplier to be applied here. Skipping them
- * left models whose baked shift is large visibly adrift from their agent's
- * spot at any character scale other than 1.0 (hoppip, at modelScale 0.036 over
- * a 66-unit shift, landed ~2.4 world units away at the default scale of 2.0).
+ * `modelOffset` cancels an origin shift baked into the GLB geometry (several
+ * Sketchfab rips sit tens of units away from their own origin). The naive fix
+ * — moving `body.position` — puts the correction in the parent group's space
+ * while the shift it cancels lives inside the body, where MovementAnimator
+ * spins it with `characterBody.rotation.y` to face the walk direction. The two
+ * then only line up at rotation 0: hoppip sat centred while walking toward +Z
+ * and drifted out to twice the offset walking away from the camera.
+ *
+ * Putting the correction on a pivot below the body makes it rotate *with* the
+ * shift, so they cancel at every heading. It also rides the body's scale, so
+ * `characterScale` and the boss multiplier no longer have to be folded in by
+ * hand — hence dividing by `modelScale`, the scale the offset was authored
+ * against in ModelPreview.
+ */
+export function applyModelOffset(
+  body: THREE.Object3D,
+  offset: { x: number; y: number; z: number },
+  modelScale: number
+): void {
+  const scale = modelScale || 1.0;
+
+  let pivot = body.children.find((child) => child.userData?.isModelOffsetPivot === true);
+  if (!pivot) {
+    pivot = new THREE.Group();
+    pivot.name = MODEL_OFFSET_PIVOT;
+    pivot.userData.isModelOffsetPivot = true;
+    // Copy the list: `add()` mutates body.children as it reparents.
+    for (const child of [...body.children]) {
+      pivot.add(child);
+    }
+    body.add(pivot);
+  }
+
+  // set(x, offset.z, offset.y) — the authored depth axis lands on THREE's z.
+  pivot.position.set(offset.x / scale, offset.z / scale, offset.y / scale);
+}
+
+/**
+ * Apply the body scale.
+ *
+ * The class model offset is not touched here: it lives on the pivot installed
+ * by {@link applyModelOffset}, below the body, so it already scales with it.
  *
  * Returns the scale that was applied.
  */
@@ -47,16 +88,6 @@ export function applyBodyTransform(
   const bossMultiplier = isBoss ? 1.5 : 1.0;
   const scale = customModelScale * characterScale * bossMultiplier;
   body.scale.setScalar(scale);
-
-  const offset = body.userData.modelOffset as { x: number; y: number; z: number } | undefined;
-  if (offset) {
-    const offsetScale = characterScale * bossMultiplier;
-    body.position.set(
-      offset.x * offsetScale,
-      offset.z * offsetScale,
-      offset.y * offsetScale
-    );
-  }
 
   return scale;
 }
@@ -156,7 +187,7 @@ export class ModelLoader {
 
       if (modelInfo.offset && (modelInfo.offset.x !== 0 || modelInfo.offset.y !== 0 || modelInfo.offset.z !== 0)) {
         cloneResult.mesh.userData.modelOffset = modelInfo.offset;
-        cloneResult.mesh.position.set(modelInfo.offset.x, modelInfo.offset.z, modelInfo.offset.y);
+        applyModelOffset(cloneResult.mesh, modelInfo.offset, customModelScale);
       }
 
       const customClass = this.customClasses.get(agent.class);
@@ -284,7 +315,7 @@ export class ModelLoader {
 
     if (modelInfo.offset && (modelInfo.offset.x !== 0 || modelInfo.offset.y !== 0 || modelInfo.offset.z !== 0)) {
       cloneResult.mesh.userData.modelOffset = modelInfo.offset;
-      cloneResult.mesh.position.set(modelInfo.offset.x, modelInfo.offset.z, modelInfo.offset.y);
+      applyModelOffset(cloneResult.mesh, modelInfo.offset, customModelScale);
     }
 
     const customClass = this.customClasses.get(agent.class);

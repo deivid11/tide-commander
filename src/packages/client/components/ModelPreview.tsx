@@ -5,6 +5,7 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { AgentClass, AgentStatus } from '../../shared/types';
 import { AGENT_CLASS_MODELS } from '../scene/config';
+import { applyModelOffset } from '../scene/characters/ModelLoader';
 import { authUrl } from '../utils/storage';
 import { pickWorkingAnimationName } from './shared/workingAnimation';
 
@@ -431,10 +432,17 @@ export function ModelPreview({ agentClass, modelFile, customModelFile, customMod
       const model = gltf.scene;
       model.scale.setScalar(modelScale);
       // Apply position offset (x: horizontal, y: depth/forward-back, z: vertical height)
+      // on a pivot below the root, the same way the scene does it. Putting it on
+      // the root instead makes the model orbit the turntable centre as soon as
+      // the user drags to rotate, because the baked-in origin shift it cancels
+      // turns with the root while the correction does not.
       const offsetX = modelOffset?.x ?? 0;
       const offsetY = modelOffset?.y ?? 0;
       const offsetZ = modelOffset?.z ?? 0;
-      model.position.set(offsetX, offsetZ, offsetY);
+      if (offsetX !== 0 || offsetY !== 0 || offsetZ !== 0) {
+        applyModelOffset(model, { x: offsetX, y: offsetY, z: offsetZ }, modelScale);
+      }
+      model.position.set(0, 0, 0);
       model.visible = true;
 
       // Reset rotation for new model
