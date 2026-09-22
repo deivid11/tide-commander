@@ -694,6 +694,22 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  // Collapse/expand tabs for the agent bar. On desktop they float `position:
+  // fixed` at `bottom: 72px` (the desktop bar's height), but on mobile the bar
+  // lives inside this fixed stack and is far shorter, so that offset dropped
+  // the tab on top of the composer — and the stack's z-index (2100) painted it
+  // over the send button, which the keyboard being open made unreachable.
+  // In-flow at the top of the stack instead: measured by the ResizeObserver
+  // that feeds --mobile-bottom-stack-height, so the composer sits above it.
+  .agent-bar-hide-btn,
+  .agent-bar-show-btn {
+    position: static;
+    align-self: flex-end;
+    flex: none;
+    margin-right: 16px;
+    z-index: auto;
+  }
+
   // Agent bar inside the stack — no independent fixed positioning needed
   .agent-bar {
     position: static;

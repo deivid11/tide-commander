@@ -144,6 +144,10 @@
   display: flex;
   align-items: stretch;
   flex: 1;
+  // A long unbroken string makes the textarea's min-content width enormous.
+  // Without this, `min-width: auto` lets that min-content size blow the
+  // container past the viewport and pushes the send button off-screen.
+  min-width: 0;
   background: color-mix(in srgb, var(--bg-secondary) 50%, transparent);
   border: 2px solid color-mix(in srgb, var(--text-muted) 25%, transparent);
   border-radius: 8px;
@@ -713,7 +717,11 @@
   .guake-stop-bar { flex: 0 0 auto; margin: 0; }
   .guake-completion-time { flex: 0 0 auto; margin: 0; }
   // The input always gets its own full-width line below the strip.
-  .guake-input { flex: 0 0 100%; }
+  // `min-width: 0` is load-bearing: this item cannot shrink (flex-shrink: 0),
+  // so its `auto` minimum would resolve to the composer's min-content width —
+  // a single very long word then widened the whole row and shoved the send
+  // button outside the screen with no way to reach it.
+  .guake-input { flex: 0 0 100%; min-width: 0; }
 
   .guake-input-swipe-shell.swipe-close-ready {
     opacity: 0.96;
