@@ -115,14 +115,15 @@ describe('agent-service context limits', () => {
       undefined,
       false,
       undefined,
-      'gpt-5.6-luna',
+      'gpt-5.6-luna' as never, // a retired id, as persisted by older versions
       undefined,
       'codex'
     );
 
     expect(agent.contextLimit).toBe(258400);
     expect(agent.provider).toBe('codex');
-    expect(agent.codexModel).toBe('gpt-5.6-luna');
+    // Retired GPT-5.6 Luna is moved to its GPT-6 successor.
+    expect(agent.codexModel).toBe('gpt-6-luna');
   });
 
   it('moves persisted Opus 4.8 agents to Opus 5.5 instead of dropping their model', async () => {

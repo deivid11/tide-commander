@@ -22,7 +22,7 @@ import {
   type BulkRemoveSkillsResult,
 } from '../api/bulk-agents';
 import type { Agent, DrawingArea, Skill, SessionTransferMode } from '../../shared/types';
-import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_EFFORT, isDeprecatedClaudeModel, supportsSessionImport, type ClaudeModel, type ClaudeEffort, type CodexModel } from '../../shared/agent-types';
+import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_EFFORT, DEFAULT_CODEX_MODEL, isDeprecatedClaudeModel, isDeprecatedCodexModel, supportsSessionImport, type ClaudeModel, type ClaudeEffort, type CodexModel } from '../../shared/agent-types';
 import { convertAgentRuntime } from '../api/session-transfer';
 import '../styles/components/bulk-manage-modal.scss';
 
@@ -98,7 +98,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   const [moveAreaId, setMoveAreaId] = useState<string>('');
   const [modelProvider, setModelProvider] = useState<ModelProvider>('claude');
   const [newClaudeModel, setNewClaudeModel] = useState<ClaudeModel>(DEFAULT_CLAUDE_MODEL);
-  const [newCodexModel, setNewCodexModel] = useState<CodexModel>('gpt-5.6-luna');
+  const [newCodexModel, setNewCodexModel] = useState<CodexModel>(DEFAULT_CODEX_MODEL);
   const [newPiModel, setNewPiModel] = useState<string>('');
   const [transferMode, setTransferMode] = useState<SessionTransferMode>('smart');
   const [stopActiveForTransfer, setStopActiveForTransfer] = useState(false);
@@ -1054,7 +1054,9 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                   className="bulk-filter-select"
                   disabled={actionInProgress}
                 >
-                  {(Object.keys(CODEX_MODELS) as CodexModel[]).map(m => (
+                  {(Object.keys(CODEX_MODELS) as CodexModel[])
+                    .filter(m => !isDeprecatedCodexModel(m) || newCodexModel === m)
+                    .map(m => (
                     <option key={m} value={m}>
                       {CODEX_MODELS[m].icon} {CODEX_MODELS[m].label}
                     </option>

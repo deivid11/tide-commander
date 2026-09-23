@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import type { Agent, AgentClass, PermissionMode, ClaudeModel, ClaudeEffort, AgentProvider, CodexConfig, CodexModel, OpencodeModel, GrokModel, PiModel, DrawingArea, SessionHistoryEntry } from '../../shared/types.js';
-import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_CLAUDE_MODEL, migrateRetiredClaudeModel } from '../../shared/agent-types.js';
+import { CLAUDE_MODELS as CLAUDE_MODEL_METADATA, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_CLAUDE_MODEL, DEFAULT_CODEX_MODEL, migrateRetiredClaudeModel, migrateRetiredCodexModel } from '../../shared/agent-types.js';
 import { loadAgents, saveAgents, saveAgentsAsync, getDataDir, loadAreas, saveAreas, loadSessionHistory, saveSessionHistory, addSessionHistoryEntry, getSessionHistoryForAgent } from '../data/index.js';
 import {
   listSessions,
@@ -114,7 +114,7 @@ export function sanitizeModelForProvider(
 
 export function sanitizeCodexModel(model: unknown): CodexModel | undefined {
   if (typeof model !== 'string') return undefined;
-  const trimmed = model.trim();
+  const trimmed = migrateRetiredCodexModel(model.trim());
   return trimmed.length > 0 ? (trimmed as CodexModel) : undefined;
 }
 
@@ -487,7 +487,7 @@ export async function createAgent(
     permissionMode,
     model: sanitizedClaudeModel,
     effort: provider === 'claude' || provider === 'grok' || provider === 'pi' ? effort : undefined,
-    codexModel: provider === 'codex' ? sanitizeCodexModel(codexModel) : undefined,
+    codexModel: provider === 'codex' ? (sanitizeCodexModel(codexModel) || DEFAULT_CODEX_MODEL) : undefined,
     codexConfig,
     opencodeModel: provider === 'opencode' ? sanitizeOpencodeModel(opencodeModel) : undefined,
     grokModel: sanitizedGrokModel,

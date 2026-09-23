@@ -14,7 +14,7 @@ import { PiModelSelect } from './PiModelSelect';
 import { ModelUsagePreview } from './ModelUsagePreview';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort, SessionTransferMode } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
-import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, GROK_MODELS, DEFAULT_GROK_MODEL, grokSupportsEffort, providerDisplayName, supportsSessionImport } from '../../shared/types';
+import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, DEFAULT_CODEX_MODEL, GROK_MODELS, DEFAULT_GROK_MODEL, grokSupportsEffort, isDeprecatedCodexModel, migrateRetiredCodexModel, providerDisplayName, supportsSessionImport } from '../../shared/types';
 import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValueToString } from '../store/shortcuts';
 import { apiUrl } from '../utils/storage';
 import { useModalClose } from '../hooks';
@@ -30,7 +30,6 @@ interface AgentEditModalProps {
 
 type AgentWithShortcut = Agent & { shortcut?: string };
 
-const DEFAULT_CODEX_MODEL: CodexModel = 'gpt-5.6-luna';
 const DEFAULT_CODEX_CONFIG: CodexConfig = {
   fullAuto: true,
   sandbox: 'workspace-write',
@@ -47,8 +46,9 @@ function codexConfigChanged(current: CodexConfig, saved: CodexConfig | undefined
 }
 
 function getSelectableCodexModel(model: Agent['codexModel']): CodexModel {
-  return model && Object.prototype.hasOwnProperty.call(CODEX_MODELS, model)
-    ? model
+  const current = model ? migrateRetiredCodexModel(model) : undefined;
+  return current && Object.prototype.hasOwnProperty.call(CODEX_MODELS, current)
+    ? current as CodexModel
     : DEFAULT_CODEX_MODEL;
 }
 
@@ -779,7 +779,9 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
                   </div>
                 ) : selectedProvider === 'codex' ? (
                   <div className="spawn-select-row spawn-select-row--codex-models">
-                    {(Object.keys(CODEX_MODELS) as CodexModel[]).map((model) => (
+                    {(Object.keys(CODEX_MODELS) as CodexModel[])
+                      .filter((model) => !isDeprecatedCodexModel(model) || selectedCodexModel === model)
+                      .map((model) => (
                       <button
                         key={model}
                         className={`spawn-select-btn ${selectedCodexModel === model ? 'selected' : ''}`}

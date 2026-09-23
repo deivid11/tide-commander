@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
-import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_EFFORT, grokSupportsEffort, migrateRetiredClaudeModel } from '../../shared/types';
+import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_EFFORT, DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT, grokSupportsEffort, isDeprecatedCodexModel, migrateRetiredClaudeModel, migrateRetiredCodexModel } from '../../shared/types';
 import { useDefaultAgentSkills, resolveDefaultSkillIds } from '../api/default-agent-skills';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
@@ -113,11 +113,12 @@ export function SpawnModal({
     sandbox: 'workspace-write',
     approvalMode: 'on-request',
     search: false,
+    reasoningEffort: DEFAULT_CODEX_REASONING_EFFORT,
   });
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>(DEFAULT_CLAUDE_MODEL); // Latest Opus with 1M context
   const [selectedEffort, setSelectedEffort] = useState<ClaudeEffort | undefined>(DEFAULT_CLAUDE_EFFORT);
-  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.6-luna');
+  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>(DEFAULT_CODEX_MODEL);
   const [opencodeModel, setOpencodeModel] = useState<string>('minimax/MiniMax-M1-80k');
   const [grokModel, setGrokModel] = useState<string>(DEFAULT_GROK_MODEL);
   const [piModel, setPiModel] = useState<string>(''); // Empty = pi's own configured default
@@ -168,8 +169,8 @@ export function SpawnModal({
           const claudeModel = migrateRetiredClaudeModel(initialSession.model);
           if (initialSession.provider === 'claude' && claudeModel in CLAUDE_MODELS) {
             setSelectedModel(claudeModel as ClaudeModel);
-          } else if (initialSession.provider === 'codex' && initialSession.model in CODEX_MODELS) {
-            setSelectedCodexModel(initialSession.model as CodexModel);
+          } else if (initialSession.provider === 'codex' && migrateRetiredCodexModel(initialSession.model) in CODEX_MODELS) {
+            setSelectedCodexModel(migrateRetiredCodexModel(initialSession.model) as CodexModel);
           } else if (initialSession.provider === 'opencode') {
             setOpencodeModel(initialSession.model);
           } else if (initialSession.provider === 'grok') {
@@ -853,7 +854,9 @@ export function SpawnModal({
                   </div>
                 ) : selectedProvider === 'codex' ? (
                   <div className="spawn-select-row spawn-select-row--codex-models">
-                    {(Object.keys(CODEX_MODELS) as CodexModel[]).map((model) => (
+                    {(Object.keys(CODEX_MODELS) as CodexModel[])
+                      .filter((model) => !isDeprecatedCodexModel(model) || selectedCodexModel === model)
+                      .map((model) => (
                       <button
                         key={model}
                         className={`spawn-select-btn ${selectedCodexModel === model ? 'selected' : ''}`}

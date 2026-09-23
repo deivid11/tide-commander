@@ -5,6 +5,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   CLAUDE_MODELS,
+  CODEX_MODELS,
+  DEFAULT_CODEX_MODEL,
+  DEFAULT_CODEX_REASONING_EFFORT,
+  isDeprecatedCodexModel,
+  migrateRetiredCodexModel,
   DEFAULT_CLAUDE_EFFORT,
   DEFAULT_CLAUDE_MODEL,
   isDeprecatedClaudeModel,
@@ -93,5 +98,21 @@ describe('new/edit agent picker', () => {
     const visible = Object.keys(CLAUDE_MODELS).filter((id) => !isDeprecatedClaudeModel(id as keyof typeof CLAUDE_MODELS));
     // Picker order is the registry's key order: Fable → Opus → Sonnet → Haiku.
     expect(visible).toEqual(['claude-fable-5-1', 'claude-opus-5-5[1m]', 'claude-sonnet-5[1m]', 'haiku']);
+  });
+});
+
+describe('CODEX_MODELS — GPT-6', () => {
+  it('offers Astra → Sol → Luna, defaulting to Sol with high reasoning', () => {
+    const visible = (Object.keys(CODEX_MODELS) as (keyof typeof CODEX_MODELS)[]).filter((id) => !isDeprecatedCodexModel(id));
+    expect(visible).toEqual(['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna']);
+    expect(DEFAULT_CODEX_MODEL).toBe('gpt-6-sol');
+    expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('high');
+  });
+
+  it('moves retired GPT-5.6 Luna/Sol to their GPT-6 successors and keeps Terra', () => {
+    expect(migrateRetiredCodexModel('gpt-5.6-luna')).toBe('gpt-6-luna');
+    expect(migrateRetiredCodexModel('gpt-5.6-sol')).toBe('gpt-6-sol');
+    expect(migrateRetiredCodexModel('gpt-5.6-terra')).toBe('gpt-5.6-terra');
+    expect(isDeprecatedCodexModel('gpt-5.6-terra')).toBe(true);
   });
 });

@@ -24,7 +24,7 @@ import { AgentResponseModal } from './AgentResponseModal';
 import { terminalOutputToHtmlLines } from '../../utils/terminalOutputHtml';
 import { highlightCode } from '../FileExplorerPanel/syntaxHighlighting';
 import type { Agent } from '../../../shared/types';
-import { DEFAULT_GROK_MODEL } from '../../../shared/types';
+import { DEFAULT_CODEX_MODEL, DEFAULT_GROK_MODEL } from '../../../shared/types';
 import { useModalClose, useModalStackRegistration } from '../../hooks';
 import { ModalPortal } from '../shared/ModalPortal';
 import { fetchAgentInjectedPrompt } from '../../api/agent-prompt';
@@ -646,7 +646,7 @@ export function AgentInfoModal({ agent, isOpen, onClose }: AgentInfoModalProps) 
   if (!isOpen || !agent) return null;
 
   const model = agent.provider === 'codex'
-    ? (agent.codexModel || 'gpt-5.6-luna')
+    ? (agent.codexModel || DEFAULT_CODEX_MODEL)
     : agent.provider === 'opencode'
     ? ((agent as any).opencodeModel || 'minimax/MiniMax-M1-80k')
     : agent.provider === 'grok'

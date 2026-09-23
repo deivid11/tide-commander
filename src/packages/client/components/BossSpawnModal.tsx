@@ -4,7 +4,7 @@ import { store, useAgents, useCustomAgentClassesArray, useSkillsArray } from '..
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
-import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS, DEFAULT_GROK_MODEL, DEFAULT_CLAUDE_MODEL } from '../../shared/types';
+import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS, DEFAULT_GROK_MODEL, DEFAULT_CLAUDE_MODEL, DEFAULT_CODEX_MODEL, DEFAULT_CODEX_REASONING_EFFORT, isDeprecatedCodexModel } from '../../shared/types';
 import { useDefaultAgentSkills, resolveDefaultSkillIds } from '../api/default-agent-skills';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
@@ -59,9 +59,10 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     sandbox: 'workspace-write',
     approvalMode: 'on-request',
     search: false,
+    reasoningEffort: DEFAULT_CODEX_REASONING_EFFORT,
   });
   const [selectedModel, setSelectedModel] = useState<ClaudeModel>(DEFAULT_CLAUDE_MODEL);
-  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>('gpt-5.6-luna');
+  const [selectedCodexModel, setSelectedCodexModel] = useState<CodexModel>(DEFAULT_CODEX_MODEL);
   const [selectedSubordinates, setSelectedSubordinates] = useState<Set<string>>(new Set());
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
   const [classSearch, setClassSearch] = useState('');
@@ -599,7 +600,9 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
                   </div>
                 ) : selectedProvider === 'codex' ? (
                   <div className="spawn-select-row spawn-select-row--codex-models">
-                    {(Object.keys(CODEX_MODELS) as CodexModel[]).map((model) => (
+                    {(Object.keys(CODEX_MODELS) as CodexModel[])
+                      .filter((model) => !isDeprecatedCodexModel(model))
+                      .map((model) => (
                       <button
                         key={model}
                         className={`spawn-select-btn ${selectedCodexModel === model ? 'selected' : ''}`}

@@ -13,13 +13,13 @@ import { Tooltip } from '../shared/Tooltip';
 import type { Agent } from '../../../shared/types';
 import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
-import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, DEFAULT_GROK_MODEL } from '../../../shared/types';
+import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, DEFAULT_CODEX_MODEL, DEFAULT_GROK_MODEL } from '../../../shared/types';
 
 // Resolve a compact "Model · Effort" label for the header chip. Claude agents
 // have both a model and a reasoning effort; Codex/OpenCode only carry a model.
 function getAgentModelLabel(agent: Agent): { model: string; effort?: string } {
   if (agent.provider === 'codex') {
-    const id = agent.codexModel || 'gpt-5.6-luna';
+    const id = agent.codexModel || DEFAULT_CODEX_MODEL;
     const meta = (CODEX_MODELS as Record<string, { label: string }>)[id];
     return { model: meta?.label || id };
   }

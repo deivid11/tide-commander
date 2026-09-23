@@ -185,9 +185,9 @@ export type CodexApprovalMode = 'untrusted' | 'on-failure' | 'on-request' | 'nev
 export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 export type CodexModel =
   | 'gpt-6-astra'
-  | 'gpt-5.6-luna'
-  | 'gpt-5.6-terra'
-  | 'gpt-5.6-sol';
+  | 'gpt-6-sol'
+  | 'gpt-6-luna'
+  | 'gpt-5.6-terra';
 
 // Valid values accepted by the codex CLI's `-c model_reasoning_effort=<value>` override.
 // Confirmed from `codex -c model_reasoning_effort=bogus exec …` error message.
@@ -211,28 +211,52 @@ export interface CodexConfig {
   reasoningEffort?: CodexReasoningEffort; // maps to -c model_reasoning_effort=<value>
 }
 
-export const CODEX_MODELS: Record<CodexModel, { label: string; description: string; icon: string }> = {
+// Key order is the picker order: Astra → Sol → Luna (most capable first).
+export const CODEX_MODELS: Record<CodexModel, { label: string; description: string; icon: string; deprecated?: boolean }> = {
   'gpt-6-astra': {
     label: 'GPT-6 Astra',
-    description: 'GPT-6 Astra — OpenAI frontier model (Sep 2026)',
+    description: 'GPT-6 Astra — OpenAI\'s most capable model for complex, demanding work',
     icon: '✨',
   },
-  'gpt-5.6-luna': {
-    label: 'GPT-5.6 Luna',
-    description: 'GPT-5.6 Luna model',
-    icon: '🌙',
-  },
-  'gpt-5.6-terra': {
-    label: 'GPT-5.6 Terra',
-    description: 'GPT-5.6 Terra model',
-    icon: '🌍',
-  },
-  'gpt-5.6-sol': {
-    label: 'GPT-5.6 Sol',
-    description: 'GPT-5.6 Sol model',
+  'gpt-6-sol': {
+    label: 'GPT-6 Sol',
+    description: 'GPT-6 Sol — agentic workhorse for everyday coding (default)',
     icon: '☀️',
   },
+  'gpt-6-luna': {
+    label: 'GPT-6 Luna',
+    description: 'GPT-6 Luna — fast and affordable agentic coding',
+    icon: '🌙',
+  },
+  // Previous generation with no GPT-6 successor: valid for existing agents,
+  // hidden from the new/edit agent pickers.
+  'gpt-5.6-terra': {
+    label: 'GPT-5.6 Terra',
+    description: 'Previous generation balanced coding model (retained for existing agents)',
+    icon: '🌍',
+    deprecated: true,
+  },
 };
+
+/** Model and reasoning effort preselected for every new Codex agent. */
+export const DEFAULT_CODEX_MODEL: CodexModel = 'gpt-6-sol';
+export const DEFAULT_CODEX_REASONING_EFFORT: CodexReasoningEffort = 'high';
+
+// Codex models removed from Tide Commander, moved to their GPT-6 successor on
+// load and on any update (same contract as RETIRED_CLAUDE_MODELS).
+const RETIRED_CODEX_MODELS: Readonly<Record<string, CodexModel>> = {
+  'gpt-5.6-luna': 'gpt-6-luna',
+  'gpt-5.6-sol': 'gpt-6-sol',
+};
+
+/** The successor of a retired Codex model id, or the id unchanged. */
+export function migrateRetiredCodexModel(model: string): string {
+  return RETIRED_CODEX_MODELS[model] ?? model;
+}
+
+export function isDeprecatedCodexModel(model: CodexModel): boolean {
+  return CODEX_MODELS[model]?.deprecated === true;
+}
 
 // Claude Model - which AI model to use.
 // Short names ('sonnet' | 'opus' | 'haiku') are legacy aliases for the CLI's
