@@ -60,14 +60,24 @@ export type ToolName =
 // Skills Types
 // ============================================================================
 
-/** Skills pre-selected when spawning a regular or boss agent. */
-export const DEFAULT_AGENT_SKILL_SLUGS = [
+/**
+ * Skills pre-selected when spawning a regular or boss agent, out of the box.
+ *
+ * This is the FACTORY default only. Each installation can override the list in
+ * Settings -> Default Agent Skills; the server persists the override and both
+ * spawn modals read the effective list from
+ * `GET /api/agents/system-settings/default-agent-skills`. Only fall back to
+ * this constant when that call has not resolved (or failed).
+ *
+ * Kept deliberately small: every pre-selected skill is prompt overhead paid by
+ * every new agent forever. Skills that only pay off in a specific setup
+ * (`task-label` / `agent-tracking` status reporting, `execute-slash-commands`
+ * for installs with plugins) ship OFF and are one toggle away.
+ */
+export const FACTORY_DEFAULT_AGENT_SKILL_SLUGS = [
   'full-notifications',
   'streaming-exec',
-  'execute-slash-commands',
-  'task-label',
   'report-task-to-boss',
-  'agent-tracking',
   'agent-memory',
   'send-message-to-agent',
 ] as const;

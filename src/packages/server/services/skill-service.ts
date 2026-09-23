@@ -13,6 +13,7 @@ import { BUILTIN_SKILLS, createBuiltinSkill, isBuiltinSkillId } from '../data/bu
 import { getIntegrationSkills } from '../integrations/integration-registry.js';
 import { getAuthToken } from '../auth/index.js';
 import { markInstructionsDirty } from './instruction-refresh.js';
+import { renameDefaultAgentSkillSlug } from './default-agent-skills-service.js';
 
 const log = createLogger('SkillService');
 
@@ -266,6 +267,13 @@ export function updateSkill(id: string, updates: Partial<Skill>): Skill | undefi
 
   skills.set(id, updatedSkill);
   persistSkills();
+
+  // Renaming a custom skill regenerates its slug. The spawn-modal default list
+  // is stored by slug, so follow the rename instead of silently dropping it.
+  if (updatedSkill.slug !== skill.slug) {
+    renameDefaultAgentSkillSlug(skill.slug, updatedSkill.slug);
+  }
+
   emit('updated', updatedSkill);
 
   log.log(` Updated skill "${updatedSkill.name}" (${id})`);

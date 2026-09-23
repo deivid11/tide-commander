@@ -4,7 +4,8 @@ import { store, useAgents, useCustomAgentClassesArray, useSkillsArray } from '..
 import { AGENT_CLASS_CONFIG, DEFAULT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
-import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS, DEFAULT_GROK_MODEL, DEFAULT_AGENT_SKILL_SLUGS, DEFAULT_CLAUDE_MODEL } from '../../shared/types';
+import { PERMISSION_MODES, AGENT_CLASSES, CLAUDE_MODELS, CODEX_MODELS, DEFAULT_GROK_MODEL, DEFAULT_CLAUDE_MODEL } from '../../shared/types';
+import { useDefaultAgentSkills, resolveDefaultSkillIds } from '../api/default-agent-skills';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl } from '../utils/storage';
 import { ModelPreview } from './ModelPreview';
 import { FolderInput } from './shared/FolderInput';
@@ -84,6 +85,9 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     );
   }, [availableSkills, skillSearch]);
 
+  // Skills this installation pre-selects (Settings -> Default Agent Skills).
+  const defaultAgentSkills = useDefaultAgentSkills();
+
   // Get default skills for selected custom class
   const classDefaultSkills = useMemo(() => {
     const customClass = customClasses.find(c => c.id === selectedClass);
@@ -96,12 +100,9 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
     const didJustOpen = isOpen && !wasOpenRef.current;
     if (didJustOpen) {
       if (availableSkills.length > 0) {
-        const defaultSkillIds = availableSkills
-          .filter(s => DEFAULT_AGENT_SKILL_SLUGS.includes(s.slug as (typeof DEFAULT_AGENT_SKILL_SLUGS)[number]))
-          .map(s => s.id);
-        if (defaultSkillIds.length > 0) {
-          setSelectedSkillIds(new Set(defaultSkillIds));
-        }
+        // Configuring an empty list means "pre-select nothing", so this always
+        // assigns rather than only when something matched.
+        setSelectedSkillIds(new Set(resolveDefaultSkillIds(availableSkills, defaultAgentSkills.slugs)));
       }
 
       // Honor the "random class" default-class preference for bosses too.
@@ -119,7 +120,7 @@ export function BossSpawnModal({ isOpen, onClose, onSpawnStart, onSpawnEnd, spaw
       }
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen, availableSkills, customClasses]);
+  }, [isOpen, availableSkills, customClasses, defaultAgentSkills.slugs]);
 
   // Toggle skill selection
   const toggleSkill = useCallback((skillId: string) => {

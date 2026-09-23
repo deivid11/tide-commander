@@ -27,6 +27,13 @@ import {
   SessionTransferError,
   type CreatedTransfer,
 } from '../services/session-transfer-service.js';
+import {
+  getDefaultAgentSkillSlugs,
+  setDefaultAgentSkillSlugs,
+  resetDefaultAgentSkillSlugs,
+  getFactoryDefaultAgentSkillSlugs,
+  isDefaultAgentSkillsConfigured,
+} from '../services/default-agent-skills-service.js';
 import { getSystemPrompt, setSystemPrompt, clearSystemPrompt, isEchoPromptEnabled, setEchoPromptEnabled, getCodexBinaryPath, setCodexBinaryPath, isTmuxModeEnabled, setTmuxModeEnabled, isInteractiveModeEnabled, setInteractiveModeEnabled, isCodexAppServerModeEnabled, setCodexAppServerModeEnabled, isOpencodeServerModeEnabled, setOpencodeServerModeEnabled, isPiRpcModeEnabled, setPiRpcModeEnabled } from '../services/system-prompt-service.js';
 import { markInstructionsDirtyForAll } from '../services/instruction-refresh.js';
 import { startAgentTerminal, stopAgentTerminal } from '../services/agent-terminal-service.js';
@@ -2296,6 +2303,57 @@ router.post('/system-settings/backup', (req: Request, res: Response) => {
     res.json({ success: true, ...status });
   } catch (err: any) {
     log.error(' Failed to set backup enabled:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ============================================================================
+// Default Agent Skills (skills pre-selected in the spawn modal)
+// ============================================================================
+
+/** Shape shared by every response below so the client always gets the full picture. */
+function defaultAgentSkillsPayload() {
+  return {
+    slugs: getDefaultAgentSkillSlugs(),
+    factoryDefault: getFactoryDefaultAgentSkillSlugs(),
+    configured: isDefaultAgentSkillsConfigured(),
+  };
+}
+
+// GET /api/agents/system-settings/default-agent-skills - Skills pre-selected for new agents
+router.get('/system-settings/default-agent-skills', (_req: Request, res: Response) => {
+  try {
+    res.json(defaultAgentSkillsPayload());
+  } catch (err: any) {
+    log.error(' Failed to get default agent skills:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/agents/system-settings/default-agent-skills - Replace the pre-selected list
+router.put('/system-settings/default-agent-skills', (req: Request, res: Response) => {
+  try {
+    const { slugs } = req.body ?? {};
+    // An empty array is valid and means "pre-select nothing".
+    if (!Array.isArray(slugs) || slugs.some((slug: unknown) => typeof slug !== 'string')) {
+      res.status(400).json({ error: 'slugs must be an array of strings' });
+      return;
+    }
+    setDefaultAgentSkillSlugs(slugs);
+    res.json({ success: true, ...defaultAgentSkillsPayload() });
+  } catch (err: any) {
+    log.error(' Failed to set default agent skills:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/agents/system-settings/default-agent-skills - Back to the factory list
+router.delete('/system-settings/default-agent-skills', (_req: Request, res: Response) => {
+  try {
+    resetDefaultAgentSkillSlugs();
+    res.json({ success: true, ...defaultAgentSkillsPayload() });
+  } catch (err: any) {
+    log.error(' Failed to reset default agent skills:', err);
     res.status(500).json({ error: err.message });
   }
 });

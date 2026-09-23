@@ -58,6 +58,7 @@ import { reconnect } from '../../websocket';
 import { CollapsibleSection } from './CollapsibleSection';
 import { SecretsSection } from './SecretsSection';
 import { DataSection } from './DataSection';
+import { DefaultAgentSkillsSection } from './DefaultAgentSkillsSection';
 import { AboutSection, ThemeSelector } from './AboutSection';
 import { IntegrationStatusPanel } from './IntegrationStatusPanel';
 import { ClaudeCredentialsPanel } from '../ClaudeCredentialsPanel';
@@ -916,6 +917,12 @@ export function ConfigSection({ config, onChange, searchQuery = '', onOpenIntegr
             ))}
           </div>
         </div>
+      </CollapsibleSection>
+      )}
+
+      {shouldShowSection('defaultSkills') && (
+      <CollapsibleSection title="Default Agent Skills" storageKey="defaultSkills" defaultOpen={false} forceOpen={isSearching && shouldShowSection('defaultSkills')}>
+        <DefaultAgentSkillsSection />
       </CollapsibleSection>
       )}
 

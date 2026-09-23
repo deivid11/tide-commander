@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_AGENT_SKILL_SLUGS } from '../../../shared/types.js';
+import { FACTORY_DEFAULT_AGENT_SKILL_SLUGS } from '../../../shared/types.js';
+import { BUILTIN_SKILLS } from './index.js';
 import { agentMemory } from './agent-memory.js';
 import { agentTracking } from './agent-tracking.js';
 import { executeSlashCommands } from './execute-slash-commands.js';
@@ -12,25 +13,38 @@ import { taskLabel } from './task-label.js';
 const defaultSkills = [
   fullNotifications,
   streamingExec,
-  executeSlashCommands,
-  taskLabel,
   reportTaskToBoss,
-  agentTracking,
   agentMemory,
   sendMessageToAgent,
 ];
 
 describe('default skill prompt footprint', () => {
   it('covers the exact spawn defaults', () => {
-    expect(defaultSkills.map(skill => skill.slug)).toEqual(DEFAULT_AGENT_SKILL_SLUGS);
+    expect(defaultSkills.map(skill => skill.slug)).toEqual(FACTORY_DEFAULT_AGENT_SKILL_SLUGS);
   });
 
-  it('keeps the eight pre-selected skills below the compact prompt budget', () => {
+  it('only names skills that actually ship', () => {
+    const shipped = new Set(BUILTIN_SKILLS.map(skill => skill.slug));
+    for (const slug of FACTORY_DEFAULT_AGENT_SKILL_SLUGS) {
+      expect(shipped.has(slug), `factory default "${slug}" is not a built-in skill`).toBe(true);
+    }
+  });
+
+  it('keeps the pre-selected skills below the compact prompt budget', () => {
     const rendered = defaultSkills
       .map(skill => `## Skill: ${skill.name}\n_${skill.description}_\n${skill.content}`)
       .join('\n---\n');
 
-    expect(rendered.length).toBeLessThan(11_500);
+    expect(rendered.length).toBeLessThan(6_500);
+  });
+
+  it('leaves the status-reporting and slash-command skills opt-in', () => {
+    // These pay off only in setups that watch tracking status or run plugin
+    // slash commands; every other install would pay their prompt cost for
+    // nothing. They stay installed, just not pre-selected.
+    for (const skill of [taskLabel, agentTracking, executeSlashCommands]) {
+      expect(FACTORY_DEFAULT_AGENT_SKILL_SLUGS).not.toContain(skill.slug);
+    }
   });
 
   it('retains every mandatory API contract after compaction', () => {

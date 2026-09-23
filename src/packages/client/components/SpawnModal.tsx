@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { store, useSkillsArray, useCustomAgentClassesArray, useCustomAgentNames } from '../store';
 import { AGENT_CLASS_CONFIG, BUILTIN_AGENT_NAMES, CHARACTER_MODELS } from '../scene/config';
 import type { AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort } from '../../shared/types';
-import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_AGENT_SKILL_SLUGS, DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_EFFORT, grokSupportsEffort, migrateRetiredClaudeModel } from '../../shared/types';
+import { PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, CODEX_REASONING_EFFORTS, GROK_MODELS, DEFAULT_GROK_MODEL, DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_EFFORT, grokSupportsEffort, migrateRetiredClaudeModel } from '../../shared/types';
+import { useDefaultAgentSkills, resolveDefaultSkillIds } from '../api/default-agent-skills';
 import { STORAGE_KEYS, getStorageString, setStorageString, apiUrl, authFetch } from '../utils/storage';
 import { BUILT_IN_AGENT_CLASSES } from '../../shared/agent-types';
 import { ModelPreview } from './ModelPreview';
@@ -132,17 +133,19 @@ export function SpawnModal({
   // Get available skills (enabled ones)
   const availableSkills = useMemo(() => skills.filter(s => s.enabled), [skills]);
 
+  // Skills this installation pre-selects (Settings -> Default Agent Skills).
+  // Edits made here land immediately; edits made from another tab or the phone
+  // are picked up on the next refresh, so the list can lag by one open.
+  const defaultAgentSkills = useDefaultAgentSkills();
+
   // Initialize default skills and class once per open event
   useEffect(() => {
     const didJustOpen = isOpen && !wasOpenRef.current;
     if (didJustOpen) {
       if (availableSkills.length > 0) {
-        const defaultSkillIds = availableSkills
-          .filter(s => DEFAULT_AGENT_SKILL_SLUGS.includes(s.slug as (typeof DEFAULT_AGENT_SKILL_SLUGS)[number]))
-          .map(s => s.id);
-        if (defaultSkillIds.length > 0) {
-          setSelectedSkillIds(new Set(defaultSkillIds));
-        }
+        // Configuring an empty list means "pre-select nothing", so this always
+        // assigns rather than only when something matched.
+        setSelectedSkillIds(new Set(resolveDefaultSkillIds(availableSkills, defaultAgentSkills.slugs)));
       }
 
       const defaultClassPref = getStorageString(STORAGE_KEYS.DEFAULT_AGENT_CLASS);
@@ -192,7 +195,7 @@ export function SpawnModal({
       }
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen, availableSkills, customClasses, initialSession]);
+  }, [isOpen, availableSkills, customClasses, initialSession, defaultAgentSkills.slugs]);
 
   // Filter skills by search query
   const filteredSkills = useMemo(() => {
