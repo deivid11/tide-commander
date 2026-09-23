@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.222.0] - 2026-09-23
+
+### Added
+- **You choose which skills a new agent starts with** — Settings → Default Agent Skills lets you pick the skills the create-agent dialog pre-selects, with a Reset back to the shipped list. The choice is saved on the server, so it is the same in every browser and on the phone, and it travels with a config export. Agents you already created are not touched, and you can still change the skills for any individual agent while creating it.
+
+### Changed
+- **New agents start with five skills instead of eight** — every pre-selected skill is prompt overhead that each new agent pays forever, so the shipped default is now Full Notifications, Streaming Exec, Send Message to Agent, Agent Memory and Report Task to Boss (about 6k characters instead of 11k). Agent Tracking, Task Label and Execute Slash Commands still ship and are one toggle away in the new setting — they are just off unless your setup actually reads tracking status or runs slash commands.
+
+### Fixed
+- **Renaming a skill no longer drops it from your defaults** — renaming a custom skill regenerates its slug, which used to silently remove it from the pre-selected list. The rename is now followed instead.
+
 ## [1.221.1] - 2026-09-22
 
 ### Fixed
