@@ -8,6 +8,7 @@ import * as agentService from './agent-service.js';
 import * as runtimeService from './runtime-service.js';
 import * as customClassService from './custom-class-service.js';
 import { createLogger } from '../utils/index.js';
+import { skillAssignmentSource } from '../../shared/skill-assignment.js';
 
 const log = createLogger('AgentLifecycle');
 
@@ -29,11 +30,8 @@ export async function restartAgentsWithSkill(
 ): Promise<void> {
   const allAgents = agentService.getAllAgents();
   const affectedAgents = allAgents.filter(agent => {
-    // Check direct assignment
-    if (skill.assignedAgentIds.includes(agent.id)) return true;
-
-    // Check class assignment (skill assigned to agent's class)
-    if (skill.assignedAgentClasses.includes(agent.class)) return true;
+    // Direct, class or '*' wildcard — minus per-agent exclusions.
+    if (skillAssignmentSource(skill, agent)) return true;
 
     // Check custom class default skills
     const customClass = customClassService.getCustomClass(agent.class);

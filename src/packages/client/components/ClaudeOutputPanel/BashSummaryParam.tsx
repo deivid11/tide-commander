@@ -10,6 +10,7 @@ import type { BashRowSummary } from '../../utils/outputRendering';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { FileTypeIcon } from './FileTypeIcon';
 import { filePreviewHandlers } from './toolPreviewHover';
+import { MISSING_FILE_TITLE, useMissingFiles } from '../../utils/fileExistence';
 
 interface BashSummaryParamProps {
   summary: BashRowSummary;
@@ -35,6 +36,13 @@ export const BashSummaryParam = React.memo(function BashSummaryParam({
   title,
   variant = 'param',
 }: BashSummaryParamProps) {
+  const stepPaths = summary.steps.map((step) => (step.file ? resolveAgentFileReference(step.file, agentCwd).path : null));
+  // Exact paths only — a bare name ran in whatever dir the shell was in.
+  const missing = useMissingFiles(
+    summary.steps.flatMap((step, index) => (step.file?.startsWith('/') && stepPaths[index] ? [stepPaths[index] as string] : [])),
+    true,
+    agentCwd,
+  );
   return (
     <span
       className={variant === 'inline' ? 'bash-summary-inline' : 'output-tool-param bash-command bash-summary-param'}
@@ -46,11 +54,12 @@ export const BashSummaryParam = React.memo(function BashSummaryParam({
         <span className="bash-summary-count">{summary.totalSteps} steps ·</span>
       )}
       {summary.steps.map((step, index) => {
-        const resolvedPath = step.file ? resolveAgentFileReference(step.file, agentCwd).path : null;
+        const resolvedPath = stepPaths[index];
+        const isMissing = !!resolvedPath && missing.has(resolvedPath);
         const open = (event: React.SyntheticEvent) => {
           if (!onFileClick || !resolvedPath) return;
           event.stopPropagation();
-          onFileClick(resolvedPath);
+          onFileClick(step.file ?? resolvedPath);
         };
         return (
           <React.Fragment key={`${step.label}-${step.file ?? ''}-${index}`}>
@@ -58,8 +67,8 @@ export const BashSummaryParam = React.memo(function BashSummaryParam({
             <span className="bash-summary-text">{step.label}</span>
             {step.file && resolvedPath && (
               <span
-                className={`codex-file-chip ${onFileClick ? 'is-clickable' : ''}`}
-                title={resolvedPath}
+                className={`codex-file-chip ${onFileClick ? 'is-clickable' : ''}${isMissing ? ' is-missing' : ''}`}
+                title={isMissing ? `${resolvedPath}\n${MISSING_FILE_TITLE}` : resolvedPath}
                 role={onFileClick ? 'button' : undefined}
                 tabIndex={onFileClick ? 0 : undefined}
                 onClick={open}

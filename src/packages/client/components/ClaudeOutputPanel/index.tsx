@@ -37,7 +37,7 @@ import {
   getStorageString,
   setStorageBoolean,
 } from '../../utils/storage';
-import { resolveAgentFileReference } from '../../utils/filePaths';
+import { parseFilePathReference } from '../../utils/filePaths';
 import { buildImageGallery, type ImageGalleryModalState } from './imageGallery';
 import { getDisplayContextInfo } from '../../utils/context';
 import {
@@ -1066,7 +1066,10 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
   }, []);
 
   const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; unifiedDiff?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => {
-    const ref = resolveAgentFileReference(path, activeAgent?.cwd);
+    // Keep the reference as written (only `:line` is split off): the viewer
+    // resolves it against the cwd itself, and needs to know whether it was an
+    // exact path or a bare name guessed against a cwd the shell may have left.
+    const ref = parseFilePathReference(path);
     const mergedEditData = ref.line
       ? { ...(editData || {}), targetLine: ref.line }
       : editData;

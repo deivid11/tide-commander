@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ModalPortal } from './shared/ModalPortal';
+import { SearchableSelect } from './shared/SearchableSelect';
 import { Icon } from './Icon';
 import { PiModelSelect } from './PiModelSelect';
 import { useAgentsArray, useAreas, useSkillsArray } from '../store';
@@ -22,11 +23,18 @@ import {
   type BulkRemoveSkillsResult,
 } from '../api/bulk-agents';
 import type { Agent, DrawingArea, Skill, SessionTransferMode } from '../../shared/types';
+import { skillAssignmentSource } from '../../shared/skill-assignment';
 import { CLAUDE_MODELS, CODEX_MODELS, CLAUDE_EFFORTS, DEFAULT_CLAUDE_MODEL, DEFAULT_CLAUDE_EFFORT, DEFAULT_CODEX_MODEL, isDeprecatedClaudeModel, isDeprecatedCodexModel, supportsSessionImport, type ClaudeModel, type ClaudeEffort, type CodexModel } from '../../shared/agent-types';
 import { convertAgentRuntime } from '../api/session-transfer';
 import '../styles/components/bulk-manage-modal.scss';
 
 type ModelProvider = 'claude' | 'codex' | 'pi';
+
+const AREA_FILTER_PINNED = [
+  { value: 'all', label: 'All Areas' },
+  { value: 'unassigned', label: 'Unassigned' },
+];
+const MOVE_AREA_PINNED = [{ value: '', label: 'Unassign area' }];
 
 /** Convert areas Map to array */
 function areasToArray(areas: Map<string, DrawingArea>): DrawingArea[] {
@@ -41,7 +49,7 @@ export interface BulkManageModalProps {
 type StatusFilter = 'all' | 'idle' | 'working' | 'error' | 'stopped';
 type IdleTimeFilter = 'any' | '>1h' | '>6h' | '>1d' | '>3d' | '>7d' | '>30d';
 type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
-type ModelFilter = 'all' | 'fable-5-1' | 'fable-5-1m' | 'fable-5' | 'opus' | 'opus-5-5-1m' | 'opus-5-5' | 'opus-5-1m' | 'opus-5' | 'opus-4-7-1m' | 'opus-4-7' | 'opus-4-6' | 'sonnet' | 'haiku';
+type ModelFilter = 'all' | 'fable-5-1' | 'fable-5-1m' | 'fable-5' | 'opus' | 'opus-5-5-1m' | 'opus-5-5' | 'opus-5-1m' | 'opus-5' | 'opus-4-7-1m' | 'opus-4-7' | 'opus-4-6' | 'sonnet-5-5' | 'sonnet-5-1m' | 'sonnet-5' | 'sonnet' | 'haiku';
 
 type ConfirmAction = 'delete' | 'clear-context' | 'change-model' | 'add-skill' | 'remove-skill' | null;
 type SkillPickerMode = 'add' | 'remove' | null;
@@ -80,6 +88,13 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   const agents = isOpen ? liveAgents : NO_AGENTS;
   const areasMap = useAreas();
   const areas = useMemo(() => areasToArray(areasMap), [areasMap]);
+  // Area dropdowns list areas alphabetically (the store keeps creation order).
+  const areaOptions = useMemo(
+    () => areas
+      .map(area => ({ value: area.id, label: area.name }))
+      .sort((x, y) => x.label.localeCompare(y.label, undefined, { sensitivity: 'base', numeric: true })),
+    [areas],
+  );
   const skills = useSkillsArray();
 
   // Filters
@@ -170,6 +185,9 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           modelFilter === 'opus-4-7-1m' ? agentModel === 'opus[1m]' :
           modelFilter === 'opus-4-7' ? agentModel === 'claude-opus-4-7' :
           modelFilter === 'opus-4-6' ? agentModel === 'claude-opus-4-6' :
+          modelFilter === 'sonnet-5-5' ? agentModel === 'claude-sonnet-5-5' :
+          modelFilter === 'sonnet-5-1m' ? agentModel === 'claude-sonnet-5[1m]' :
+          modelFilter === 'sonnet-5' ? agentModel === 'claude-sonnet-5' :
           agentModel === modelFilter;
         if (!matchesFilter) return false;
       }
@@ -216,7 +234,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
 
   // Skills available for the picker, filtered by mode and search query.
   // - 'add': all enabled skills.
-  // - 'remove': only enabled skills currently assigned directly to ≥1 selected agent.
+  // - 'remove': enabled skills that reach ≥1 selected agent (directly, via class or '*').
   const pickerSkills = useMemo<Skill[]>(() => {
     if (!skillPickerMode) return [];
     const query = skillSearchQuery.toLowerCase().trim();
@@ -224,13 +242,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
     if (skillPickerMode === 'add') {
       base = skills.filter(s => s.enabled);
     } else {
-      base = skills.filter(s => {
-        if (!s.enabled) return false;
-        for (const agentId of selectedIds) {
-          if (s.assignedAgentIds.includes(agentId)) return true;
-        }
-        return false;
-      });
+      const selectedAgents = agents.filter(a => selectedIds.has(a.id));
+      base = skills.filter(s => s.enabled && selectedAgents.some(a => skillAssignmentSource(s, a) !== null));
     }
     if (!query) return base;
     return base.filter(s =>
@@ -238,7 +251,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       s.description.toLowerCase().includes(query) ||
       s.slug.toLowerCase().includes(query)
     );
-  }, [skillPickerMode, skillSearchQuery, skills, selectedIds]);
+  }, [skillPickerMode, skillSearchQuery, skills, selectedIds, agents]);
 
   const pendingSkillsList = useMemo<Skill[]>(
     () => skills.filter(s => pendingSkillIds.has(s.id)),
@@ -252,23 +265,23 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
   }, [pendingSkillsList]);
 
   // For 'remove-skill' confirm: how many (agent, skill) pairs would actually be
-  // affected, i.e. selected agents that have at least one of the pending skills
-  // directly assigned. Counts each pair, so an agent with 2 pending skills
-  // contributes 2.
+  // removed, i.e. selected agents the pending skills reach (directly, via class
+  // or '*'). Counts each pair, so an agent with 2 pending skills contributes 2.
   const removeSkillAffectedPairs = useMemo(() => {
     if (pendingSkillsList.length === 0) return 0;
     let count = 0;
-    for (const agentId of selectedIds) {
+    for (const agent of agents) {
+      if (!selectedIds.has(agent.id)) continue;
       for (const skill of pendingSkillsList) {
-        if (skill.assignedAgentIds.includes(agentId)) count++;
+        if (skillAssignmentSource(skill, agent)) count++;
       }
     }
     return count;
-  }, [pendingSkillsList, selectedIds]);
+  }, [pendingSkillsList, selectedIds, agents]);
 
   // Map of agentId -> sorted list of enabled skill chips that apply to that
-  // agent. Direct assignments are editable via Bulk Remove; wildcard ('*') and
-  // class-default assignments are framework/class-level and not removable per-agent.
+  // agent, however they reach it (direct, class, '*'). Bulk Remove handles all
+  // three: class/'*' ones are excluded for the selected agents only.
   type AgentSkillChip = { name: string; source: 'direct' | 'class' | 'wildcard' };
   const skillsByAgent = useMemo(() => {
     const map = new Map<string, AgentSkillChip[]>();
@@ -276,16 +289,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
       const list: AgentSkillChip[] = [];
       for (const skill of skills) {
         if (!skill.enabled) continue;
-        const direct = skill.assignedAgentIds.includes(agent.id);
-        const wildcard = skill.assignedAgentClasses.includes('*');
-        const viaClass = skill.assignedAgentClasses.includes(agent.class);
-        if (direct) {
-          list.push({ name: skill.name, source: 'direct' });
-        } else if (wildcard) {
-          list.push({ name: skill.name, source: 'wildcard' });
-        } else if (viaClass) {
-          list.push({ name: skill.name, source: 'class' });
-        }
+        const source = skillAssignmentSource(skill, agent);
+        if (source) list.push({ name: skill.name, source });
       }
       list.sort((a, b) => a.name.localeCompare(b.name));
       map.set(agent.id, list);
@@ -534,17 +539,14 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 <option value=">30d">&gt; 30 days</option>
               </select>
 
-              <select
+              <SearchableSelect
                 value={areaFilter}
-                onChange={e => setAreaFilter(e.target.value)}
+                onChange={setAreaFilter}
+                pinnedOptions={AREA_FILTER_PINNED}
+                options={areaOptions}
+                placeholder="Search areas…"
                 className="bulk-filter-select"
-              >
-                <option value="all">All Areas</option>
-                <option value="unassigned">Unassigned</option>
-                {areas.map(area => (
-                  <option key={area.id} value={area.id}>{area.name}</option>
-                ))}
-              </select>
+              />
 
               <select
                 value={providerFilter}
@@ -576,7 +578,10 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 <option value="opus-4-7">Opus 4.7 (200K)</option>
                 <option value="opus-4-6">Opus 4.6</option>
                 <option value="opus">Opus (legacy)</option>
-                <option value="sonnet">Sonnet</option>
+                <option value="sonnet-5-5">Sonnet 5.5 [1M]</option>
+                <option value="sonnet-5-1m">Sonnet 5 [1M]</option>
+                <option value="sonnet-5">Sonnet 5 (200K)</option>
+                <option value="sonnet">Sonnet (legacy)</option>
                 <option value="haiku">Haiku</option>
               </select>
 
@@ -765,7 +770,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                   {pickerSkills.length === 0 ? (
                     <div className="bulk-empty" style={{ padding: 16 }}>
                       {skillPickerMode === 'remove'
-                        ? 'None of the selected agents have a directly-assigned skill matching this filter.'
+                        ? 'None of the selected agents have a skill matching this filter.'
                         : 'No skills match this search.'}
                     </div>
                   ) : (
@@ -916,7 +921,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                     Remove <strong>{pendingSkillsList.length}</strong> skill{pendingSkillsList.length === 1 ? '' : 's'} (<strong>{pendingSkillsLabel}</strong>) from up to <strong>{selectedIds.size}</strong> selected agent(s)?
                     <br />
                     <span style={{ fontSize: 12, color: 'var(--text-muted, #888)' }}>
-                      {removeSkillAffectedPairs} direct assignment(s) will be removed. Class-default and '*' wildcard assignments are not changed.
+                      {removeSkillAffectedPairs} assignment(s) will be removed. Skills that come from the agent's class or '*' are removed only for these agents; the class assignment stays for everyone else.
                     </span>
                   </p>
                 ) : (
@@ -996,17 +1001,15 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 Stop Selected
               </button>
 
-              <select
+              <SearchableSelect
                 value={moveAreaId}
-                onChange={e => setMoveAreaId(e.target.value)}
+                onChange={setMoveAreaId}
+                pinnedOptions={MOVE_AREA_PINNED}
+                options={areaOptions}
+                placeholder="Search areas…"
                 className="bulk-filter-select"
                 disabled={selectedIds.size === 0 || actionInProgress}
-              >
-                <option value="">Unassign area</option>
-                {areas.map(area => (
-                  <option key={area.id} value={area.id}>{area.name}</option>
-                ))}
-              </select>
+              />
               <button
                 className="btn btn-primary"
                 disabled={selectedIds.size === 0 || actionInProgress}

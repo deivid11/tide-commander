@@ -17,6 +17,7 @@ import { detectRunnerType, mightBeTestFile, mightBeVitestFile, mightBePhpTestFil
 import type { TestRunnerType } from '../../shared/types.js';
 import { DEFAULT_FILE_SEARCH_EXCLUDE_DIRS, parseExcludeDirNames } from '../../shared/file-search.js';
 import { detectArchiveFormat, listArchive } from '../services/archive-listing.js';
+import { diagnoseMissingFile, findConversationSnapshots, gitHeadCopy, type RecoveredCopy } from '../services/file-recovery.js';
 import { readSpreadsheet, detectSpreadsheetKind, UnsupportedSpreadsheetError, SPREADSHEET_DEFAULT_MAX_ROWS, SPREADSHEET_DEFAULT_MAX_COLS, SPREADSHEET_HARD_MAX_ROWS, SPREADSHEET_HARD_MAX_COLS, zipSourceFromFd } from '../services/spreadsheet-parse.js';
 import { readDocument, detectDocumentKind, UnsupportedDocumentError, DOCUMENT_DEFAULT_MAX_BLOCKS, DOCUMENT_HARD_MAX_BLOCKS } from '../services/document-parse.js';
 import {
@@ -62,12 +63,22 @@ interface TreeNode {
 
 const router = Router();
 
-function looksLikeBinaryBuffer(buffer: Buffer): boolean {
+export function looksLikeBinaryBuffer(buffer: Buffer): boolean {
   if (buffer.length === 0) return false;
   const sample = buffer.subarray(0, Math.min(buffer.length, 8192));
-  // NUL catches the common case; replacement characters catch compressed or
-  // media formats that contain no NUL in their first block but are not UTF-8.
-  return sample.includes(0) || buffer.toString('utf-8').includes('\uFFFD');
+  // NUL catches the common case. Invalid UTF-8 catches compressed or media
+  // formats with no NUL in their first block. It must be INVALID bytes, not
+  // U+FFFD characters: valid text can contain literal "�" (a JSON dump of
+  // chat messages holding a mangled .docx preview had 760 of them), and
+  // decoding with replacement then searching for U+FFFD called that binary.
+  // `stream: true` tolerates a multi-byte character cut by the 8 KB sample.
+  if (sample.includes(0)) return true;
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(sample, { stream: true });
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 /**
@@ -304,7 +315,8 @@ export type ResolutionStrategy =
   | 'suffix-match'
   | 'node-modules-match'
   | 'area-root'
-  | 'area-suffix-match';
+  | 'area-suffix-match'
+  | 'child-anchor';
 
 interface AreaDir { areaId: string; areaName: string; dir: string }
 const AREA_DIR_TTL_MS = 30_000;
@@ -369,19 +381,21 @@ export function _resetSuffixWalkCacheForTests(): void {
   suffixWalkCache.clear();
 }
 
-function listFilesShallow(root: string, depth: number): string[] {
-  if (depth > SUFFIX_WALK_MAX_DEPTH) return [];
+// Accumulates into ONE array. The previous `out.push(...listFilesShallow(child))`
+// spread a whole subtree as call arguments, which throws "Maximum call stack
+// size exceeded" on a workspace-sized tree (~480k files under ~/d) — the
+// caller's try/catch swallowed it and suffix-match silently never matched.
+function listFilesShallow(root: string, depth: number, out: string[] = []): string[] {
+  if (depth > SUFFIX_WALK_MAX_DEPTH) return out;
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(root, { withFileTypes: true });
-  } catch { return []; }
-  const out: string[] = [];
+  } catch { return out; }
   for (const e of entries) {
-    if (e.name.startsWith('.') && SUFFIX_WALK_IGNORE.has(e.name)) continue;
     if (SUFFIX_WALK_IGNORE.has(e.name)) continue;
     const full = path.join(root, e.name);
     if (e.isDirectory()) {
-      out.push(...listFilesShallow(full, depth + 1));
+      listFilesShallow(full, depth + 1, out);
     } else if (e.isFile()) {
       out.push(full);
     }
@@ -469,6 +483,58 @@ function findInNodeModules(
   return null;
 }
 
+// Workspace folders: an agent running in `~/d` cites `apps/agent/src/x.ts`
+// meaning `~/d/<some-repo>/apps/agent/src/x.ts`. Instead of walking the whole
+// workspace, anchor the relative part under each child (then grandchild)
+// directory — a few hundred existsSync calls. Several hits (the repo plus
+// scratch copies of it) resolve to the SHALLOWEST, then most recently modified.
+const CHILD_ANCHOR_MAX_DIRS_PER_LEVEL = 400;
+
+function listChildDirs(dir: string): string[] {
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && !e.name.startsWith('.') && !SUFFIX_WALK_IGNORE.has(e.name))
+      .slice(0, CHILD_ANCHOR_MAX_DIRS_PER_LEVEL)
+      .map((e) => path.join(dir, e.name));
+  } catch {
+    return [];
+  }
+}
+
+export function findByChildAnchor(relPath: string, base: string, tryCandidate: (p: string) => string | null): string | null {
+  const rel = relPath.replace(/^\.?\/+/, '');
+  // A bare basename is too ambiguous to anchor anywhere.
+  if (!rel || !rel.includes('/')) return null;
+  let level = listChildDirs(base);
+  for (let depth = 1; depth <= 2 && level.length > 0; depth++) {
+    const hits: Array<{ path: string; mtime: number }> = [];
+    for (const dir of level) {
+      const hit = tryCandidate(path.join(dir, rel));
+      if (hit) {
+        let mtime = 0;
+        try { mtime = fs.statSync(hit).mtimeMs; } catch { /* raced away */ }
+        hits.push({ path: hit, mtime });
+      }
+    }
+    if (hits.length > 0) {
+      hits.sort((a, b) => b.mtime - a.mtime);
+      return hits[0].path;
+    }
+    if (depth === 1) {
+      const next: string[] = [];
+      for (const dir of level) {
+        for (const child of listChildDirs(dir)) {
+          next.push(child);
+          if (next.length >= CHILD_ANCHOR_MAX_DIRS_PER_LEVEL * 4) break;
+        }
+        if (next.length >= CHILD_ANCHOR_MAX_DIRS_PER_LEVEL * 4) break;
+      }
+      level = next;
+    }
+  }
+  return null;
+}
+
 /**
  * Resolve a requested file path to an existing file on disk, with fallbacks.
  * Tries (in order):
@@ -476,6 +542,8 @@ function findInNodeModules(
  *   2. cached             — previously-resolved entry for the same requested key
  *   3. parent-walk        — tail slices anchored at baseDir AND each ancestor up to /
  *   4. git-root           — tail slices anchored at the git toplevel from baseDir
+ *   4b. child-anchor      — the path relative to baseDir, anchored under baseDir's
+ *                           child/grandchild dirs (agent cwd = a workspace folder)
  *   5. suffix-match       — depth-limited walk of baseDir, unique trailing-segment match
  *   6. node-modules-match — tail slices probed under each node_modules dir beneath baseDir
  *   7. area-root          — verbatim join against each user-configured area directory
@@ -487,6 +555,12 @@ function findInNodeModules(
 export function findFileWithFallbacks(
   rawPath: string | undefined,
   baseDir: string | undefined,
+  /**
+   * `cheap`: only strategies that cost a bounded number of stat calls (no git
+   * subprocess, no directory walks). Used by the chip existence check, which
+   * runs for every visible file reference every few seconds.
+   */
+  options: { cheap?: boolean } = {},
 ):
   | { ok: true; path: string; strategy: ResolutionStrategy; areaId?: string; areaName?: string }
   | { ok: false; status: number; error: string; requested?: string; tried?: string[] } {
@@ -555,7 +629,7 @@ export function findFileWithFallbacks(
     }
 
     try {
-      if (fs.existsSync(absBase)) {
+      if (!options.cheap && fs.existsSync(absBase)) {
         const gitTop = execSync('git rev-parse --show-toplevel', {
           cwd: absBase,
           encoding: 'utf-8',
@@ -573,6 +647,34 @@ export function findFileWithFallbacks(
         }
       }
     } catch { /* baseDir is not in a git repo — skip */ }
+
+    // The part of the reference relative to baseDir (the client sends relative
+    // references already joined onto the agent cwd).
+    const normalizedBase = absBase.replace(/\/+$/, '');
+    const relToBase = path.isAbsolute(rawPath)
+      ? (rawPath.startsWith(`${normalizedBase}/`) ? rawPath.slice(normalizedBase.length + 1) : null)
+      : rawPath;
+    if (relToBase) {
+      // Probed without recording each of the (up to ~2000) candidates in
+      // `tried` — one marker keeps the 404 payload small.
+      const probe = (p: string): string | null => {
+        try {
+          return fs.existsSync(p) && !fs.statSync(p).isDirectory() ? p : null;
+        } catch {
+          return null;
+        }
+      };
+      tried.push(`<child-anchor under ${normalizedBase}>`);
+      const anchorHit = findByChildAnchor(relToBase, normalizedBase, probe);
+      if (anchorHit) {
+        rememberResolution(rawPath, anchorHit, 'child-anchor');
+        return { ok: true, path: anchorHit, strategy: 'child-anchor' };
+      }
+    }
+
+    if (options.cheap) {
+      return { ok: false, status: 404, error: 'File not found', requested: resolution.path, tried };
+    }
 
     // Last-resort suffix match: cheap depth-limited recursive walk, cached for
     // 30s. Helps when the requested path's segments don't anchor anywhere via
@@ -603,7 +705,7 @@ export function findFileWithFallbacks(
   // Area strategies: try the user's configured area directories. Runs whether
   // or not baseDir is set — area paths are independent. Capped to keep cold
   // requests cheap (5 areas × 10 dirs).
-  const areaDirs = getAreaDirs();
+  const areaDirs = options.cheap ? [] : getAreaDirs();
   const tailSegmentsForArea = rawPath.replace(/^\/+/, '').split(path.sep).filter(Boolean);
 
   for (const { areaId, areaName, dir } of areaDirs) {
@@ -660,6 +762,23 @@ export function findFileWithFallbacks(
   };
 }
 
+/**
+ * A 404 for an absolute path gets a diagnosis (deleted vs. folder gone, similar
+ * names, git tracking) so the viewer can explain the miss instead of listing
+ * every fallback location it probed.
+ */
+function attachMissingDiagnosis(
+  body: Record<string, unknown>,
+  resolution: { status: number; requested?: string },
+): void {
+  if (resolution.status !== 404 || !resolution.requested || !path.isAbsolute(resolution.requested)) return;
+  try {
+    body.diagnosis = diagnoseMissingFile(resolution.requested);
+  } catch (err) {
+    log.warn(' Missing-file diagnosis failed:', err);
+  }
+}
+
 // Prevent browser from caching git-related GET responses (status, diff, branch, etc.)
 // Without this, browsers may serve stale cached data — e.g. deleted files still appearing.
 router.use('/git-*path', (_req: Request, res: Response, next: import('express').NextFunction) => {
@@ -679,6 +798,7 @@ router.get('/read', async (req: Request, res: Response) => {
       const body: Record<string, unknown> = { error: resolution.error };
       if (resolution.requested) body.path = resolution.requested;
       if (resolution.tried) body.triedRoots = resolution.tried;
+      attachMissingDiagnosis(body, resolution);
       res.status(resolution.status).json(body);
       return;
     }
@@ -1063,6 +1183,66 @@ router.get('/exists', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/files/exists-batch - Can these references still be opened? Backs
+// the "dead link" styling of file chips in the conversation: one request per
+// batch of visible chips. Uses the SAME resolver as the viewer (cheap
+// strategies only), so a chip is marked dead only when clicking it could not
+// open anything — a relative path the agent wrote from a workspace folder
+// (`apps/x/y.ts` from ~/d) is alive if it resolves under one of its repos.
+// Body: { items: [{ path, baseDir? }] } → { results: boolean[] } (same order).
+const EXISTS_BATCH_MAX = 300;
+router.post('/exists-batch', (req: Request, res: Response) => {
+  const rawItems: unknown = req.body?.items;
+  if (!Array.isArray(rawItems)) {
+    res.status(400).json({ error: 'items must be an array' });
+    return;
+  }
+  const results = rawItems.slice(0, EXISTS_BATCH_MAX).map((item) => {
+    const rawPath = item && typeof item.path === 'string' ? item.path : '';
+    const baseDir = item && typeof item.baseDir === 'string' ? item.baseDir : undefined;
+    if (!rawPath) return false;
+    try {
+      return findFileWithFallbacks(rawPath, baseDir, { cheap: true }).ok
+        // A directory reference is alive too (the viewer lists it).
+        || fs.existsSync(rawPath);
+    } catch {
+      return false;
+    }
+  });
+  res.json({ results });
+});
+
+// GET /api/files/recover - Copies of a missing file that can still be shown:
+// the git HEAD version (tracked files) and the last copy an agent conversation
+// recorded (Write body, full-file Read, image Read). Never touches the disk
+// target — recovery is view/download only.
+router.get('/recover', async (req: Request, res: Response) => {
+  try {
+    const resolution = resolveAndValidateFilePath(
+      req.query.path as string | undefined,
+      req.query.baseDir as string | undefined,
+    );
+    if (!resolution.ok) {
+      res.status(resolution.status).json({ error: resolution.error });
+      return;
+    }
+    const filePath = resolution.path;
+    if (fs.existsSync(filePath)) {
+      res.json({ path: filePath, exists: true, copies: [] });
+      return;
+    }
+    const diagnosis = diagnoseMissingFile(filePath);
+    const copies: RecoveredCopy[] = [];
+    const head = diagnosis.git ? gitHeadCopy(filePath, diagnosis.git) : null;
+    if (head) copies.push(head);
+    copies.push(...await findConversationSnapshots(filePath, req.query.baseDir as string | undefined));
+    res.json({ path: filePath, exists: false, diagnosis, copies });
+  } catch (err: any) {
+    log.error(' Failed to recover file:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Viewer metadata and model bytes must always reflect the file currently on
 // disk. authFetch also requests `no-store`, but these response headers cover
 // direct URLs, embedded previews, proxies, and browser revalidation.
@@ -1084,6 +1264,7 @@ router.get('/info', async (req: Request, res: Response) => {
       const body: Record<string, unknown> = { error: resolution.error };
       if (resolution.requested) body.path = resolution.requested;
       if (resolution.tried) body.triedRoots = resolution.tried;
+      attachMissingDiagnosis(body, resolution);
       res.status(resolution.status).json(body);
       return;
     }

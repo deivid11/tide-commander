@@ -14,6 +14,7 @@ import type { Agent } from '../../../shared/types';
 import type { ViewMode } from './types';
 import { VIEW_MODES } from './types';
 import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, DEFAULT_CODEX_MODEL, DEFAULT_GROK_MODEL } from '../../../shared/types';
+import { outdatedAgentModel } from '../../../shared/model-freshness';
 
 // Resolve a compact "Model · Effort" label for the header chip. Claude agents
 // have both a model and a reasoning effort; Codex/OpenCode only carry a model.
@@ -93,11 +94,16 @@ const ModelChip = memo(function ModelChip({ agent }: { agent: Agent }) {
     );
   }
 
+  // Older generation than what the pickers now offer (e.g. Opus 5 → 5.5).
+  const outdated = outdatedAgentModel(agent);
+  const baseTitle = effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`;
+
   return (
     <span
-      className="guake-model-chip"
-      title={effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`}
+      className={`guake-model-chip${outdated ? ' guake-model-chip--outdated' : ''}`}
+      title={outdated ? `${baseTitle}\nA newer model is available: ${outdated.newerLabel}` : baseTitle}
     >
+      {outdated && <Icon name="warn" size={10} />}
       <span className="guake-model-chip-name">{model}</span>
       {effort && (
         <>

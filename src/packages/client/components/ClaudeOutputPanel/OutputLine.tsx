@@ -43,6 +43,8 @@ import { useTTS } from '../../hooks/useTTS';
 import { Icon, type IconName } from '../Icon';
 import { FileTypeIcon } from './FileTypeIcon';
 import { ShellWriteParam } from './ShellWriteParam';
+import { WithMissingFiles } from './WithMissingFiles';
+import { MISSING_FILE_TITLE } from '../../utils/fileExistence';
 import { parseEditReplacements } from '../shared/useFilteredOutputs';
 import { BashSummaryParam } from './BashSummaryParam';
 import { BashInlineToggle, BashInlineOutput } from './BashInlineOutput';
@@ -1154,11 +1156,12 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            {visibleFilePaths.map((path) => (
+            <WithMissingFiles paths={visibleFilePaths.filter((path) => path.startsWith('/'))} enabled={!isStreaming} baseDir={agentCwd}>
+            {(missingFiles) => visibleFilePaths.map((path) => (
               <span
                 key={path}
-                className={`codex-file-chip ${(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 'is-clickable' : ''}`}
-                title={path}
+                className={`codex-file-chip ${(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 'is-clickable' : ''}${missingFiles.has(path) ? ' is-missing' : ''}`}
+                title={missingFiles.has(path) ? `${path}\n${MISSING_FILE_TITLE}` : path}
                 role={(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 'button' : undefined}
                 tabIndex={(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 0 : undefined}
                 onClick={(event) => handleFileChipActivate(event, path)}
@@ -1173,6 +1176,7 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
                 <span>{path.split('/').pop() || path}</span>
               </span>
             ))}
+            </WithMissingFiles>
             {!(execPresentation.toolName === 'Edit' && visibleFilePaths.length > 0) && (
               <span className="output-tool-param">{execPresentation.detail}</span>
             )}
@@ -1616,10 +1620,16 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
 
           {/* For file tools, show the file path with SVG file icon */}
           {!isBashTool && toolKeyParamOrFallback && (
+            <WithMissingFiles
+              paths={isFileTool && isFilePath && resolvedFilePathForClick?.startsWith('/') ? [resolvedFilePathForClick] : []}
+              enabled={!isStreaming}
+              baseDir={agentCwd}
+            >
+            {(missingFiles) => (
             <span
-              className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
+              className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}${missingFiles.size > 0 ? ' is-missing-file' : ''}`}
               onClick={isFileClickable ? handleParamClick : undefined}
-              title={isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? t('tools:display.clickToViewDiff') : t('tools:display.clickToViewFile')) : toolKeyParamOrFallback}
+              title={`${isFileClickable ? (toolName === 'Edit' && (_editData || editDataFallback) ? t('tools:display.clickToViewDiff') : t('tools:display.clickToViewFile')) : toolKeyParamOrFallback}${missingFiles.size > 0 ? `\n${MISSING_FILE_TITLE}` : ''}`}
               style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
             >
               {isFileTool && isFilePath && (() => {
@@ -1630,6 +1640,8 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
               {['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName) && isFilePath ? getBasenameFromPath(toolKeyParamOrFallback) : toolKeyParamOrFallback}
               {fileToolDetail && <span className="output-tool-subparam">{fileToolDetail}</span>}
             </span>
+            )}
+            </WithMissingFiles>
           )}
 
           {isBashTool && _isRunning && (

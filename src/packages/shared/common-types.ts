@@ -109,6 +109,7 @@ export interface Skill {
   // Assignment tracking
   assignedAgentIds: string[];      // Agents this skill is assigned to
   assignedAgentClasses: AgentClass[]; // Agent classes that automatically get this skill
+  excludedAgentIds?: string[];     // Agents opted out of the class/'*' assignment (see shared/skill-assignment.ts)
 
   // Metadata
   enabled: boolean;                // Can be disabled without deleting

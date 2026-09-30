@@ -573,6 +573,11 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
     agentId: string;
     name: string;
   } | null>(null);
+  const [deleteAreaConfirm, setDeleteAreaConfirm] = useState<{
+    areaId: string;
+    name: string;
+    agentIds: string[];
+  } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const areaSearchInputRef = useRef<HTMLInputElement>(null);
   const internalAgentListRef = useRef<HTMLDivElement>(null);
@@ -1205,8 +1210,20 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
         icon: <Icon name="target" size={14} />,
         onClick: () => createNewAreaNear(area.center),
       },
+      {
+        id: 'delete-area',
+        label: t('terminal:overview.deleteArea', { defaultValue: 'Delete Area' }),
+        icon: <Icon name="trash" size={14} />,
+        danger: true,
+        onClick: () => setDeleteAreaConfirm({
+          areaId: area.id,
+          name: area.name,
+          // Only agents that still exist: assignedAgentIds can hold stale ids.
+          agentIds: area.assignedAgentIds.filter((id) => agents.some((agent) => agent.id === id)),
+        }),
+      },
     ];
-  }, [areaContextMenu, areas, requestSpawnForArea, requestBossSpawnForArea, createNewAreaNear, t]);
+  }, [areaContextMenu, areas, agents, requestSpawnForArea, requestBossSpawnForArea, createNewAreaNear, t]);
 
   const agentContextMenuActions = useMemo((): ContextMenuAction[] => {
     if (!agentContextMenu) return [];
@@ -1569,6 +1586,29 @@ export function AgentOverviewPanel({ activeAgentId, onClose, onSelectAgent, mobi
           if (removeAgentConfirm) store.removeAgentFromServer(removeAgentConfirm.agentId);
         }}
         onClose={() => setRemoveAgentConfirm(null)}
+      />
+      <ConfirmModal
+        isOpen={deleteAreaConfirm !== null}
+        title={t('terminal:overview.deleteAreaTitle', { defaultValue: 'Delete area' })}
+        message={deleteAreaConfirm && deleteAreaConfirm.agentIds.length > 0
+          ? t('terminal:overview.deleteAreaWithAgents', {
+            defaultValue: 'Delete the area "{{name}}" and its {{count}} agent(s)? The agents are deleted too. This cannot be undone.',
+            name: deleteAreaConfirm.name,
+            count: deleteAreaConfirm.agentIds.length,
+          })
+          : t('terminal:overview.deleteAreaEmpty', {
+            defaultValue: 'Delete the area "{{name}}"? It has no agents.',
+            name: deleteAreaConfirm?.name ?? '',
+          })}
+        confirmLabel={t('common:buttons.delete', { defaultValue: 'Delete' })}
+        cancelLabel={t('common:buttons.cancel')}
+        variant="danger"
+        onConfirm={() => {
+          if (!deleteAreaConfirm) return;
+          for (const agentId of deleteAreaConfirm.agentIds) store.removeAgentFromServer(agentId);
+          store.deleteArea(deleteAreaConfirm.areaId);
+        }}
+        onClose={() => setDeleteAreaConfirm(null)}
       />
     </div>
     </AgentCardSelectionContext.Provider>

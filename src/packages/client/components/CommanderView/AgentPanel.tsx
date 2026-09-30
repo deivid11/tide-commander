@@ -20,7 +20,7 @@ import { TerminalInput } from '../shared/TerminalInput';
 import { useFilteredOutputs } from '../shared/useFilteredOutputs';
 import type { AgentHistory } from './types';
 import { STATUS_COLORS } from './types';
-import { resolveAgentFileReference } from '../../utils/filePaths';
+import { parseFilePathReference } from '../../utils/filePaths';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
 import { Icon } from '../Icon';
 import { ProviderIcon } from '../ProviderIcon';
@@ -321,7 +321,10 @@ export function AgentPanel({
   }, [openImage, agent.cwd]);
 
   const handleFileClick = useCallback((path: string, editData?: { oldString?: string; newString?: string; operation?: string; highlightRange?: { offset: number; limit: number }; targetLine?: number }) => {
-    const ref = resolveAgentFileReference(path, agent.cwd);
+    // Keep the reference as written (only `:line` is split off): the viewer
+    // resolves it against the cwd itself, and needs to know whether it was an
+    // exact path or a bare name guessed against a cwd the shell may have left.
+    const ref = parseFilePathReference(path);
     const mergedEditData = ref.line
       ? { ...(editData || {}), targetLine: ref.line }
       : editData;

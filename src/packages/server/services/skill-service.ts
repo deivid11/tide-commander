@@ -14,6 +14,7 @@ import { getIntegrationSkills } from '../integrations/integration-registry.js';
 import { getAuthToken } from '../auth/index.js';
 import { markInstructionsDirty } from './instruction-refresh.js';
 import { renameDefaultAgentSkillSlug } from './default-agent-skills-service.js';
+import { skillAssignmentSource } from '../../shared/skill-assignment.js';
 
 const log = createLogger('SkillService');
 
@@ -54,7 +55,7 @@ export function initSkills(): void {
 
       // If this builtin skill was previously persisted, restore its assignments
       const storedVersion = storedSkillMap.get(builtinId);
-      if (storedVersion && (storedVersion.assignedAgentIds.length > 0 || storedVersion.assignedAgentClasses.length > 0)) {
+      if (storedVersion && (storedVersion.assignedAgentIds.length > 0 || storedVersion.assignedAgentClasses.length > 0 || (storedVersion.excludedAgentIds?.length ?? 0) > 0)) {
         // Drop stale '*' from stored if the source no longer wildcards. Earlier
         // builds shipped a few builtins with assignedAgentClasses=['*'] which
         // force-applied them to every agent and made them un-toggleable; once
@@ -73,6 +74,7 @@ export function initSkills(): void {
             ...sanitizedStoredClasses,
           ])),
           enabled: storedVersion.enabled, // Also restore enabled state
+          excludedAgentIds: storedVersion.excludedAgentIds,
         };
         skills.set(builtinId, restoredSkill);
         log.log(` Restored builtin skill "${builtinSkill.name}" with ${restoredSkill.assignedAgentIds.length} agent assignments and ${restoredSkill.assignedAgentClasses.length} class assignments`);
@@ -109,12 +111,13 @@ export function loadIntegrationSkills(): void {
       const integrationId = integrationSkill.id;
 
       const storedVersion = storedSkillMap.get(integrationId);
-      if (storedVersion && (storedVersion.assignedAgentIds.length > 0 || storedVersion.assignedAgentClasses.length > 0)) {
+      if (storedVersion && (storedVersion.assignedAgentIds.length > 0 || storedVersion.assignedAgentClasses.length > 0 || (storedVersion.excludedAgentIds?.length ?? 0) > 0)) {
         const restoredSkill: Skill = {
           ...integrationSkill,
           assignedAgentIds: storedVersion.assignedAgentIds,
           assignedAgentClasses: storedVersion.assignedAgentClasses,
           enabled: storedVersion.enabled,
+          excludedAgentIds: storedVersion.excludedAgentIds,
         };
         skills.set(integrationId, restoredSkill);
       } else {
@@ -238,7 +241,7 @@ export function updateSkill(id: string, updates: Partial<Skill>): Skill | undefi
   // Protect built-in skills from content/name/description changes
   if (skill.builtin) {
     // Only allow assignment changes for builtin skills
-    const allowedKeys = ['assignedAgentIds', 'assignedAgentClasses', 'enabled'];
+    const allowedKeys = ['assignedAgentIds', 'assignedAgentClasses', 'excludedAgentIds', 'enabled'];
     const attemptedKeys = Object.keys(updates);
     const disallowedKeys = attemptedKeys.filter(k => !allowedKeys.includes(k));
 
@@ -312,14 +315,17 @@ export function assignSkillToAgent(skillId: string, agentId: string): Skill | un
     return undefined;
   }
 
-  if (skill.assignedAgentIds.includes(agentId)) {
+  const wasExcluded = skill.excludedAgentIds?.includes(agentId) ?? false;
+  if (skill.assignedAgentIds.includes(agentId) && !wasExcluded) {
     log.log(` Skill "${skill.name}" already assigned to agent ${agentId}`);
     return skill;
   }
 
+  // A direct assignment also lifts an exclusion left by a previous removal.
   const updatedSkill: Skill = {
     ...skill,
-    assignedAgentIds: [...skill.assignedAgentIds, agentId],
+    assignedAgentIds: skill.assignedAgentIds.includes(agentId) ? skill.assignedAgentIds : [...skill.assignedAgentIds, agentId],
+    excludedAgentIds: withoutId(skill.excludedAgentIds, agentId),
     updatedAt: Date.now(),
   };
 
@@ -364,6 +370,62 @@ export function unassignSkillFromAgent(skillId: string, agentId: string): Skill 
   return updatedSkill;
 }
 
+function withoutId(ids: string[] | undefined, agentId: string): string[] | undefined {
+  const rest = ids?.filter((id) => id !== agentId);
+  return rest && rest.length > 0 ? rest : undefined;
+}
+
+function storeAssignmentChange(skill: Skill, updates: Partial<Skill>, agentId: string): Skill {
+  const updatedSkill: Skill = { ...skill, ...updates, updatedAt: Date.now() };
+  skills.set(skill.id, updatedSkill);
+  persistSkills();
+  // 'assigned', not 'updated': assignment changes don't restart agents.
+  emit('assigned', updatedSkill);
+  pendingSkillUpdates.add(agentId);
+  return updatedSkill;
+}
+
+/**
+ * Make the skill reach the agent however it's assigned: lift an exclusion when
+ * the agent's class/wildcard already covers it, otherwise assign it directly.
+ * `changed` is false when the agent already had it.
+ */
+export function addSkillForAgent(skillId: string, agent: Pick<Agent, 'id' | 'class'>): { skill: Skill; changed: boolean } | undefined {
+  const skill = skills.get(skillId);
+  if (!skill) return undefined;
+  if (skillAssignmentSource(skill, agent)) return { skill, changed: false };
+
+  if (skill.excludedAgentIds?.includes(agent.id)) {
+    const excludedAgentIds = withoutId(skill.excludedAgentIds, agent.id);
+    if (skillAssignmentSource({ ...skill, excludedAgentIds }, agent)) {
+      log.log(` Re-included agent ${agent.id} in skill "${skill.name}"`);
+      return { skill: storeAssignmentChange(skill, { excludedAgentIds }, agent.id), changed: true };
+    }
+  }
+  const updated = assignSkillToAgent(skillId, agent.id);
+  return updated ? { skill: updated, changed: true } : undefined;
+}
+
+/**
+ * Stop the skill from reaching the agent however it's assigned: drop a direct
+ * assignment and, when the agent's class or the '*' wildcard still covers it,
+ * exclude this one agent (the class assignment stays for everyone else).
+ * `changed` is false when the agent didn't have it.
+ */
+export function removeSkillForAgent(skillId: string, agent: Pick<Agent, 'id' | 'class'>): { skill: Skill; changed: boolean } | undefined {
+  const skill = skills.get(skillId);
+  if (!skill) return undefined;
+  if (!skillAssignmentSource(skill, agent)) return { skill, changed: false };
+
+  const assignedAgentIds = skill.assignedAgentIds.filter((id) => id !== agent.id);
+  const stillReaches = skillAssignmentSource({ ...skill, assignedAgentIds }, agent) !== null;
+  const excludedAgentIds = stillReaches
+    ? [...(skill.excludedAgentIds ?? []), agent.id]
+    : skill.excludedAgentIds;
+  log.log(` Removed skill "${skill.name}" from agent ${agent.id}${stillReaches ? ' (excluded from its class assignment)' : ''}`);
+  return { skill: storeAssignmentChange(skill, { assignedAgentIds, excludedAgentIds }, agent.id), changed: true };
+}
+
 /**
  * Get all skills assigned to a specific agent
  * Includes skills assigned directly AND skills assigned to the agent's class
@@ -372,11 +434,8 @@ export function getSkillsForAgent(agentId: string, agentClass: AgentClass, isBos
   return Array.from(skills.values()).filter(skill => {
     if (!skill.enabled) return false;
 
-    // Check direct assignment
-    if (skill.assignedAgentIds.includes(agentId)) return true;
-
-    // Check class assignment (supports '*' wildcard for all classes)
-    if (skill.assignedAgentClasses.includes('*') || skill.assignedAgentClasses.includes(agentClass)) return true;
+    // Direct, class or '*' wildcard — minus per-agent exclusions.
+    if (skillAssignmentSource(skill, { id: agentId, class: agentClass })) return true;
 
     // Auto-include boss-instructions for boss agents regardless of their class
     if (isBoss && skill.id === 'builtin-boss-instructions') return true;
@@ -498,10 +557,11 @@ export function removeAgentFromAllSkills(agentId: string): void {
   let modified = false;
 
   for (const [id, skill] of skills) {
-    if (skill.assignedAgentIds.includes(agentId)) {
+    if (skill.assignedAgentIds.includes(agentId) || skill.excludedAgentIds?.includes(agentId)) {
       const updatedSkill: Skill = {
         ...skill,
         assignedAgentIds: skill.assignedAgentIds.filter(aid => aid !== agentId),
+        excludedAgentIds: withoutId(skill.excludedAgentIds, agentId),
         updatedAt: Date.now(),
       };
       skills.set(id, updatedSkill);
@@ -639,13 +699,7 @@ async function handleSkillContentUpdate(skill: Skill): Promise<void> {
 
   // Find all agents that use this skill (directly or via class)
   const allAgents = agentServiceRef.getAllAgents();
-  const affectedAgents = allAgents.filter(agent => {
-    // Check direct assignment
-    if (skill.assignedAgentIds.includes(agent.id)) return true;
-    // Check class assignment (supports '*' wildcard for all classes)
-    if (skill.assignedAgentClasses.includes('*') || skill.assignedAgentClasses.includes(agent.class as AgentClass)) return true;
-    return false;
-  });
+  const affectedAgents = allAgents.filter(agent => skillAssignmentSource(skill, agent) !== null);
 
   if (affectedAgents.length === 0) {
     log.log(` Skill "${skill.name}" updated, no agents affected`);

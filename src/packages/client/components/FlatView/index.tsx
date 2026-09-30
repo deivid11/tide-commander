@@ -23,6 +23,7 @@ import {
 import { store, useSettings } from '../../store';
 import { ConfirmModal } from '../shared/ConfirmModal';
 import { CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, DEFAULT_CODEX_MODEL, DEFAULT_GROK_MODEL } from '../../../shared/types';
+import { outdatedAgentModel } from '../../../shared/model-freshness';
 import type { Agent, DrawingArea } from '../../../shared/types';
 import { ProviderIcon } from '../ProviderIcon';
 import type { Building } from '../../../shared/building-types';
@@ -942,11 +943,15 @@ const ChatView = React.memo(function ChatView({
             />
             {(() => {
               const { model, effort } = getAgentModelLabel(agent);
+              // Older generation than what the pickers now offer (e.g. Opus 5 → 5.5).
+              const outdated = outdatedAgentModel(agent);
+              const baseTitle = effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`;
               return (
                 <span
-                  className="flat-terminal-wrapper__header-model-chip"
-                  title={effort ? `Model: ${model} · Effort: ${effort}` : `Model: ${model}`}
+                  className={`flat-terminal-wrapper__header-model-chip${outdated ? ' flat-terminal-wrapper__header-model-chip--outdated' : ''}`}
+                  title={outdated ? `${baseTitle}\nA newer model is available: ${outdated.newerLabel}` : baseTitle}
                 >
+                  {outdated && <Icon name="warn" size={10} />}
                   <span className="flat-terminal-wrapper__header-model-name">{model}</span>
                   {effort && (
                     <>

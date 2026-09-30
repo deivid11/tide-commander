@@ -7,10 +7,13 @@ import React, { useEffect, useState } from 'react';
 import { Components } from 'react-markdown';
 import { store } from '../../store';
 import { decodeTideFileHref } from '../../utils/outputRendering';
+import { decodePercentEncodedPath, resolveAgentFileReference } from '../../utils/filePaths';
+import { MISSING_FILE_TITLE } from '../../utils/fileExistence';
 import { highlightCode, isLanguageSupported, ensureLanguageLoaded } from '../FileExplorerPanel/syntaxHighlighting';
 import { MermaidDiagram } from './MermaidDiagram';
 import { filePreviewHandlers } from './toolPreviewHover';
 import { InlineModelPreview } from './InlineModelPreview';
+import { WithMissingFiles } from './WithMissingFiles';
 import { getImagePreviewUrl } from './contentRendering';
 
 interface MarkdownComponentOptions {
@@ -315,23 +318,36 @@ export const createMarkdownComponents = ({ onFileClick, baseDir }: MarkdownCompo
     const tideFileRef = decodeTideFileHref(normalizedHref);
     const textRef = getNodeText(children).trim();
     const fileRef = tideFileRef
-      || (normalizedHref && isLikelyFileHref(normalizedHref) ? normalizedHref : null)
+      // Markdown percent-encodes link destinations (spaces → %20); open the real name.
+      || (normalizedHref && isLikelyFileHref(normalizedHref) ? decodePercentEncodedPath(normalizedHref) : null)
       || ((!normalizedHref || normalizedHref === '#') && isLikelyFileText(textRef) ? textRef : null);
     if (fileRef && onFileClick) {
       return (
-        <a
-          href="#"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onFileClick(fileRef);
-          }}
-          className="clickable-path"
-          title={`Open ${fileRef}`}
-          {...filePreviewHandlers(fileRef, baseDir)}
+        // Only exact (absolute) links the agent actually wrote are checked — a
+        // relative one is resolved against a cwd guess. Paths auto-detected
+        // in prose (`tide-file://`, or link text that merely looks like a
+        // path: "2.1.0/2.0.2", "word/numbering.xml") are guesses, and flagging
+        // a guess as a dead link is noise.
+        <WithMissingFiles
+          paths={tideFileRef || !normalizedHref || normalizedHref === '#' || !fileRef.startsWith('/') ? [] : [resolveAgentFileReference(fileRef, baseDir).path]}
+          baseDir={baseDir}
         >
-          {children}
-        </a>
+          {(missing) => (
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onFileClick(fileRef);
+              }}
+              className={`clickable-path${missing.size > 0 ? ' is-missing-file' : ''}`}
+              title={missing.size > 0 ? `${fileRef}\n${MISSING_FILE_TITLE}` : `Open ${fileRef}`}
+              {...filePreviewHandlers(fileRef, baseDir)}
+            >
+              {children}
+            </a>
+          )}
+        </WithMissingFiles>
       );
     }
     if (!normalizedHref) {

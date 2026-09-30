@@ -90,6 +90,31 @@
   color: var(--text-muted);
 }
 
+// A file the conversation references that no longer exists on disk (see
+// utils/fileExistence.ts): quietly dimmed with a dashed outline — no
+// strikethrough, which read as noise in running prose. Still clickable: the
+// viewer explains the miss and shows any recovered copy.
+.codex-file-chip.is-missing {
+  color: var(--text-muted);
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--text-muted) 40%, transparent);
+
+  .file-type-icon {
+    opacity: 0.5;
+    filter: grayscale(1);
+  }
+}
+
+.is-missing-file {
+  opacity: 0.6;
+  text-decoration-style: dashed !important;
+
+  .output-tool-file-icon,
+  .file-type-icon {
+    filter: grayscale(1);
+  }
+}
+
 // Bash row that writes files: chips + a quiet "then curl, python3" tail
 // instead of the one-line heredoc dump.
 .bash-write-param {

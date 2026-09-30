@@ -45,6 +45,8 @@ import { ansiToHtml } from '../../utils/ansiToHtml';
 import { Icon } from '../Icon';
 import { FileTypeIcon } from './FileTypeIcon';
 import { ShellWriteParam } from './ShellWriteParam';
+import { WithMissingFiles } from './WithMissingFiles';
+import { MISSING_FILE_TITLE } from '../../utils/fileExistence';
 import { parseEditReplacements } from '../shared/useFilteredOutputs';
 import { BashSummaryParam } from './BashSummaryParam';
 import { AgentIcon } from '../AgentIcon';
@@ -590,11 +592,12 @@ export const HistoryLine = memo(function HistoryLine({
             {agentName && <span className="output-agent-badge" title={`Agent: ${agentName}`}>{agentName}</span>}
             <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
             <span className="output-tool-name">{displayToolName}</span>
-            {visibleFilePaths.map((path) => (
+            <WithMissingFiles paths={visibleFilePaths.filter((path) => path.startsWith('/'))} baseDir={agentCwd}>
+            {(missingFiles) => visibleFilePaths.map((path) => (
               <span
                 key={path}
-                className={`codex-file-chip ${(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 'is-clickable' : ''}`}
-                title={path}
+                className={`codex-file-chip ${(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 'is-clickable' : ''}${missingFiles.has(path) ? ' is-missing' : ''}`}
+                title={missingFiles.has(path) ? `${path}\n${MISSING_FILE_TITLE}` : path}
                 role={(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 'button' : undefined}
                 tabIndex={(execPresentation.toolName === 'Edit' || execReadTargets.some((target) => target.path === path)) && onFileClick ? 0 : undefined}
                 onClick={(event) => handleFileChipActivate(event, path)}
@@ -609,6 +612,7 @@ export const HistoryLine = memo(function HistoryLine({
                 <span>{path.split('/').pop() || path}</span>
               </span>
             ))}
+            </WithMissingFiles>
             {!(execPresentation.toolName === 'Edit' && visibleFilePaths.length > 0) && (
               <span className="output-tool-param">{execPresentation.detail}</span>
             )}
@@ -1243,10 +1247,12 @@ export const HistoryLine = memo(function HistoryLine({
               </span>
             ) : (
               keyParam && (
+                <WithMissingFiles paths={isFileTool && isFilePath && keyParam.startsWith('/') ? [keyParam] : []} baseDir={agentCwd}>
+                {(missingFiles) => (
                 <span
-                  className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}`}
+                  className={`output-tool-param ${isFileClickable ? 'clickable-path' : ''}${missingFiles.size > 0 ? ' is-missing-file' : ''}`}
                   onClick={isFileClickable ? handleParamClick : undefined}
-                  title={isFileClickable ? clickTitle : keyParam}
+                  title={`${isFileClickable ? clickTitle : keyParam}${missingFiles.size > 0 ? `\n${MISSING_FILE_TITLE}` : ''}`}
                   style={isFileClickable ? { cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' } : undefined}
                 >
                   {isFileTool && isFilePath && (() => {
@@ -1257,6 +1263,8 @@ export const HistoryLine = memo(function HistoryLine({
                   {(['Read', 'Write', 'Edit', 'NotebookEdit'].includes(toolName || '') && isFilePath ? getBasenameFromPath(keyParam) : keyParam)}
                   {fileToolDetail && <span className="output-tool-subparam">{fileToolDetail}</span>}
                 </span>
+                )}
+                </WithMissingFiles>
               )
             )}
             {isBashTool && <BashInlineToggle enabled={settings.inlineBashOutputs} />}
@@ -1431,12 +1439,12 @@ export const HistoryLine = memo(function HistoryLine({
           {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
-          {filePath && <button className="codex-file-chip is-clickable" title={filePath} onClick={() => {
+          {filePath && <WithMissingFiles paths={filePath.startsWith('/') ? [filePath] : []} baseDir={agentCwd}>{(missingFiles) => <button className={`codex-file-chip is-clickable${missingFiles.size > 0 ? ' is-missing' : ''}`} title={missingFiles.size > 0 ? `${filePath}\n${MISSING_FILE_TITLE}` : filePath} onClick={() => {
             try {
               const parsed = JSON.parse(toolInputContent);
               onFileClick?.(filePath, { oldString: parsed.old_string || '', newString: parsed.new_string || '', unifiedDiff: parsed.unified_diff });
             } catch { onFileClick?.(filePath); }
-          }}><FileTypeIcon path={filePath} size={12} /><span>{getBasenameFromPath(filePath)}</span></button>}
+          }}><FileTypeIcon path={filePath} size={12} /><span>{getBasenameFromPath(filePath)}</span></button>}</WithMissingFiles>}
         </div>
       );
     }
@@ -1449,12 +1457,12 @@ export const HistoryLine = memo(function HistoryLine({
           {timeStr && <span className="output-timestamp" title={`${timestampMs} | ${debugHash}`}>{timeStr}</span>}
           <span className="output-tool-icon"><Icon name={iconName} size={14} /></span>
           <span className="output-tool-name">{displayToolName}</span>
-          {filePath && <button className="codex-file-chip is-clickable" title={filePath} onClick={() => {
+          {filePath && <WithMissingFiles paths={filePath.startsWith('/') ? [filePath] : []} baseDir={agentCwd}>{(missingFiles) => <button className={`codex-file-chip is-clickable${missingFiles.size > 0 ? ' is-missing' : ''}`} title={missingFiles.size > 0 ? `${filePath}\n${MISSING_FILE_TITLE}` : filePath} onClick={() => {
             try {
               const parsed = JSON.parse(toolInputContent);
               onFileClick?.(filePath, parsed.offset !== undefined && parsed.limit !== undefined ? { highlightRange: { offset: parsed.offset, limit: parsed.limit } } : undefined);
             } catch { onFileClick?.(filePath); }
-          }}><FileTypeIcon path={filePath} size={12} /><span>{getBasenameFromPath(filePath)}</span></button>}
+          }}><FileTypeIcon path={filePath} size={12} /><span>{getBasenameFromPath(filePath)}</span></button>}</WithMissingFiles>}
         </div>
       );
     }

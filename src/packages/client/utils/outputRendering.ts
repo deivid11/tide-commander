@@ -904,8 +904,9 @@ export function getShellWriteSummary(command: string): ShellWriteSummary | null 
   const summary: ShellWriteSummary | null = shown.length === 0
     ? null
     : {
-        // A script write rewrites an existing file — that reads as an edit.
-        toolName: shown.every((write) => write.operation === 'overwrite' && !write.fromScript) ? 'Write' : 'Edit',
+        // A script that patches a file (reads it back or states replacements)
+        // is an edit; one that generates it (`Image.save('out.png')`) is a write.
+        toolName: shown.every((write) => write.operation === 'overwrite' && (!write.fromScript || !write.patches)) ? 'Write' : 'Edit',
         paths: shown.map((write) => write.path),
         otherCommands: pure ? [] : otherCommands,
         replacements: Object.fromEntries(

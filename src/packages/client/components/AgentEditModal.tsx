@@ -14,6 +14,7 @@ import { PiModelSelect } from './PiModelSelect';
 import { ModelUsagePreview } from './ModelUsagePreview';
 import type { Agent, AgentClass, PermissionMode, BuiltInAgentClass, ClaudeModel, ClaudeEffort, CodexModel, AgentProvider, CodexConfig, CodexReasoningEffort, SessionTransferMode } from '../../shared/types';
 import { CODEX_REASONING_EFFORTS } from '../../shared/types';
+import { skillAppliesToAgent } from '../../shared/skill-assignment';
 import { BUILT_IN_AGENT_CLASSES, PERMISSION_MODES, CLAUDE_MODELS, CLAUDE_EFFORTS, CODEX_MODELS, DEFAULT_CODEX_MODEL, GROK_MODELS, DEFAULT_GROK_MODEL, grokSupportsEffort, isDeprecatedCodexModel, migrateRetiredCodexModel, providerDisplayName, supportsSessionImport } from '../../shared/types';
 import { ShortcutConfig, formatShortcutString, parseShortcutString, shortcutValueToString } from '../store/shortcuts';
 import { apiUrl } from '../utils/storage';
@@ -135,13 +136,7 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
 
   // Get skills currently assigned to this agent (directly, via class, or via '*' wildcard)
   const _currentAgentSkills = useMemo(() => {
-    return allSkills.filter(s =>
-      s.enabled && (
-        s.assignedAgentIds.includes(agent.id) ||
-        s.assignedAgentClasses.includes('*') ||
-        s.assignedAgentClasses.includes(agent.class)
-      )
-    );
+    return allSkills.filter(s => skillAppliesToAgent(s, agent));
   }, [allSkills, agent.id, agent.class]);
 
   // Initialize selected skills from current assignments
@@ -204,16 +199,17 @@ export function AgentEditModal({ agent, isOpen, onClose }: AgentEditModalProps) 
   // Get skills that come from class assignment (or the '*' wildcard).
   // Both kinds are framework/class-level and not editable per-agent.
   const classBasedSkills = useMemo(() => {
+    // Minus skills this agent was individually removed from (bulk Remove Skill).
     return availableSkills.filter(s =>
-      s.assignedAgentClasses.includes('*') ||
-      s.assignedAgentClasses.includes(selectedClass)
+      (s.assignedAgentClasses.includes('*') || s.assignedAgentClasses.includes(selectedClass))
+      && !s.excludedAgentIds?.includes(agent.id)
     );
-  }, [availableSkills, selectedClass]);
+  }, [availableSkills, selectedClass, agent.id]);
 
   // Subset of classBasedSkills that are wildcard-assigned (apply to every agent).
   const wildcardSkills = useMemo(() => {
-    return availableSkills.filter(s => s.assignedAgentClasses.includes('*'));
-  }, [availableSkills]);
+    return availableSkills.filter(s => s.assignedAgentClasses.includes('*') && !s.excludedAgentIds?.includes(agent.id));
+  }, [availableSkills, agent.id]);
 
   // Toggle skill selection
   const toggleSkill = useCallback((skillId: string) => {

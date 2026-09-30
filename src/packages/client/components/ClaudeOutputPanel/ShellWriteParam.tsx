@@ -11,6 +11,7 @@ import type { EditData } from './types';
 import { resolveAgentFileReference } from '../../utils/filePaths';
 import { FileTypeIcon } from './FileTypeIcon';
 import { filePreviewHandlers } from './toolPreviewHover';
+import { MISSING_FILE_TITLE, useMissingFiles } from '../../utils/fileExistence';
 
 interface ShellWriteParamProps {
   summary: ShellWriteSummary;
@@ -29,6 +30,11 @@ export const ShellWriteParam = React.memo(function ShellWriteParam({
   title,
 }: ShellWriteParamProps) {
   const followUp = formatShellWriteFollowUp(summary.otherCommands);
+  const resolvedPaths = summary.paths.map((path) => resolveAgentFileReference(path, agentCwd).path);
+  // Only exact paths (absolute, or joined onto a `cd` in the same command) are
+  // checked: a bare name ran wherever the shell happened to be, which the
+  // agent cwd is only a guess of.
+  const missing = useMissingFiles(resolvedPaths.filter((_, index) => summary.paths[index].startsWith('/')), true, agentCwd);
   return (
     <span
       className="output-tool-param bash-command bash-write-param"
@@ -36,8 +42,9 @@ export const ShellWriteParam = React.memo(function ShellWriteParam({
       title={title}
       style={onClick ? { cursor: 'pointer' } : undefined}
     >
-      {summary.paths.map((path) => {
-        const resolvedPath = resolveAgentFileReference(path, agentCwd).path;
+      {summary.paths.map((path, index) => {
+        const resolvedPath = resolvedPaths[index];
+        const isMissing = missing.has(resolvedPath);
         const open = (event: React.SyntheticEvent) => {
           if (!onFileClick) return;
           event.stopPropagation();
@@ -45,7 +52,7 @@ export const ShellWriteParam = React.memo(function ShellWriteParam({
           // replacements, so the modal can rebuild the original exactly; for a
           // plain redirect/sed it falls back to git.
           const replacements = summary.replacements[path];
-          onFileClick(resolvedPath, {
+          onFileClick(path, {
             oldString: '',
             newString: '',
             operation: 'shell-write',
@@ -55,8 +62,8 @@ export const ShellWriteParam = React.memo(function ShellWriteParam({
         return (
           <span
             key={path}
-            className={`codex-file-chip ${onFileClick ? 'is-clickable' : ''}`}
-            title={resolvedPath}
+            className={`codex-file-chip ${onFileClick ? 'is-clickable' : ''}${isMissing ? ' is-missing' : ''}`}
+            title={isMissing ? `${resolvedPath}\n${MISSING_FILE_TITLE}` : resolvedPath}
             role={onFileClick ? 'button' : undefined}
             tabIndex={onFileClick ? 0 : undefined}
             onClick={open}

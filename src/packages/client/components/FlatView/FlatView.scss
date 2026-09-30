@@ -1274,6 +1274,12 @@ body.flat-splitter-dragging {
     line-height: 1.4;
   }
 
+  // Older generation than the pickers offer: only the icon is tinted.
+  &__header-model-chip--outdated > svg {
+    flex-shrink: 0;
+    color: var(--accent-yellow);
+  }
+
   &__header-model-name {
     color: var(--text-primary);
     text-transform: lowercase;

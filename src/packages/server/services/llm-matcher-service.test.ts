@@ -15,7 +15,8 @@ describe('resolveModel', () => {
   });
 
   it('resolves the "sonnet" alias to the latest Sonnet model', () => {
-    expect(resolveModel('sonnet')).toBe('claude-sonnet-5');
+    expect(resolveModel('sonnet')).toBe('claude-sonnet-5-5');
+    expect(resolveModel('claude-sonnet-5-5')).toBe('claude-sonnet-5-5');
   });
 
   it('resolves claude-sonnet-5 and its [1m] label to the bare id', () => {

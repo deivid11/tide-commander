@@ -47,6 +47,21 @@ export interface BulkRemoveSkillsResult {
   results: BulkRemoveSkillsPerSkill[];
 }
 
+/**
+ * The server's own explanation for a failed request (`{ error: "Invalid model …" }`),
+ * falling back to the HTTP status. The bare status text ("Bad Request") hid
+ * which agent/model was rejected.
+ */
+async function describeFailure(response: Response): Promise<string> {
+  try {
+    const data = await response.json() as { error?: unknown };
+    if (typeof data?.error === 'string' && data.error.trim()) return data.error;
+  } catch {
+    // Not JSON (proxy page, empty body) — use the status below.
+  }
+  return response.statusText || `HTTP ${response.status}`;
+}
+
 async function postBulkAction(endpoint: string, body: Record<string, unknown>): Promise<BulkActionResult> {
   const token = getAuthToken();
   const response = await fetch(`${getApiBaseUrl()}${endpoint}`, {
@@ -59,7 +74,7 @@ async function postBulkAction(endpoint: string, body: Record<string, unknown>): 
   });
 
   if (!response.ok) {
-    throw new Error(`Bulk action failed: ${response.statusText}`);
+    throw new Error(`Bulk action failed: ${await describeFailure(response)}`);
   }
 
   const data = await response.json();
@@ -115,7 +130,7 @@ export async function bulkAddSkills(agentIds: string[], skillIds: string[]): Pro
     body: JSON.stringify({ agentIds, skillIds }),
   });
   if (!response.ok) {
-    throw new Error(`Bulk add-skill failed: ${response.statusText}`);
+    throw new Error(`Bulk add-skill failed: ${await describeFailure(response)}`);
   }
   return (await response.json()) as BulkAddSkillsResult;
 }
@@ -132,7 +147,7 @@ export async function bulkRemoveSkills(agentIds: string[], skillIds: string[]): 
     body: JSON.stringify({ agentIds, skillIds }),
   });
   if (!response.ok) {
-    throw new Error(`Bulk remove-skill failed: ${response.statusText}`);
+    throw new Error(`Bulk remove-skill failed: ${await describeFailure(response)}`);
   }
   return (await response.json()) as BulkRemoveSkillsResult;
 }

@@ -59,3 +59,21 @@ export function resolveAgentFileReference(fileRef: string, cwd?: string): { path
     line: parsed.line,
   };
 }
+
+const PERCENT_ESCAPE_RE = /%[0-9A-Fa-f]{2}/;
+
+/**
+ * Undo URL percent-encoding in a file reference (`Matriz%20de%20pruebas.xlsx`
+ * → `Matriz de pruebas.xlsx`). Markdown always encodes link destinations —
+ * even `[x](</a b.xlsx>)` reaches the renderer as `/a%20b.xlsx` — so a file
+ * link with spaces or accents can't be opened as-is. Returns the input
+ * unchanged when it has no escapes or they are malformed.
+ */
+export function decodePercentEncodedPath(fileRef: string): string {
+  if (!PERCENT_ESCAPE_RE.test(fileRef)) return fileRef;
+  try {
+    return decodeURIComponent(fileRef);
+  } catch {
+    return fileRef;
+  }
+}

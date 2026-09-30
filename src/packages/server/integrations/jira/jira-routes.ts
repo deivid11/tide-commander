@@ -191,6 +191,47 @@ export function createJiraRoutes(client: JiraClient, ctx: IntegrationContext): R
     }
   });
 
+  // Edit a comment's text (keeps JSM public/internal visibility as it was)
+  router.put(
+    '/issues/:key/comments/:commentId',
+    async (req: Request<{ key: string; commentId: string }>, res: Response) => {
+      try {
+        const { body } = req.body as { body?: string };
+        if (!body?.trim()) {
+          res.status(400).json({ error: 'body is required' });
+          return;
+        }
+        if (!/^\d+$/.test(req.params.commentId)) {
+          res.status(400).json({ error: 'invalid comment id' });
+          return;
+        }
+        const result = await client.updateComment(req.params.key, req.params.commentId, body);
+        res.json(result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to update comment';
+        res.status(500).json({ error: message });
+      }
+    }
+  );
+
+  // Delete a comment
+  router.delete(
+    '/issues/:key/comments/:commentId',
+    async (req: Request<{ key: string; commentId: string }>, res: Response) => {
+      try {
+        if (!/^\d+$/.test(req.params.commentId)) {
+          res.status(400).json({ error: 'invalid comment id' });
+          return;
+        }
+        await client.deleteComment(req.params.key, req.params.commentId);
+        res.json({ deleted: true });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to delete comment';
+        res.status(500).json({ error: message });
+      }
+    }
+  );
+
   // Get comments
   router.get('/issues/:key/comments', async (req: Request<{ key: string }>, res: Response) => {
     try {

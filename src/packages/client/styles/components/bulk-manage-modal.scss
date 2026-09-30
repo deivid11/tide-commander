@@ -76,6 +76,123 @@
   }
 }
 
+// Searchable dropdown (areas). The root carries .bulk-filter-select for the
+// sizing; the trigger mirrors the native select look.
+.searchable-select {
+  position: relative;
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+
+  &__trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    min-width: 130px;
+    padding: 6px 10px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: $radius-sm;
+    font-size: 12px;
+    text-align: left;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &.is-open &__trigger,
+  &__trigger:focus-visible {
+    border-color: var(--accent-blue);
+    outline: none;
+  }
+
+  &__value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__caret {
+    font-size: 10px;
+    opacity: 0.7;
+  }
+
+  &__panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    min-width: 100%;
+    width: max-content;
+    max-width: 320px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: $radius-sm;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  // Footer dropdowns open upward: the footer sits at the bottom of the modal.
+  .bulk-footer &__panel {
+    top: auto;
+    bottom: calc(100% + 4px);
+  }
+
+  &__search {
+    margin: 6px;
+    padding: 5px 8px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: $radius-sm;
+    font-size: 12px;
+    outline: none;
+
+    &:focus {
+      border-color: var(--accent-blue);
+    }
+  }
+
+  &__list {
+    max-height: 280px;
+    margin: 0;
+    padding: 0 0 4px;
+    overflow-y: auto;
+    list-style: none;
+  }
+
+  &__option {
+    padding: 5px 12px;
+    font-size: 12px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    cursor: pointer;
+
+    &.is-highlighted {
+      background: color-mix(in srgb, var(--accent-blue) 25%, transparent);
+    }
+
+    &.is-selected {
+      font-weight: 600;
+      color: var(--accent-blue);
+    }
+  }
+
+  &__empty {
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+}
+
 .bulk-filter-search {
   padding: 6px 10px;
   background: var(--bg-tertiary);

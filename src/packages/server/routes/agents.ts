@@ -941,17 +941,15 @@ router.post('/bulk/skills/add', (req: Request, res: Response) => {
             failed.push(agentId);
             continue;
           }
-          // Re-fetch on each iteration: assignSkillToAgent replaces the skill object
-          // in the Map, so a captured outer reference goes stale.
-          const current = skillService.getSkill(sid);
-          const alreadyAssigned = current?.assignedAgentIds.includes(agentId) ?? false;
-          const result = skillService.assignSkillToAgent(sid, agentId);
+          // Lifts a per-agent exclusion when the class already covers it,
+          // otherwise assigns directly.
+          const result = skillService.addSkillForAgent(sid, agent);
           if (!result) {
             failed.push(agentId);
             continue;
           }
-          if (alreadyAssigned) alreadyHad.push(agentId);
-          else updated.push(agentId);
+          if (result.changed) updated.push(agentId);
+          else alreadyHad.push(agentId);
         } catch (err) {
           log.error(` Bulk add-skill failed for agent ${agentId} / skill ${sid}:`, err);
           failed.push(agentId);
@@ -1007,14 +1005,13 @@ router.post('/bulk/skills/remove', (req: Request, res: Response) => {
             failed.push(agentId);
             continue;
           }
-          const current = skillService.getSkill(sid);
-          const wasAssigned = current?.assignedAgentIds.includes(agentId) ?? false;
-          const result = skillService.unassignSkillFromAgent(sid, agentId);
+          // Direct assignments are dropped; class/'*' ones exclude this agent.
+          const result = skillService.removeSkillForAgent(sid, agent);
           if (!result) {
             failed.push(agentId);
             continue;
           }
-          if (wasAssigned) updated.push(agentId);
+          if (result.changed) updated.push(agentId);
           else didNotHave.push(agentId);
         } catch (err) {
           log.error(` Bulk remove-skill failed for agent ${agentId} / skill ${sid}:`, err);

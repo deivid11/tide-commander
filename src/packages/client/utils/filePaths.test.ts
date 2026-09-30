@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseFilePathReference, resolveAgentFileReference } from './filePaths';
+import { decodePercentEncodedPath, parseFilePathReference, resolveAgentFileReference } from './filePaths';
 
 describe('parseFilePathReference', () => {
   it('parses path:line notation', () => {
@@ -50,5 +50,20 @@ describe('resolveAgentFileReference', () => {
       path: '/home/riven/d/tide-commander/src/packages/server/claude/backend.ts',
       line: 16,
     });
+  });
+});
+
+describe('decodePercentEncodedPath', () => {
+  it('decodes the markdown-encoded link destination back to the file name on disk', () => {
+    expect(decodePercentEncodedPath(
+      '/home/riven/d/tc-playground/mdo-wind-release-review/matriz-opm/Matriz%20de%20pruebas,%20integrador%20MDS%20API%20-%20TIDE%20WIND%20APP%20(llena%202026-09-23).xlsx',
+    )).toBe('/home/riven/d/tc-playground/mdo-wind-release-review/matriz-opm/Matriz de pruebas, integrador MDS API - TIDE WIND APP (llena 2026-09-23).xlsx');
+    expect(decodePercentEncodedPath('docs/informe-an%C3%A1lisis.pdf')).toBe('docs/informe-análisis.pdf');
+  });
+
+  it('leaves plain paths and malformed escapes untouched', () => {
+    expect(decodePercentEncodedPath('/tmp/plain name.xlsx')).toBe('/tmp/plain name.xlsx');
+    expect(decodePercentEncodedPath('/tmp/100%.txt')).toBe('/tmp/100%.txt');
+    expect(decodePercentEncodedPath('/tmp/bad%E0%A4.txt')).toBe('/tmp/bad%E0%A4.txt');
   });
 });

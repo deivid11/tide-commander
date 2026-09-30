@@ -1153,21 +1153,147 @@
   color: var(--accent-red);
 }
 
-.file-viewer-not-found {
+// "This path is not on disk" view (shared/MissingFileView.tsx): diagnosis +
+// actions on top, the recovered copy (git HEAD / conversation) below.
+.file-viewer-missing {
+  display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   padding: 20px;
+  min-height: 100%;
+  font-family: $font-mono;
+  font-size: 13px;
+}
+
+.file-viewer-missing-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
   text-align: center;
 }
 
-.file-viewer-not-found-headline {
-  color: var(--text-primary);
+.file-viewer-missing-headline {
+  color: var(--accent-orange);
+  font-size: 14px;
+  font-weight: 600;
 }
 
-.file-viewer-not-found-path {
-  color: var(--text-muted);
-  word-break: break-all;
+.file-viewer-missing-path {
+  color: var(--text-secondary);
   font-size: 12px;
+  word-break: break-all;
+}
+
+.file-viewer-missing-explanation {
+  max-width: 720px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.file-viewer-missing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.file-viewer-missing-recovery {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.file-viewer-missing-recovery-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-viewer-missing-recovery-badge {
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent-green) 45%, transparent);
+  border-radius: 999px;
+  color: var(--accent-green);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.file-viewer-missing-recovery-source {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.file-viewer-missing-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.file-viewer-missing-tab {
+  padding: 2px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary);
+  }
+
+  &.is-active {
+    border-color: color-mix(in srgb, var(--accent-cyan) 60%, transparent);
+    color: var(--accent-cyan);
+  }
+}
+
+.file-viewer-missing-note {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.file-viewer-missing-image {
+  flex: 1;
+  min-height: 240px;
+  height: auto;
+  border: 1px dashed color-mix(in srgb, var(--accent-green) 35%, transparent);
+  border-radius: 6px;
+}
+
+.file-viewer-missing-text {
+  flex: 1;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px dashed color-mix(in srgb, var(--accent-green) 35%, transparent);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.file-viewer-missing-suggestions {
+  padding: 0;
+}
+
+.file-viewer-missing-footnote {
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.7;
 }
 
 .file-viewer-strategy-badge {
@@ -1186,6 +1312,12 @@
   background: rgba(245, 158, 11, 0.12);
   color: #f59e0b;
   border-color: rgba(245, 158, 11, 0.3);
+}
+
+.file-viewer-strategy-child-anchor {
+  background: rgba(45, 212, 191, 0.12);
+  color: #2dd4bf;
+  border-color: rgba(45, 212, 191, 0.3);
 }
 
 .file-viewer-strategy-area-root,

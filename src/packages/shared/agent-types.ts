@@ -185,6 +185,7 @@ export type CodexApprovalMode = 'untrusted' | 'on-failure' | 'on-request' | 'nev
 export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 export type CodexModel =
   | 'gpt-6-astra'
+  | 'gpt-6.1-sol'
   | 'gpt-6-sol'
   | 'gpt-6-luna'
   | 'gpt-5.6-terra';
@@ -218,9 +219,9 @@ export const CODEX_MODELS: Record<CodexModel, { label: string; description: stri
     description: 'GPT-6 Astra — OpenAI\'s most capable model for complex, demanding work',
     icon: '✨',
   },
-  'gpt-6-sol': {
-    label: 'GPT-6 Sol',
-    description: 'GPT-6 Sol — agentic workhorse for everyday coding (default)',
+  'gpt-6.1-sol': {
+    label: 'GPT-6.1 Sol',
+    description: 'GPT-6.1 Sol — latest Sol, agentic workhorse for everyday coding (default)',
     icon: '☀️',
   },
   'gpt-6-luna': {
@@ -228,8 +229,14 @@ export const CODEX_MODELS: Record<CodexModel, { label: string; description: stri
     description: 'GPT-6 Luna — fast and affordable agentic coding',
     icon: '🌙',
   },
-  // Previous generation with no GPT-6 successor: valid for existing agents,
-  // hidden from the new/edit agent pickers.
+  // Superseded models: valid for existing agents, hidden from the new/edit
+  // agent pickers.
+  'gpt-6-sol': {
+    label: 'GPT-6 Sol',
+    description: 'Previous Sol generation (GPT-6.1 Sol preferred)',
+    icon: '☀️',
+    deprecated: true,
+  },
   'gpt-5.6-terra': {
     label: 'GPT-5.6 Terra',
     description: 'Previous generation balanced coding model (retained for existing agents)',
@@ -239,14 +246,14 @@ export const CODEX_MODELS: Record<CodexModel, { label: string; description: stri
 };
 
 /** Model and reasoning effort preselected for every new Codex agent. */
-export const DEFAULT_CODEX_MODEL: CodexModel = 'gpt-6-sol';
+export const DEFAULT_CODEX_MODEL: CodexModel = 'gpt-6.1-sol';
 export const DEFAULT_CODEX_REASONING_EFFORT: CodexReasoningEffort = 'high';
 
 // Codex models removed from Tide Commander, moved to their GPT-6 successor on
 // load and on any update (same contract as RETIRED_CLAUDE_MODELS).
 const RETIRED_CODEX_MODELS: Readonly<Record<string, CodexModel>> = {
   'gpt-5.6-luna': 'gpt-6-luna',
-  'gpt-5.6-sol': 'gpt-6-sol',
+  'gpt-5.6-sol': 'gpt-6.1-sol',
 };
 
 /** The successor of a retired Codex model id, or the id unchanged. */
@@ -262,7 +269,7 @@ export function isDeprecatedCodexModel(model: CodexModel): boolean {
 // Short names ('sonnet' | 'opus' | 'haiku') are legacy aliases for the CLI's
 // latest-of-family resolution. Explicit IDs (e.g. 'claude-opus-5-5') are
 // preferred for new agents so we pin a specific version. Models such as Fable
-// 5.1 expose a native 1M context under their bare model ID. The '[1m]' suffix
+// 5.1 and Sonnet 5.5 expose a native 1M context under their bare model ID. The '[1m]' suffix
 // remains a Tide Commander label for older models whose 1M context uses the
 // beta header; those labels translate to bare model IDs on the CLI side.
 export type ClaudeModel =
@@ -272,6 +279,7 @@ export type ClaudeModel =
   | 'claude-fable-5-1'
   | 'claude-fable-5'
   | 'claude-fable-5[1m]'
+  | 'claude-sonnet-5-5'
   | 'claude-sonnet-5'
   | 'claude-sonnet-5[1m]'
   | 'claude-opus-5-5'
@@ -285,7 +293,7 @@ export type ClaudeModel =
 export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string; contextWindow: number; deprecated?: boolean }> = {
   'claude-fable-5-1': { label: 'Fable 5.1 [1M]', description: 'Latest Fable — most capable Claude model for the hardest and longest-running tasks, native 1M token context window', icon: '🪄', contextWindow: 1000000 },
   'claude-opus-5-5[1m]': { label: 'Opus 5.5 [1M]', description: 'Latest Opus with 1M token context window — for complex agentic coding and enterprise work (default)', icon: '🧠', contextWindow: 1000000 },
-  'claude-sonnet-5[1m]': { label: 'Sonnet 5 [1M]', description: 'Latest Sonnet — most agentic Sonnet, near-Opus intelligence at lower cost, 1M token context window', icon: '⚡', contextWindow: 1000000 },
+  'claude-sonnet-5-5': { label: 'Sonnet 5.5 [1M]', description: 'Latest Sonnet — near-Opus intelligence at lower cost, native 1M token context window', icon: '⚡', contextWindow: 1000000 },
   haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀', contextWindow: 200000 },
   // Everything below stays a valid model value for existing agents and CLI
   // passthrough, but is hidden from the new/edit agent pickers: previous
@@ -293,12 +301,13 @@ export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: st
   // is listed above.
   'claude-fable-5[1m]': { label: 'Fable 5 [1M]', description: 'Previous Fable generation with 1M token context window', icon: '🪄', contextWindow: 1000000, deprecated: true },
   'claude-opus-5[1m]': { label: 'Opus 5 [1M]', description: 'Previous Opus generation with 1M token context window', icon: '🧠', contextWindow: 1000000, deprecated: true },
+  'claude-sonnet-5[1m]': { label: 'Sonnet 5 [1M]', description: 'Previous Sonnet generation with 1M token context window', icon: '⚡', contextWindow: 1000000, deprecated: true },
   'opus[1m]': { label: 'Opus 4.7 [1M]', description: 'Older Opus generation with 1M token context window', icon: '🧠', contextWindow: 1000000, deprecated: true },
-  sonnet: { label: 'Sonnet (legacy)', description: 'Legacy alias — prefer Sonnet 5 [1M]', icon: '⚡', contextWindow: 200000, deprecated: true },
+  sonnet: { label: 'Sonnet (legacy)', description: 'Legacy alias — prefer Sonnet 5.5 [1M]', icon: '⚡', contextWindow: 200000, deprecated: true },
   'claude-fable-5': { label: 'Fable 5 (200K)', description: 'Previous Fable generation with 200K context (Fable 5.1 preferred)', icon: '🪄', contextWindow: 200000, deprecated: true },
   'claude-opus-5-5': { label: 'Opus 5.5 (200K)', description: 'Latest Opus, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
   'claude-opus-5': { label: 'Opus 5 (200K)', description: 'Previous Opus generation, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
-  'claude-sonnet-5': { label: 'Sonnet 5 (200K)', description: 'Latest Sonnet, 200K context window (1M variant preferred)', icon: '⚡', contextWindow: 200000, deprecated: true },
+  'claude-sonnet-5': { label: 'Sonnet 5 (200K)', description: 'Previous Sonnet generation, 200K context window (Sonnet 5.5 preferred)', icon: '⚡', contextWindow: 200000, deprecated: true },
   'claude-opus-4-7': { label: 'Opus 4.7 (200K)', description: 'Previous Opus generation, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
   opus: { label: 'Opus (legacy)', description: 'Legacy alias — prefer Opus 5.5 [1M]', icon: '🧠', contextWindow: 200000, deprecated: true },
   'claude-opus-4-6': { label: 'Opus 4.6', description: 'Older Opus generation (retained for existing agents)', icon: '🧠', contextWindow: 200000, deprecated: true },

@@ -34,6 +34,12 @@ export interface ShellWriteTarget {
    * before-snapshot — the command itself is the record.
    */
   replacements?: ShellScriptReplacement[];
+  /**
+   * The script rewrites a file it also reads (or states replacements for) —
+   * a patch, i.e. an edit. A script write without it GENERATES the file
+   * (`Image.save('montage.png')`, `open(p,'w').write(report)`), i.e. a write.
+   */
+  patches?: boolean;
 }
 
 export interface ShellWord {
@@ -379,6 +385,7 @@ function collectShellWrites(command: string): ShellWriteScan {
           operation: scriptWrite.operation,
           segment: cmd.text,
           fromScript: true,
+          ...(scriptWrite.patches ? { patches: true } : {}),
           ...(scriptWrite.replacements.length > 0 ? { replacements: scriptWrite.replacements } : {}),
         });
       }
@@ -638,7 +645,7 @@ function interpreterScriptWrites(
   name: string | null,
   args: ShellWord[],
   heredocBodies: string[],
-): Array<{ path: string; operation: ShellWriteOperation; replacements: ShellScriptReplacement[] }> {
+): Array<{ path: string; operation: ShellWriteOperation; replacements: ShellScriptReplacement[]; patches: boolean }> {
   if (!name || !INTERPRETERS.has(name)) return [];
   const scripts: string[] = [...heredocBodies];
   for (let index = 0; index < args.length; index += 1) {
@@ -647,7 +654,7 @@ function interpreterScriptWrites(
   }
   if (scripts.length === 0) return [];
 
-  const writes: Array<{ path: string; operation: ShellWriteOperation; replacements: ShellScriptReplacement[] }> = [];
+  const writes: Array<{ path: string; operation: ShellWriteOperation; replacements: ShellScriptReplacement[]; patches: boolean }> = [];
   const seen = new Set<string>();
   for (const script of scripts) {
     // `p = 'path'`, `const p = "path"` — the variable form agents use most.
@@ -662,13 +669,28 @@ function interpreterScriptWrites(
       return identifier ? variables.get(identifier[1]) ?? null : null;
     };
     const replacements = scriptReplacements(script);
+    // Files the script READS: `open(p)` / `open(p, 'r')`, `Path(p).read_text()`,
+    // `readFileSync(p)`. Rewriting one of them is a patch, not a generated file.
+    const readPaths = new Set<string>();
+    for (const match of script.matchAll(/\bopen\s*\(\s*([^,()]+?)\s*(?:\)|,\s*(['"])r[bt]?\2)/g)) {
+      const read = resolveArg(match[1]);
+      if (read) readPaths.add(read);
+    }
+    for (const match of script.matchAll(/\bPath\s*\(\s*([^,()]+?)\s*\)\s*\.\s*read_(?:text|bytes)\s*\(/g)) {
+      const read = resolveArg(match[1]);
+      if (read) readPaths.add(read);
+    }
+    for (const match of script.matchAll(/\breadFile(?:Sync)?\s*\(\s*([^,()]+?)\s*[,)]/g)) {
+      const read = resolveArg(match[1]);
+      if (read) readPaths.add(read);
+    }
     const record = (raw: string, operation: ShellWriteOperation): void => {
       const path = resolveArg(raw);
       if (!path || path.includes('\n') || /^[-\s]*$/.test(path)) return;
       const key = `${path}:${operation}`;
       if (seen.has(key)) return;
       seen.add(key);
-      writes.push({ path, operation, replacements });
+      writes.push({ path, operation, replacements, patches: replacements.length > 0 || readPaths.has(path) });
     };
 
     // python: open(x, 'w'|'a'), Path(x).write_text(...)

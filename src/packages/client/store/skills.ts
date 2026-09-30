@@ -5,6 +5,7 @@
  */
 
 import type { ClientMessage, Skill, CustomAgentClass } from '../../shared/types';
+import { skillAppliesToAgent } from '../../shared/skill-assignment';
 import type { StoreState } from './types';
 
 export interface SkillActions {
@@ -97,12 +98,7 @@ export function createSkillActions(
       const agent = state.agents.get(agentId);
       if (!agent) return [];
 
-      return Array.from(state.skills.values()).filter((skill) => {
-        if (!skill.enabled) return false;
-        if (skill.assignedAgentIds.includes(agentId)) return true;
-        if (skill.assignedAgentClasses.includes(agent.class)) return true;
-        return false;
-      });
+      return Array.from(state.skills.values()).filter((skill) => skillAppliesToAgent(skill, agent));
     },
 
     createSkill(skillData: Omit<Skill, 'id' | 'createdAt' | 'updatedAt'>): void {

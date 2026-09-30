@@ -112,8 +112,22 @@ describe('Codex exec activity summaries', () => {
     expect(getShellWriteSummary(patch)?.replacements).toEqual({
       '/pg/bench.mjs': [{ oldText: '--measure 3', newText: '--measure 5' }],
     });
+    expect(getShellWriteSummary(patch)?.toolName).toBe('Edit');
     expect(getShellWriteSummary('npm test > out.log 2>&1')).toBeNull();
     expect(formatShellWriteFollowUp(['sed', 'curl', 'sed', 'python3', 'cat', 'node'])).toBe('then sed, curl, python3 +2');
+  });
+
+  it('labels a script that GENERATES a file as WRITE and one that patches it as EDIT', () => {
+    // PIL montage: creates montage.png, never reads it back (was a bogus EDIT).
+    const montage = `cd /pg/guide && python3 -c "\nfrom PIL import Image\nims=[Image.open(f'prev-{i}.png') for i in range(1,9)]\nm=Image.new('RGB',(10,10),'white')\nm.save('montage.png')\n" && ls`;
+    expect(getShellWriteSummary(montage)).toMatchObject({ toolName: 'Write', paths: ['/pg/guide/montage.png'] });
+
+    // Read-modify-write without stated replacements is still a patch.
+    const rewrite = `python3 - <<'EOF'\nfrom pathlib import Path\np='conf.ini'\ns=Path(p).read_text()\nPath(p).write_text(s.upper())\nEOF`;
+    expect(getShellWriteSummary(rewrite)?.toolName).toBe('Edit');
+
+    const node = `node -e "const fs=require('fs');const s=fs.readFileSync('a.json','utf8');fs.writeFileSync('a.json', s.trim())"`;
+    expect(getShellWriteSummary(node)?.toolName).toBe('Edit');
   });
 
   it('does not let a directory named after a tool decide the label', () => {

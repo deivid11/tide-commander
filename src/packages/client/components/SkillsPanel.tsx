@@ -5,6 +5,7 @@ import { SkillEditorModal } from './SkillEditorModal';
 import { ModelPreview } from './ModelPreview';
 import { EmojiPicker } from './EmojiPicker';
 import type { Skill, CustomAgentClass, AnimationMapping } from '../../shared/types';
+import { skillAppliesToAgent } from '../../shared/skill-assignment';
 import { ALL_CHARACTER_MODELS } from '../scene/config';
 import { parseGlbAnimations, isValidGlbFile, formatFileSize } from '../utils/glbParser';
 import { apiUrl, authFetch } from '../utils/storage';
@@ -156,23 +157,11 @@ export function SkillsPanel({ isOpen, onClose }: SkillsPanelProps) {
   };
 
   const getActiveAgentCount = (skill: Skill): number => {
-    if (!skill.enabled) return 0;
-
-    const countedAgents = new Set<string>();
-
-    // Count agents from class assignments
+    let count = 0;
     for (const agent of agents.values()) {
-      if (skill.assignedAgentClasses.includes(agent.class)) {
-        countedAgents.add(agent.id);
-      }
+      if (skillAppliesToAgent(skill, agent)) count++;
     }
-
-    // Count directly assigned agents
-    for (const agentId of skill.assignedAgentIds) {
-      countedAgents.add(agentId);
-    }
-
-    return countedAgents.size;
+    return count;
   };
 
   // Generate a random vibrant color for new classes

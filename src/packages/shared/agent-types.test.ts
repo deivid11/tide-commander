@@ -1,5 +1,5 @@
 /**
- * Tests for the Claude Sonnet 5 entries in the CLAUDE_MODELS registry.
+ * Tests for the Claude Sonnet entries in the CLAUDE_MODELS registry.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -28,11 +28,16 @@ describe('CLAUDE_MODELS — Fable 5.1', () => {
   });
 });
 
-describe('CLAUDE_MODELS — Sonnet 5', () => {
-  it('exposes the 1M-context Sonnet 5 variant as visible (non-deprecated)', () => {
-    expect(CLAUDE_MODELS['claude-sonnet-5[1m]']).toBeDefined();
+describe('CLAUDE_MODELS — Sonnet', () => {
+  it('offers Sonnet 5.5 with its native 1M context under the bare id', () => {
+    expect(CLAUDE_MODELS['claude-sonnet-5-5']).toBeDefined();
+    expect(CLAUDE_MODELS['claude-sonnet-5-5'].contextWindow).toBe(1000000);
+    expect(isDeprecatedClaudeModel('claude-sonnet-5-5')).toBe(false);
+  });
+
+  it('keeps Sonnet 5 [1M] valid for existing agents but hides it from the picker', () => {
     expect(CLAUDE_MODELS['claude-sonnet-5[1m]'].contextWindow).toBe(1000000);
-    expect(isDeprecatedClaudeModel('claude-sonnet-5[1m]')).toBe(false);
+    expect(isDeprecatedClaudeModel('claude-sonnet-5[1m]')).toBe(true);
   });
 
   it('hides the plain 200K Sonnet 5 variant from the picker', () => {
@@ -97,21 +102,23 @@ describe('new/edit agent picker', () => {
   it('offers only the current generation of each family', () => {
     const visible = Object.keys(CLAUDE_MODELS).filter((id) => !isDeprecatedClaudeModel(id as keyof typeof CLAUDE_MODELS));
     // Picker order is the registry's key order: Fable → Opus → Sonnet → Haiku.
-    expect(visible).toEqual(['claude-fable-5-1', 'claude-opus-5-5[1m]', 'claude-sonnet-5[1m]', 'haiku']);
+    expect(visible).toEqual(['claude-fable-5-1', 'claude-opus-5-5[1m]', 'claude-sonnet-5-5', 'haiku']);
   });
 });
 
 describe('CODEX_MODELS — GPT-6', () => {
-  it('offers Astra → Sol → Luna, defaulting to Sol with high reasoning', () => {
+  it('offers Astra → Sol 6.1 → Luna, defaulting to GPT-6.1 Sol with high reasoning', () => {
     const visible = (Object.keys(CODEX_MODELS) as (keyof typeof CODEX_MODELS)[]).filter((id) => !isDeprecatedCodexModel(id));
-    expect(visible).toEqual(['gpt-6-astra', 'gpt-6-sol', 'gpt-6-luna']);
-    expect(DEFAULT_CODEX_MODEL).toBe('gpt-6-sol');
+    expect(visible).toEqual(['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-luna']);
+    expect(DEFAULT_CODEX_MODEL).toBe('gpt-6.1-sol');
     expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('high');
   });
 
   it('moves retired GPT-5.6 Luna/Sol to their GPT-6 successors and keeps Terra', () => {
     expect(migrateRetiredCodexModel('gpt-5.6-luna')).toBe('gpt-6-luna');
-    expect(migrateRetiredCodexModel('gpt-5.6-sol')).toBe('gpt-6-sol');
+    expect(migrateRetiredCodexModel('gpt-5.6-sol')).toBe('gpt-6.1-sol');
+    // GPT-6 Sol stays valid (hidden), it is not migrated.
+    expect(migrateRetiredCodexModel('gpt-6-sol')).toBe('gpt-6-sol');
     expect(migrateRetiredCodexModel('gpt-5.6-terra')).toBe('gpt-5.6-terra');
     expect(isDeprecatedCodexModel('gpt-5.6-terra')).toBe(true);
   });

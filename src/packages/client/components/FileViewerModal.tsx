@@ -18,12 +18,14 @@ import { DOCUMENT_EXTENSIONS } from '../../shared/document-types';
 import { DELIMITED_EXTENSIONS, SPREADSHEET_BINARY_EXTENSIONS } from '../../shared/spreadsheet-types';
 import { store } from '../store';
 import { useModalClose } from '../hooks';
-import { parseFilePathReference, resolveAgentFilePath } from '../utils/filePaths';
+import { decodePercentEncodedPath, parseFilePathReference, resolveAgentFilePath } from '../utils/filePaths';
 import { ModalPortal } from './shared/ModalPortal';
 import { getLanguageForExtension, ensureLanguageLoaded, Prism } from './FileExplorerPanel/syntaxHighlighting';
 import { Icon } from './Icon';
 import { ZoomableImage } from './shared/ZoomableImage';
 import { VirtualLineList, scrollLineIntoView } from './shared/VirtualLineList';
+import { MissingFileView, type MissingFileDiagnosis } from './shared/MissingFileView';
+import { markFileMissing } from '../utils/fileExistence';
 import { AUDIO_EXTENSIONS, VIDEO_EXTENSIONS } from './shared/mediaTypes';
 
 const StlViewer = React.lazy(async () => {
@@ -95,7 +97,8 @@ type ResolutionStrategy =
   | 'suffix-match'
   | 'node-modules-match'
   | 'area-root'
-  | 'area-suffix-match';
+  | 'area-suffix-match'
+  | 'child-anchor';
 
 interface FileData {
   path: string;
@@ -115,6 +118,8 @@ interface NotFoundDetail {
   message: string;
   triedRoots: string[];
   requested?: string;
+  /** Server's explanation of the miss (deleted vs. folder gone, similar names, git). */
+  diagnosis?: MissingFileDiagnosis;
 }
 
 /**
@@ -268,8 +273,10 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState<NotFoundDetail | null>(null);
-  const [copyPathStatus, setCopyPathStatus] = useState<'idle' | 'copied' | 'error'>('idle');
   const [resolvedCandidates, setResolvedCandidates] = useState<ResolveResult[]>([]);
+  // Same-name files elsewhere in the project, offered (never auto-opened) when
+  // the requested file was deleted from a folder that still exists.
+  const [missingSuggestions, setMissingSuggestions] = useState<ResolveResult[]>([]);
   const [directoryEntries, setDirectoryEntries] = useState<ResolveResult[]>([]);
   // Absolute path of the folder currently being browsed inside the modal (null
   // when a file — not a directory — is being shown). Drives the in-modal
@@ -720,7 +727,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
   const baseDirParam = searchRoot ? `&baseDir=${encodeURIComponent(searchRoot)}` : '';
 
-  const loadFileByPath = async (filePath: string): Promise<{ ok: boolean; data?: any; error?: string; isDirectory?: boolean; triedRoots?: string[]; requested?: string }> => {
+  const loadFileByPath = async (filePath: string): Promise<{ ok: boolean; data?: any; error?: string; isDirectory?: boolean; triedRoots?: string[]; requested?: string; diagnosis?: MissingFileDiagnosis }> => {
     const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
     const isPdfFile = PDF_EXTENSIONS.includes(ext);
     const isImageFile = IMAGE_EXTENSIONS.includes(ext);
@@ -766,6 +773,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         isDirectory: isDir,
         triedRoots: Array.isArray(data.triedRoots) ? data.triedRoots : undefined,
         requested: typeof data.path === 'string' ? data.path : undefined,
+        diagnosis: data.diagnosis && typeof data.diagnosis === 'object' ? data.diagnosis as MissingFileDiagnosis : undefined,
       };
     }
 
@@ -835,6 +843,24 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     navigateTo(parent);
   };
 
+  // An exact reference names one file; a relative one was joined onto the
+  // agent cwd, which is only a guess of where the shell was (Claude's Bash
+  // keeps the directory of an earlier `cd`). A guess that misses says nothing
+  // about whether the file was deleted.
+  const referenceIsExact = parsedReference.path.startsWith('/');
+
+  const showNotFound = (result: { error?: string; triedRoots?: string[]; requested?: string; diagnosis?: MissingFileDiagnosis }) => {
+    const requested = result.requested || effectivePath;
+    setNotFound({
+      message: result.error || 'File not found',
+      triedRoots: result.triedRoots ?? [],
+      requested,
+      diagnosis: referenceIsExact ? result.diagnosis : undefined,
+    });
+    // Chips pointing at this exact file can dim right away.
+    if (referenceIsExact) markFileMissing(requested, searchRoot);
+  };
+
   const loadFile = async () => {
     // A trailing-slash absolute path is unambiguously a directory. Skip the
     // whole file-resolution dance (which would reject the dir at every
@@ -849,6 +875,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
     setError(null);
     setNotFound(null);
     setResolvedCandidates([]);
+    setMissingSuggestions([]);
     setDirectoryEntries([]);
     setDirectoryPath(null);
 
@@ -868,6 +895,17 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
           return;
         }
 
+        // A URL-encoded reference (`Matriz%20de%20pruebas.xlsx`, from a
+        // markdown link or a pasted URL) names the decoded file on disk.
+        const decodedPath = decodePercentEncodedPath(effectivePath);
+        if (decodedPath !== effectivePath) {
+          const decoded = await loadFileByPath(decodedPath);
+          if (decoded.ok) {
+            setFileData(decoded.data);
+            return;
+          }
+        }
+
         // If it's a directory, list its contents inside the modal instead of
         // trying to render it as a file. (The server reports this for absolute
         // directory paths that arrive without a trailing slash.)
@@ -879,11 +917,18 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         // File not found — try fallback search, then fall through to notFound view
         const filename = effectivePath.split('/').pop() || effectivePath;
         const root = searchRoot || (effectivePath.startsWith('/') ? effectivePath.split('/').slice(0, -1).join('/') : '');
+        // Deleted from a folder that still exists: a same-name file elsewhere is
+        // a DIFFERENT file, so it is offered, never opened in its place. When
+        // the whole folder is gone (moved/renamed project) a unique name match
+        // is most likely the moved file, and opening it stays the right call.
+        const deletedInPlace = referenceIsExact && result.diagnosis?.kind === 'deleted';
 
         if (root && filename) {
           const candidates = await tryResolveFile(filename, root);
 
-          if (candidates.length === 1 && !candidates[0].isDirectory) {
+          if (deletedInPlace) {
+            setMissingSuggestions(candidates.filter((candidate) => !candidate.isDirectory));
+          } else if (candidates.length === 1 && !candidates[0].isDirectory) {
             const resolved = await loadFileByPath(candidates[0].path);
             if (resolved.ok) {
               setFileData(resolved.data);
@@ -895,13 +940,9 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
           }
         }
 
-        // No fallback worked — show structured "Tried N candidate locations" view
-        if (result.error === 'File not found' && (result.triedRoots?.length ?? 0) > 0) {
-          setNotFound({
-            message: result.error,
-            triedRoots: result.triedRoots ?? [],
-            requested: result.requested,
-          });
+        // No fallback worked — explain the miss (and recover what we can).
+        if (result.error === 'File not found') {
+          showNotFound(result);
         } else {
           setError(result.error || t('terminal:fileExplorer.failedToLoad'));
         }
@@ -934,12 +975,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
         setFileData(result.data);
         return;
       }
-      if (result.error === 'File not found' && (result.triedRoots?.length ?? 0) > 0) {
-        setNotFound({
-          message: result.error,
-          triedRoots: result.triedRoots ?? [],
-          requested: result.requested,
-        });
+      if (result.error === 'File not found') {
+        showNotFound(result);
       } else {
         setError(result.error || t('terminal:fileExplorer.failedToLoad'));
       }
@@ -947,17 +984,6 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
       setError(err.message || t('terminal:fileExplorer.failedToLoad'));
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleCopyPath = async () => {
-    try {
-      await navigator.clipboard.writeText(notFound?.requested || effectivePath);
-      setCopyPathStatus('copied');
-    } catch {
-      setCopyPathStatus('error');
-    } finally {
-      window.setTimeout(() => setCopyPathStatus('idle'), 1500);
     }
   };
 
@@ -972,8 +998,11 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
 
   const { handleMouseDown: handleOverlayMouseDown, handleClick: handleOverlayClick } = useModalClose(onClose);
 
+  // A path that is not on disk must not be badged MODIFIED/READ after the row it came from.
+  const shownAction = notFound ? 'deleted' : action;
+
   const getActionLabel = () => {
-    switch (action) {
+    switch (shownAction) {
       case 'created': return t('common:status.created');
       case 'modified': return t('common:status.modified');
       case 'deleted': return t('common:status.deleted');
@@ -982,7 +1011,7 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
   };
 
   const getActionColor = () => {
-    switch (action) {
+    switch (shownAction) {
       case 'created': return 'var(--accent-green)';
       case 'modified': return 'var(--accent-orange)';
       case 'deleted': return 'var(--accent-red)';
@@ -1278,6 +1307,8 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
                     ? `matched in area: ${fileData.areaName}`
                     : fileData.strategy === 'suffix-match'
                       ? `matched by suffix from ${searchRoot ?? 'agent cwd'}`
+                      : fileData.strategy === 'child-anchor'
+                        ? `found inside a project folder under ${searchRoot ?? 'agent cwd'} (the reference was relative to it)`
                       : `resolved via ${fileData.strategy}`
                 }
               >
@@ -1516,25 +1547,15 @@ export function FileViewerModal({ isOpen, onClose, filePath, action, editData, s
           )}
 
           {notFound && !resolvedCandidates.length && directoryPath === null && (
-            <div className="file-viewer-error file-viewer-not-found">
-              <div className="file-viewer-not-found-headline">
-                {`Tried ${notFound.triedRoots.length} candidate location${notFound.triedRoots.length === 1 ? '' : 's'}. None matched.`}
-              </div>
-              {notFound.requested && (
-                <div className="file-viewer-not-found-path">{notFound.requested}</div>
-              )}
-              <button
-                type="button"
-                className={`file-viewer-copy-html-btn ${copyPathStatus}`}
-                onClick={handleCopyPath}
-              >
-                {copyPathStatus === 'copied'
-                  ? t('common:status.copied')
-                  : copyPathStatus === 'error'
-                    ? t('common:status.error')
-                    : 'Copy path'}
-              </button>
-            </div>
+            <MissingFileView
+              requested={notFound.requested || effectivePath}
+              diagnosis={notFound.diagnosis}
+              triedCount={notFound.triedRoots.length}
+              suggestions={missingSuggestions}
+              searchRoot={searchRoot}
+              onNavigate={navigateTo}
+              formatFileSize={formatFileSize}
+            />
           )}
 
           {resolvedCandidates.length > 0 && (

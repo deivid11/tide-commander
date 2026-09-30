@@ -53,6 +53,8 @@ export interface JiraComment {
   authorAvatarUrl?: string;
   body: string;
   created: string;
+  /** Last edit time (equals `created` when never edited). */
+  updated?: string;
   /** Service Management: false = interno (solo agentes), true = visible al cliente. */
   jsdPublic?: boolean;
 }
@@ -277,6 +279,7 @@ export class JiraClient {
         };
         body: unknown;
         created: string;
+        updated?: string;
         /** Service Management: false = comentario interno (solo agentes); ausente en proyectos software. */
         jsdPublic?: boolean;
       }>;
@@ -298,7 +301,37 @@ export class JiraClient {
         : {}),
       body: this.fromADF(c.body),
       created: c.created,
+      ...(c.updated ? { updated: c.updated } : {}),
     }));
+  }
+
+  /**
+   * Replace a comment's text. Works for Service Management comments too: the JSM request API has
+   * no edit endpoint, but the platform API does, and JSM keeps public/internal visibility in a
+   * separate comment property that a body update never touches.
+   */
+  async updateComment(
+    issueKey: string,
+    commentId: string,
+    body: string
+  ): Promise<{ id: string; updated?: string; jsdPublic?: boolean }> {
+    const resp = (await this.request(
+      'PUT',
+      `/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment/${encodeURIComponent(commentId)}`,
+      { body: this.toADF(body) }
+    )) as { id: string; updated?: string; jsdPublic?: boolean };
+    return {
+      id: String(resp.id),
+      ...(resp.updated ? { updated: resp.updated } : {}),
+      ...(typeof resp.jsdPublic === 'boolean' ? { jsdPublic: resp.jsdPublic } : {}),
+    };
+  }
+
+  async deleteComment(issueKey: string, commentId: string): Promise<void> {
+    await this.request(
+      'DELETE',
+      `/rest/api/3/issue/${encodeURIComponent(issueKey)}/comment/${encodeURIComponent(commentId)}`
+    );
   }
 
   /**

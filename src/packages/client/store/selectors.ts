@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useRef, useState, useEffect, useSyncExternalStore } from 'react';
+import { skillAppliesToAgent } from '../../shared/skill-assignment';
 import type {
   Agent,
   DrawingArea,
@@ -882,12 +883,7 @@ export function useAgentSkills(agentId: string | null): Skill[] {
   const agent = agents.get(agentId);
   if (!agent) return emptyArray.current;
 
-  const matchingSkills = Array.from(skills.values()).filter((skill) => {
-    if (!skill.enabled) return false;
-    if (skill.assignedAgentIds.includes(agentId)) return true;
-    if (skill.assignedAgentClasses.includes(agent.class)) return true;
-    return false;
-  });
+  const matchingSkills = Array.from(skills.values()).filter((skill) => skillAppliesToAgent(skill, agent));
 
   if (!shallowArrayEqual(arrayRef.current, matchingSkills)) {
     arrayRef.current = matchingSkills;

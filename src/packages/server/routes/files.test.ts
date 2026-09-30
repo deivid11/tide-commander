@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   findFileWithFallbacks,
+  looksLikeBinaryBuffer,
   resolveAndValidateFilePath,
   isAbsolutePathCrossPlatform,
   parseByteRange,
@@ -514,5 +515,69 @@ describe('findFileWithFallbacks', () => {
     } finally {
       fs.rmSync(nmRoot, { recursive: true, force: true });
     }
+  });
+});
+
+describe('findFileWithFallbacks — workspace cwd (child-anchor)', () => {
+  // <ws>/tide-sentinel/apps/agent/src/events/fim.ts      ← the real repo
+  // <ws>/playground/copy/apps/agent/src/events/fim.ts    ← a scratch clone, deeper
+  // The agent runs in <ws> and cites `apps/agent/src/events/fim.ts`.
+  let ws: string;
+  const REL = 'apps/agent/src/events/fim.ts';
+
+  beforeAll(() => {
+    ws = fs.mkdtempSync(path.join(os.tmpdir(), 'tc-workspace-'));
+    for (const repo of ['tide-sentinel', path.join('playground', 'copy')]) {
+      const file = path.join(ws, repo, REL);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, `// ${repo}\n`);
+    }
+  });
+
+  afterAll(() => fs.rmSync(ws, { recursive: true, force: true }));
+
+  beforeEach(() => {
+    _resetSuffixWalkCacheForTests();
+    _resetAreaDirCacheForTests();
+    _setAreaLoaderForTests(() => []);
+  });
+
+  it('resolves a cwd-relative reference into the shallowest repo that has it', () => {
+    // The client joins relative references onto the cwd before asking.
+    const first = findFileWithFallbacks(path.join(ws, REL), ws, { cheap: true });
+    expect(first.ok && first.path).toBe(path.join(ws, 'tide-sentinel', REL));
+    expect(first.ok && first.strategy).toBe('child-anchor');
+    // The viewer's full lookup reuses the remembered resolution.
+    const again = findFileWithFallbacks(path.join(ws, REL), ws);
+    expect(again.ok && again.path).toBe(path.join(ws, 'tide-sentinel', REL));
+    expect(again.ok && again.strategy).toBe('cached');
+  });
+
+  it('keeps the 404 small: child-anchor probes are summarized, not listed', () => {
+    const result = findFileWithFallbacks(path.join(ws, 'apps/agent/src/events/gone.ts'), ws, { cheap: true });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.status).toBe(404);
+      expect(result.tried?.filter((entry) => entry.includes('tide-sentinel'))).toEqual([]);
+      expect(result.tried).toContain(`<child-anchor under ${ws}>`);
+    }
+  });
+});
+
+describe('looksLikeBinaryBuffer', () => {
+  it('reads valid UTF-8 as text even when it contains literal replacement characters', () => {
+    // A chat-export JSON quoting a mangled .docx preview: valid UTF-8, full of "�".
+    const json = JSON.stringify({ text: 'Puntos para la app de Piano.docx — PK \uFFFD[<] word/numbering.xml\uFFFDX\uFFFD' });
+    expect(looksLikeBinaryBuffer(Buffer.from(json, 'utf-8'))).toBe(false);
+  });
+
+  it('flags NUL bytes and invalid UTF-8 as binary', () => {
+    expect(looksLikeBinaryBuffer(Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x14]))).toBe(true);
+    expect(looksLikeBinaryBuffer(Buffer.from([0x1f, 0x8b, 0x08, 0xff, 0xfe, 0x41]))).toBe(true);
+  });
+
+  it('does not trip on a multi-byte character cut at the 8 KB sample edge', () => {
+    const text = `${'a'.repeat(8191)}é tail`; // é is 2 bytes: byte 8192 is its second half
+    expect(looksLikeBinaryBuffer(Buffer.from(text, 'utf-8'))).toBe(false);
   });
 });

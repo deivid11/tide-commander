@@ -96,6 +96,7 @@ export function shouldPassPiModel(model: string | undefined): model is string {
     model.includes('[1m]') ||
     model.startsWith('gpt-5.6-') ||
     model.startsWith('gpt-6-') ||
+    model.startsWith('gpt-6.') ||
     model.startsWith('grok-')
   ) {
     return false;

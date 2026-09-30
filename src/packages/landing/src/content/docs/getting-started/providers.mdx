@@ -44,10 +44,10 @@ Tide Commander supports three AI coding CLI providers. Each agent you spawn is b
     |-------|-------|---------|---------|
     | `claude-fable-5-1` | Fable 5.1 \[1M\] | 1M tokens | Latest Fable — hardest and longest-running tasks |
     | `claude-opus-5-5[1m]` | Opus 5.5 \[1M\] | 1M tokens | Latest Opus — complex agentic coding and enterprise work |
-    | `claude-sonnet-5[1m]` | Sonnet 5 \[1M\] | 1M tokens | Near-Opus intelligence at lower cost |
+    | `claude-sonnet-5-5` | Sonnet 5.5 \[1M\] | 1M tokens | Latest Sonnet — near-Opus intelligence at lower cost |
     | `haiku` | Haiku | 200K tokens | Fast, lightweight tasks |
 
-    The default selection in the Spawn dialog is **Opus 5.5 \[1M\]**. The Spawn and Edit dialogs only offer the models above; previous generations (Fable 5, Opus 5, Opus 4.7), the legacy `sonnet`/`opus` aliases and plain 200K IDs stay valid for existing agents but are hidden from the pickers. Opus 4.8 was removed, and agents that used it move to Opus 5.5 automatically.
+    The default selection in the Spawn dialog is **Opus 5.5 \[1M\]**. The Spawn and Edit dialogs only offer the models above; previous generations (Fable 5, Opus 5, Opus 4.7, Sonnet 5), the legacy `sonnet`/`opus` aliases and plain 200K IDs stay valid for existing agents but are hidden from the pickers. Opus 4.8 was removed, and agents that used it move to Opus 5.5 automatically.
   </TabItem>
   <TabItem label="Effort levels">
     Effort controls how much reasoning Claude applies before responding:
@@ -95,7 +95,7 @@ Tide Commander supports three AI coding CLI providers. Each agent you spawn is b
     - **Approval mode** — `on-request` (prompt when needed) vs `never`
     - **Search** — Enable web search tool
 
-    Available Codex models: `gpt-6-astra`, `gpt-6-sol`, `gpt-6-luna`. The default is `gpt-6-sol` with **high** reasoning effort. GPT-5.6 Luna and Sol were retired and agents that used them move to their GPT-6 successors automatically; `gpt-5.6-terra` stays valid for existing agents but is hidden from the pickers.
+    Available Codex models: `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-luna`. The default is `gpt-6.1-sol` with **high** reasoning effort. GPT-5.6 Luna and Sol were retired and agents that used them move to their GPT-6 successors automatically; `gpt-6-sol` and `gpt-5.6-terra` stay valid for existing agents but are hidden from the pickers.
   </TabItem>
 </Tabs>
 

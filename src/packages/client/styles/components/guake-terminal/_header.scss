@@ -707,6 +707,13 @@
   text-transform: lowercase;
 }
 
+// Configured model is an older generation (Opus 5 while 5.5 exists). A quiet
+// hint, not an alarm: only the icon is tinted, the chip keeps its normal look.
+.guake-model-chip--outdated > svg {
+  flex-shrink: 0;
+  color: var(--accent-yellow);
+}
+
 // The API is answering with a model other than the configured one. Widened
 // because it carries two model names, and tinted so it reads as a warning
 // rather than as a normal "here is your model" chip.
