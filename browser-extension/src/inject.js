@@ -264,85 +264,90 @@
   // ── XMLHttpRequest ──
   const OrigXHR = window.XMLHttpRequest;
   if (typeof OrigXHR === 'function') {
-    class PatchedXHR extends OrigXHR {
-      open(method, url, ...rest) {
-        this.__tcMethod = (method || 'GET').toUpperCase();
-        this.__tcUrl = url;
-        try {
-          this.addEventListener('loadend', () => {
+    // Patch the prototype instead of replacing window.XMLHttpRequest with a subclass.
+    // Pages that wrap XHR themselves (e.g. Dynatrace ruxitagentjs) end up invoking a
+    // subclass's super.open() on a non-native receiver -> 'TypeError: Illegal invocation',
+    // which kills every XHR on the page. Keeping the native constructor avoids that.
+    const proto = OrigXHR.prototype;
+    const origOpen = proto.open;
+    const origSetRequestHeader = proto.setRequestHeader;
+    const origSend = proto.send;
+    proto.open = function open(method, url, ...rest) {
+      this.__tcMethod = (method || 'GET').toUpperCase();
+      this.__tcUrl = url;
+      try {
+        this.addEventListener('loadend', () => {
+          try {
+            if (this.readyState !== 4) return;
+            if (this.status === 0) {
+              post({
+                kind: 'network',
+                subtype: 'xhr',
+                method: this.__tcMethod,
+                url: this.__tcUrl,
+                status: 0,
+                message: `XHR network failure on ${this.__tcMethod} ${this.__tcUrl}`,
+                requestBody: this.__tcReqBody,
+              });
+            } else if (this.status >= 400) {
+              post({
+                kind: 'network',
+                subtype: 'xhr',
+                method: this.__tcMethod,
+                url: this.__tcUrl,
+                status: this.status,
+                message: `HTTP ${this.status} ${this.statusText || ''} on ${this.__tcMethod} ${this.__tcUrl}`.trim(),
+                requestBody: this.__tcReqBody,
+                responseBody: xhrResponseText(this),
+              });
+            }
+            // Full network-log record for EVERY XHR (success included).
             try {
-              if (this.readyState !== 4) return;
-              if (this.status === 0) {
-                post({
-                  kind: 'network',
-                  subtype: 'xhr',
-                  method: this.__tcMethod,
-                  url: this.__tcUrl,
-                  status: 0,
-                  message: `XHR network failure on ${this.__tcMethod} ${this.__tcUrl}`,
-                  requestBody: this.__tcReqBody,
-                });
-              } else if (this.status >= 400) {
-                post({
-                  kind: 'network',
-                  subtype: 'xhr',
-                  method: this.__tcMethod,
-                  url: this.__tcUrl,
-                  status: this.status,
-                  message: `HTTP ${this.status} ${this.statusText || ''} on ${this.__tcMethod} ${this.__tcUrl}`.trim(),
-                  requestBody: this.__tcReqBody,
-                  responseBody: xhrResponseText(this),
-                });
-              }
-              // Full network-log record for EVERY XHR (success included).
-              try {
-                const respHeaders = parseRawHeaders(this.getAllResponseHeaders && this.getAllResponseHeaders());
-                const ct = (this.getResponseHeader && this.getResponseHeader('content-type')) || '';
-                postNet({
-                  type: 'xhr',
-                  method: this.__tcMethod,
-                  url: this.__tcUrl,
-                  status: this.status,
-                  statusText: this.statusText || '',
-                  ok: this.status >= 200 && this.status < 400,
-                  requestHeaders: this.__tcReqHeaders || {},
-                  requestBody: this.__tcReqBody,
-                  responseHeaders: respHeaders,
-                  contentType: ct,
-                  responseBody: this.status === 0 ? '(network failure)' : isTextual(ct) ? xhrResponseText(this) : `[${ct || 'binary'}]`,
-                  durationMs: this.__tcStart ? Date.now() - this.__tcStart : undefined,
-                });
-              } catch (_e) {
-                /* ignore */
-              }
+              const respHeaders = parseRawHeaders(this.getAllResponseHeaders && this.getAllResponseHeaders());
+              const ct = (this.getResponseHeader && this.getResponseHeader('content-type')) || '';
+              postNet({
+                type: 'xhr',
+                method: this.__tcMethod,
+                url: this.__tcUrl,
+                status: this.status,
+                statusText: this.statusText || '',
+                ok: this.status >= 200 && this.status < 400,
+                requestHeaders: this.__tcReqHeaders || {},
+                requestBody: this.__tcReqBody,
+                responseHeaders: respHeaders,
+                contentType: ct,
+                responseBody: this.status === 0 ? '(network failure)' : isTextual(ct) ? xhrResponseText(this) : `[${ct || 'binary'}]`,
+                durationMs: this.__tcStart ? Date.now() - this.__tcStart : undefined,
+              });
             } catch (_e) {
               /* ignore */
             }
-          });
-        } catch (_e) {
-          /* ignore */
-        }
-        return super.open(method, url, ...rest);
+          } catch (_e) {
+            /* ignore */
+          }
+        });
+      } catch (_e) {
+        /* ignore */
       }
-      setRequestHeader(name, value) {
-        try {
-          (this.__tcReqHeaders = this.__tcReqHeaders || {})[name] = value;
-        } catch (_e) {
-          /* ignore */
-        }
-        return super.setRequestHeader(name, value);
+      return origOpen.call(this, method, url, ...rest);
+    };
+    proto.setRequestHeader = function setRequestHeader(name, value) {
+      try {
+        (this.__tcReqHeaders = this.__tcReqHeaders || {})[name] = value;
+      } catch (_e) {
+        /* ignore */
       }
-      send(body) {
-        try {
-          this.__tcReqBody = bodyToText(body);
-          this.__tcStart = Date.now();
-        } catch (_e) {
-          /* ignore */
-        }
-        return super.send(body);
+      return origSetRequestHeader.call(this, name, value);
+    };
+    proto.send = function send(body) {
+      try {
+        this.__tcReqBody = bodyToText(body);
+        this.__tcStart = Date.now();
+      } catch (_e) {
+        /* ignore */
       }
-    }
-    window.XMLHttpRequest = PatchedXHR;
+      return origSend.call(this, body);
+    };
   }
 
   // ── console.* capture ──
