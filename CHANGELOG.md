@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.223.0] - 2026-10-02
+
+### Added
+- **Missing files explain themselves and can be recovered** — opening a path that no longer exists now tells you why (file deleted, whole folder gone, tracked in git, similarly named files nearby) and offers recovered copies: the git HEAD version or the last copy the agent's session recorded. File chips for deleted files grey out before you click them.
+- **Opt one agent out of a class or wildcard skill** — removing a class/`*` skill from a single agent now excludes it for that agent only, without touching the class; assigning it again lifts the exclusion.
+- **Newer models** — Claude Sonnet 5.5 (native 1M) and the GPT-6 Sol/Luna lineup, with GPT-6.1 Sol as the Codex default. Agents on retired gpt-5.6 Sol/Luna migrate automatically, and the header model chip warns when an agent runs an older generation.
+- **Jira comment editing** — edit a comment's text while keeping its JSM public/internal visibility.
+
+### Changed
+- **Bulk manager** — searchable, alphabetically sorted area dropdowns and Sonnet 5.x model filters.
+
+### Fixed
+- **The browser extension no longer blanks sites that wrap XHR themselves** — pages running their own XMLHttpRequest wrapper (e.g. Dynatrace RUM on lacomer.com.mx) hit `Illegal invocation` on every request with the extension loaded, so the app got no data and rendered a white page. The extension now patches the native XHR methods instead of replacing the constructor; Network/Errors capture is unchanged. Reload the unpacked extension to pick it up.
+- **`..` and `//` render correctly on Android** — JetBrains Mono's coding ligatures dropped half of these pairs in the Android WebView, so paths and URLs looked wrong while sending correctly. Ligatures are now off app-wide.
+- **Markdown file links with spaces open correctly** — percent-encoded file names are decoded before opening.
+
 ## [1.222.0] - 2026-09-23
 
 ### Added

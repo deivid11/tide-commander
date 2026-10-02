@@ -26,6 +26,29 @@ body {
   height: 100vh;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  // JetBrains Mono ships coding ligatures in `calt`, which is on by default.
+  // It builds them by blanking the FIRST character and drawing both marks from
+  // the second glyph, whose ink hangs to the left of its own cell
+  // (`period_period.liga` starts at x=-301, `slash_slash.liga` at -450,
+  // `period_period_period.liga` at -881). Android's WebView drops that
+  // overhanging part, so `..` renders as a single dot and `//` as a single
+  // slash while the DOM value stays correct — text that looks wrong but sends
+  // right. Nothing here is code we want prettified anyway: these are paths,
+  // URLs and shell commands, where the literal characters are the point.
+  // Both properties are inherited, so this covers the whole app.
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'clig' 0, 'calt' 0;
+}
+
+// The UA stylesheet gives form controls their own font, which can break the
+// inheritance above. Repeat the opt-out where text is actually typed.
+input,
+textarea,
+select,
+button {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'clig' 0, 'calt' 0;
 }
 
 // Theme-aware text selection (eye-friendly soft tint per theme)
