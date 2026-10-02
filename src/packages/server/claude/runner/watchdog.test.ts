@@ -2,6 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActiveProcess } from '../types.js';
 import { RunnerInternalEventBus } from './internal-events.js';
 
+// The watchdog thresholds are read from the environment at module load. Clear
+// any operator overrides (e.g. TIDE_IDLE_RESPAWN_MS set on the pm2 process that
+// runs the suite) so the tests always exercise the built-in defaults.
+vi.hoisted(() => {
+  delete process.env.TIDE_IDLE_RESPAWN_MS;
+  delete process.env.TIDE_STUCK_WORKING_RECONCILE_MS;
+  delete process.env.TIDE_LINGER_AFTER_TURN_MS;
+});
+
 const mockIsProcessRunning = vi.hoisted(() => vi.fn());
 const mockGetAgent = vi.hoisted(() => vi.fn());
 const mockUpdateAgent = vi.hoisted(() => vi.fn());
