@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.223.1] - 2026-10-02
+
+### Fixed
+- **Claude agents no longer get killed when you message them after a long idle** — sending a message to a Claude process that had been idle longer than the idle-watchdog threshold (3 minutes by default) could get the healthy process SIGKILLed before it replied, losing the message. Message delivery now resets the watchdog's activity clock.
+- **Crash recovery replays your latest message, not an old one** — when a Claude process crashed and auto-restarted, it re-ran the prompt that originally started the process instead of the message you just sent. Every delivered message is now recorded for replay (thanks @iamfisho).
+- **Watchdog tests no longer fail under a custom `TIDE_IDLE_RESPAWN_MS`** — the suite now ignores threshold overrides inherited from the environment.
+
 ## [1.223.0] - 2026-10-02
 
 ### Added
