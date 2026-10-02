@@ -468,8 +468,7 @@ export class ClaudeRunner {
       log.log(`📨 [SEND_MESSAGE] Agent ${agentId} (tmux, turnState=${tmuxTurnState}), sending via tmux send-keys (${stdinInput.length} chars)`);
       const ok = sendToTmux(agentId, stdinInput);
       if (ok) {
-        activeProcess.turnState = 'processing';
-        activeProcess.lastActivityTime = Date.now();
+        this.markMessageDispatched(activeProcess, message);
       }
       return ok;
     }
@@ -537,11 +536,23 @@ export class ClaudeRunner {
         };
       } else {
         log.log(`✅ [WRITE_STDIN] Successfully wrote ${messageLen} chars to ${agentId}`);
-        activeProcess.turnState = 'processing';
+        this.markMessageDispatched(activeProcess, message);
       }
     });
 
     return true;
+  }
+
+  // A crash restart replays `lastRequest`, and the idle watchdog judges a
+  // 'processing' turn by `lastActivityTime`. Both must follow every message
+  // handed to a live process, or a restart re-runs the prompt that originally
+  // spawned it and the watchdog kills an idle-but-healthy process on the spot.
+  private markMessageDispatched(activeProcess: ActiveProcess, message: string): void {
+    activeProcess.turnState = 'processing';
+    activeProcess.lastActivityTime = Date.now();
+    if (activeProcess.lastRequest) {
+      activeProcess.lastRequest = { ...activeProcess.lastRequest, prompt: message };
+    }
   }
 
   /**
@@ -573,8 +584,7 @@ export class ClaudeRunner {
       const stdinInput = this.backend.formatStdinInput(nextMessage);
       const ok = sendToTmux(agentId, stdinInput);
       if (ok) {
-        activeProcess.turnState = 'processing';
-        activeProcess.lastActivityTime = Date.now();
+        this.markMessageDispatched(activeProcess, nextMessage);
       } else {
         log.error(`❌ [QUEUE-DRAIN] Agent ${agentId}: tmux send failed for queued message`);
       }
