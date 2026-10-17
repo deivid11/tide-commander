@@ -227,6 +227,37 @@ describe('agent-service context limits', () => {
     expect(updated?.trackingStatus).toBe('can-clear-context');
   });
 
+  it('drops the "session missing" marker when the agent moves to a different session', async () => {
+    loadOneIdleAgent('gone');
+    const agentService = await import('./agent-service.js');
+    agentService.initAgents();
+    agentService.updateAgent('gone', {
+      sessionId: 'dead-session',
+      sessionMissing: { sessionId: 'dead-session', detectedAt: 1 },
+    });
+
+    // Unrelated updates and re-sending the same session id leave the marker alone.
+    expect(agentService.updateAgent('gone', { status: 'error' })?.sessionMissing).toBeDefined();
+    expect(agentService.updateAgent('gone', { sessionId: 'dead-session' })?.sessionMissing).toBeDefined();
+
+    // A new session (clear_context, /clear, restore, init of a fresh id) makes it stale.
+    expect(agentService.updateAgent('gone', { sessionId: undefined })?.sessionMissing).toBeUndefined();
+  });
+
+  it('drops the "session missing" marker on a provider transfer', async () => {
+    loadOneIdleAgent('moved');
+    const agentService = await import('./agent-service.js');
+    agentService.initAgents();
+    agentService.updateAgent('moved', {
+      sessionId: 'dead-session',
+      sessionMissing: { sessionId: 'dead-session', detectedAt: 1 },
+    });
+
+    const updated = agentService.updateAgent('moved', { provider: 'codex' });
+
+    expect(updated?.sessionMissing).toBeUndefined();
+  });
+
   it('prefers Codex estimated_token_count from the TUI log over rollout last_token_usage', async () => {
     mockLoadAgents.mockReturnValue([]);
     mockReaddirSync.mockImplementation(((rootDir: string) => {

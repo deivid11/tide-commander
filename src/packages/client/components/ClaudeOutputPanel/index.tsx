@@ -78,6 +78,7 @@ import { useModalStackRegistration, hasModalsAbove } from '../../hooks/useModalS
 // Import extracted components
 import { TerminalHeader } from './TerminalHeader';
 import { GuakeTaskBanner } from './GuakeTaskBanner';
+import { SessionMissingBanner } from './SessionMissingBanner';
 import {
   ImageModal,
   BashModal,
@@ -1615,6 +1616,15 @@ export const GuakeOutputPanel = memo(function GuakeOutputPanel() {
         <GuakeTaskBanner
           agent={activeAgent}
           onClick={() => store.setTrackingBoardVisible(!trackingBoardVisible)}
+        />
+
+        {/* The saved Claude session is gone — offer a fresh one instead of a silent agent. */}
+        <SessionMissingBanner
+          agent={activeAgent}
+          onStartNewSession={() => {
+            store.clearContext(activeAgentId);
+            paneRef.current?.historyLoader.clearHistory();
+          }}
         />
 
         {/* Swipe container — gesture hook applies transform directly via containerRef */}

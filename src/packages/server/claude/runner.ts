@@ -236,6 +236,11 @@ export class ClaudeRunner {
         log.log(`🔄 [TURN] Agent ${agentId}: Turn complete, now waiting for input (stdin reuse ready)`);
         // Drain any messages that were queued while the agent was mid-turn
         this.drainMessageQueue(agentId, activeProcess);
+      } else if (event.type === 'error' && event.errorCode === 'session_not_found') {
+        // The CLI refused to resume and exits right after. Count it as a finished
+        // turn so the exit is not read as a crash (the restart policy would report
+        // "Process crashed immediately" over the real cause).
+        activeProcess.turnState = 'waiting_for_input';
       } else if (event.type === 'text' || event.type === 'tool_start' || event.type === 'thinking') {
         // Actively processing
         activeProcess.turnState = 'processing';

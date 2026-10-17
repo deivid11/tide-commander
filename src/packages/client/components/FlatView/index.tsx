@@ -51,6 +51,7 @@ import { AgentDebugPanel } from '../ClaudeOutputPanel/AgentDebugPanel';
 import { AreaBuildingsPanel } from '../ClaudeOutputPanel/AreaBuildingsPanel';
 import { GuakeGitPanel } from '../ClaudeOutputPanel/GuakeGitPanel';
 import { GuakeTaskBanner } from '../ClaudeOutputPanel/GuakeTaskBanner';
+import { SessionMissingBanner } from '../ClaudeOutputPanel/SessionMissingBanner';
 import { ContextConfirmModal, ImageModal, BashModal, AgentInfoModal, AgentResponseModalWrapper, type BashModalState } from '../ClaudeOutputPanel/TerminalModals';
 import { useModalStackRegistration } from '../../hooks/useModalStack';
 import { useKeyboardHeight } from '../ClaudeOutputPanel/useKeyboardHeight';
@@ -1299,6 +1300,15 @@ const ChatView = React.memo(function ChatView({
 
       {/* Current-task banner — what this agent is working on right now. */}
       <GuakeTaskBanner agent={agent} onClick={onShowTaskBoard} />
+
+      {/* The saved Claude session is gone — offer a fresh one instead of a silent agent. */}
+      <SessionMissingBanner
+        agent={agent}
+        onStartNewSession={() => {
+          store.clearContext(agentId);
+          paneRef.current?.historyLoader.clearHistory();
+        }}
+      />
 
       {classicTuiOpen && classicTuiAvailable ? (
         <AgentClassicTerminal agentId={agentId} />

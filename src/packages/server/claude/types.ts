@@ -75,6 +75,7 @@ export interface StandardEvent {
   fallbackRestored?: boolean;
   tools?: string[];
   errorMessage?: string;
+  errorCode?: 'session_not_found';  // Machine-readable cause for failures the UI can recover from
   resultText?: string;  // Full result text from result event (for boss delegation parsing)
   permissionDenials?: Array<{  // Tools that were denied permission (from result event)
     toolName: string;
@@ -194,6 +195,9 @@ export interface ClaudeRawEvent {
     };
   };
   error?: string;
+  // Result events that failed (`subtype: 'error_during_execution'`) carry the CLI's messages here.
+  is_error?: boolean;
+  errors?: string[];
   permission_denials?: Array<{
     tool_name: string;
     tool_use_id: string;

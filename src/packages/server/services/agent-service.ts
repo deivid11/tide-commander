@@ -702,6 +702,16 @@ export function updateAgent(id: string, updates: Partial<Agent>, updateActivity 
     normalizedUpdates.lastError = undefined;
   }
 
+  // "Saved session is missing" describes one session of one runtime. A new or
+  // restored session, a cwd change or a provider transfer all make it stale.
+  if (agent.sessionMissing && !('sessionMissing' in normalizedUpdates)) {
+    const sessionChanged = hasSessionIdInUpdates && normalizedUpdates.sessionId !== agent.sessionId;
+    const providerChanged = normalizedUpdates.provider !== undefined && normalizedUpdates.provider !== agent.provider;
+    if (sessionChanged || providerChanged) {
+      normalizedUpdates.sessionMissing = undefined;
+    }
+  }
+
   // When an agent goes idle (process finished / run complete) clear any *transient*
   // tracking status so the board doesn't show a phantom 'working'/'thinking' agent.
   // Only 'working' (longer-running work) and 'thinking' (start-of-turn) are transient;

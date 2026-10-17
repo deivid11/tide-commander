@@ -714,6 +714,43 @@
   color: var(--accent-yellow);
 }
 
+// The agent's saved Claude session is gone (transcript deleted), so it cannot
+// resume until it gets a new one. Sits under the header like the task banner.
+.guake-session-missing-banner {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 16px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-yellow) 45%, transparent);
+  background: color-mix(in srgb, var(--accent-yellow) 12%, var(--bg-secondary));
+  color: var(--accent-yellow);
+  font-size: 12px;
+
+  .guake-session-missing-text {
+    flex: 1;
+    min-width: 0;
+    color: var(--text-secondary);
+  }
+
+  .guake-session-missing-btn {
+    flex-shrink: 0;
+    padding: 3px 10px;
+    border: 1px solid color-mix(in srgb, var(--accent-yellow) 55%, transparent);
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--accent-yellow) 18%, transparent);
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      background: color-mix(in srgb, var(--accent-yellow) 30%, transparent);
+    }
+  }
+}
+
 // The API is answering with a model other than the configured one. Widened
 // because it carries two model names, and tinted so it reads as a warning
 // rather than as a normal "here is your model" chip.

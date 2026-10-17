@@ -264,6 +264,10 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         if (processActive) {
           agentService.updateAgent(agentId, { status: 'working' });
         }
+        // The CLI opened the session, so a "session missing" marker no longer holds.
+        if (agentService.getAgent(agentId)?.sessionMissing) {
+          agentService.updateAgent(agentId, { sessionMissing: undefined });
+        }
         break;
 
       case 'tool_start':
@@ -665,13 +669,27 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         break;
       }
 
-      case 'error':
+      case 'error': {
         // Background tasks are children of the CLI process — an errored run means
         // they're gone; a stale pending set would pin the agent 'working' forever.
         clearPendingBackgroundTasks(agentId);
         clearBackgroundTasks(agentId);
-        agentService.updateAgent(agentId, { status: 'error' });
+        const errorUpdates: Partial<Agent> = { status: 'error' };
+        if (event.errorCode === 'session_not_found') {
+          // The transcript `--resume` points at is gone. Keep the dead id on the
+          // record so the UI can offer a fresh session instead of failing silently.
+          // (The error event itself already reaches the chat as an error row.)
+          const current = agentService.getAgent(agentId);
+          const sessionId = current?.sessionId ?? '';
+          errorUpdates.sessionMissing = {
+            sessionId,
+            // Retries of the same dead session keep the first observation time.
+            detectedAt: current?.sessionMissing?.sessionId === sessionId ? current.sessionMissing.detectedAt : Date.now(),
+          };
+        }
+        agentService.updateAgent(agentId, errorUpdates);
         break;
+      }
 
       case 'context_stats':
         break;

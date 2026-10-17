@@ -312,6 +312,60 @@ describe('ClaudeBackend', () => {
     });
 
     describe('result events', () => {
+      it('reports a failed --resume (transcript gone) as a session_not_found error', () => {
+        // Shape captured from `claude --print --output-format stream-json --resume <missing id>`.
+        const result = backend.parseEvent({
+          type: 'result',
+          subtype: 'error_during_execution',
+          is_error: true,
+          session_id: '11111111-2222-4333-8444-555555555555',
+          total_cost_usd: 0,
+          usage: { input_tokens: 0, output_tokens: 0 },
+          modelUsage: {},
+          errors: ['No conversation found with session ID: 11111111-2222-4333-8444-555555555555'],
+        }) as StandardEvent;
+
+        expect(result).toEqual({
+          type: 'error',
+          errorMessage: 'No conversation found with session ID: 11111111-2222-4333-8444-555555555555',
+          errorCode: 'session_not_found',
+        });
+      });
+
+      it('does not treat the message on a successful result, or a different error, as a missing session', () => {
+        const notAnError = backend.parseEvent({
+          type: 'result',
+          is_error: false,
+          total_cost_usd: 0,
+          usage: { input_tokens: 1, output_tokens: 1 },
+          errors: ['No conversation found with session ID: abc'],
+        }) as StandardEvent;
+        const otherError = backend.parseEvent({
+          type: 'result',
+          is_error: true,
+          total_cost_usd: 0,
+          usage: { input_tokens: 1, output_tokens: 1 },
+          errors: ['Request failed: No conversation found with session ID: abc'],
+        }) as StandardEvent;
+
+        expect(notAnError.type).toBe('step_complete');
+        expect(otherError.type).toBe('step_complete');
+      });
+
+      it('keeps other failed results on the normal result path', () => {
+        const result = backend.parseEvent({
+          type: 'result',
+          subtype: 'error_during_execution',
+          is_error: true,
+          total_cost_usd: 0.01,
+          usage: { input_tokens: 10, output_tokens: 1 },
+          errors: ['Something else went wrong'],
+        }) as StandardEvent;
+
+        expect(result.type).toBe('step_complete');
+        expect(result.errorCode).toBeUndefined();
+      });
+
       it('parses step_complete with usage and cost', () => {
         const result = backend.parseEvent({
           type: 'result',

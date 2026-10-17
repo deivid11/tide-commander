@@ -411,6 +411,18 @@ export interface ModelFallbackInfo {
   detectedAt: number;
 }
 
+/**
+ * `--resume` failed because the Claude transcript for the agent's session no
+ * longer exists (e.g. removed by Claude Code's retention sweep). The agent
+ * cannot answer until it gets a new session.
+ */
+export interface SessionMissingInfo {
+  /** The session id that could not be resumed. */
+  sessionId: string;
+  /** When the failure was first observed. */
+  detectedAt: number;
+}
+
 export interface Agent {
   id: string;
   name: string;
@@ -461,6 +473,11 @@ export interface Agent {
   // was configured with (silent Anthropic fallback — see shared/model-fallback.ts).
   // Cleared as soon as a turn comes back on the requested model again.
   modelFallback?: ModelFallbackInfo;
+
+  // Set when resuming the agent's session failed because its transcript no
+  // longer exists. Cleared by a new session (clear_context), a restored session,
+  // or the next successful turn.
+  sessionMissing?: SessionMissingInfo;
 
   // Model id the CLI reported in its session init (e.g. 'claude-opus-5').
   // When `model` is unset the CLI resolves its own default, and this is the

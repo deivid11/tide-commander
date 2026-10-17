@@ -754,6 +754,7 @@ export function createAgentActions(
             lastAssignedTask: undefined,
             lastAssignedTaskTime: undefined,
             sessionId: undefined,
+            sessionMissing: undefined,
             tokensUsed: 0,
             contextUsed: 0,
             contextStats: undefined,

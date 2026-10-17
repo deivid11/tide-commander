@@ -441,7 +441,7 @@ export class ClaudeBackend implements CLIBackend {
         break;
 
       case 'result':
-        result = this.parseResultEvent(event, agentId);
+        result = this.parseSessionNotFound(event) ?? this.parseResultEvent(event, agentId);
         break;
 
       case 'stream_event':
@@ -807,6 +807,21 @@ export class ClaudeBackend implements CLIBackend {
     }
     log.log(`  -> No event emitted (subtype=${event.subtype}, hasInput=${!!event.input})`);
     return null;
+  }
+
+  /**
+   * `--resume <id>` against a transcript that no longer exists (for example one
+   * removed by Claude Code's retention sweep) makes the CLI emit a failed
+   * `result` event with zero usage and exit 1. Treated as a normal result it
+   * looks like a finished empty turn, so the agent just goes quiet — report it
+   * as an error the UI can act on instead.
+   */
+  private parseSessionNotFound(event: ClaudeRawEvent): StandardEvent | null {
+    if (!event.is_error || !Array.isArray(event.errors)) return null;
+    const message = event.errors.find((e) => /^No conversation found with session ID/i.test(String(e)));
+    if (!message) return null;
+    log.warn(`parseSessionNotFound: ${message}`);
+    return { type: 'error', errorMessage: String(message), errorCode: 'session_not_found' };
   }
 
   private parseResultEvent(event: ClaudeRawEvent, agentId?: string): StandardEvent {

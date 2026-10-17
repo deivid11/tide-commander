@@ -184,4 +184,99 @@ describe('createRuntimeEventHandlers', () => {
     });
     expect(emitComplete).toHaveBeenCalledWith('agent-codex', true);
   });
+
+  describe('session_not_found', () => {
+    const buildHandlers = async (emitOutput = vi.fn()) => {
+      const { createRuntimeEventHandlers } = await import('./runtime-events.js');
+      return createRuntimeEventHandlers({
+        log: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        emitEvent: vi.fn(),
+        emitOutput,
+        emitComplete: vi.fn(),
+        emitError: vi.fn(),
+        executeCommand: vi.fn(async () => {}),
+      });
+    };
+
+    it('marks the agent as missing its session, instead of failing silently', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent-1', name: 'Gone', provider: 'claude', sessionId: 'dead-session' });
+      const handlers = await buildHandlers();
+
+      handlers.handleEvent('agent-1', {
+        type: 'error',
+        errorMessage: 'No conversation found with session ID: dead-session',
+        errorCode: 'session_not_found',
+      });
+
+      expect(mockUpdateAgent).toHaveBeenCalledWith('agent-1', {
+        status: 'error',
+        sessionMissing: { sessionId: 'dead-session', detectedAt: expect.any(Number) },
+      });
+    });
+
+    it('keeps the first observation time when the same dead session fails again', async () => {
+      mockGetAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'Gone',
+        provider: 'claude',
+        sessionId: 'dead-session',
+        sessionMissing: { sessionId: 'dead-session', detectedAt: 12345 },
+      });
+      const handlers = await buildHandlers();
+
+      handlers.handleEvent('agent-1', {
+        type: 'error',
+        errorMessage: 'No conversation found with session ID: dead-session',
+        errorCode: 'session_not_found',
+      });
+
+      expect(mockUpdateAgent).toHaveBeenCalledWith('agent-1', {
+        status: 'error',
+        sessionMissing: { sessionId: 'dead-session', detectedAt: 12345 },
+      });
+    });
+
+    it('leaves ordinary errors alone', async () => {
+      mockGetAgent.mockReturnValue({ id: 'agent-1', name: 'Fine', provider: 'claude', sessionId: 'live-session' });
+      const handlers = await buildHandlers();
+
+      handlers.handleEvent('agent-1', { type: 'error', errorMessage: 'boom' });
+
+      expect(mockUpdateAgent).toHaveBeenCalledWith('agent-1', { status: 'error' });
+    });
+
+    it('drops the marker once the CLI opens a session again', async () => {
+      mockGetAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'Recovered',
+        provider: 'claude',
+        sessionId: 'new-session',
+        sessionMissing: { sessionId: 'dead-session', detectedAt: 1 },
+      });
+      const handlers = await buildHandlers();
+
+      handlers.handleEvent('agent-1', { type: 'init', sessionId: 'new-session' });
+
+      expect(mockUpdateAgent).toHaveBeenCalledWith('agent-1', { sessionMissing: undefined });
+    });
+
+    it('keeps the marker when the failed process closes, so the banner survives the exit', async () => {
+      mockGetAgent.mockReturnValue({
+        id: 'agent-1',
+        name: 'Gone',
+        provider: 'claude',
+        sessionId: 'dead-session',
+        sessionMissing: { sessionId: 'dead-session', detectedAt: 1 },
+      });
+      const handlers = await buildHandlers();
+
+      // The runner reports a "finished turn" (success) for the failed resume's exit.
+      handlers.handleComplete('agent-1', true);
+      handlers.handleComplete('agent-1', false);
+
+      for (const [, updates] of mockUpdateAgent.mock.calls) {
+        expect(updates).not.toHaveProperty('sessionMissing');
+      }
+    });
+  });
 });

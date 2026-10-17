@@ -81,6 +81,30 @@ describe('Agent Handler', () => {
     expect(ctx.sendActivity).toHaveBeenCalledWith('agent-1', expect.stringContaining('Context cleared'));
   });
 
+  it('clear_context archives the session being cleared when it is still resumable', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({ id: 'agent-1', name: 'Worker', sessionId: 's-1' } as any);
+    const ctx = { sendActivity: vi.fn(), broadcast: vi.fn() } as any;
+
+    await handleClearContext(ctx, { agentId: 'agent-1' });
+
+    expect(agentService.archiveCurrentSession).toHaveBeenCalledWith('agent-1');
+  });
+
+  it('clear_context does not archive a session whose transcript is already gone', async () => {
+    vi.mocked(agentService.getAgent).mockReturnValue({
+      id: 'agent-1',
+      name: 'Worker',
+      sessionId: 'dead-session',
+      sessionMissing: { sessionId: 'dead-session', detectedAt: 1 },
+    } as any);
+    const ctx = { sendActivity: vi.fn(), broadcast: vi.fn() } as any;
+
+    await handleClearContext(ctx, { agentId: 'agent-1' });
+
+    expect(agentService.archiveCurrentSession).not.toHaveBeenCalled();
+    expect(agentService.updateAgent).toHaveBeenCalledWith('agent-1', expect.objectContaining({ sessionId: undefined }));
+  });
+
   it('switches a Pi model provider in place without stopping its session', async () => {
     vi.mocked(agentService.getAgent).mockReturnValue({
       id: 'agent-pi',

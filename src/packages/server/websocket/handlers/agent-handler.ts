@@ -459,8 +459,11 @@ export async function handleClearContext(
   const agent = agentService.getAgent(payload.agentId);
   log.log(`Agent ${agent?.name || payload.agentId}: User requested context clear`);
 
-  // Archive the current session before clearing
-  agentService.archiveCurrentSession(payload.agentId);
+  // Archive the current session before clearing — unless its transcript is
+  // already gone: that entry could never be restored.
+  if (!agent?.sessionMissing) {
+    agentService.archiveCurrentSession(payload.agentId);
+  }
 
   await runtimeService.stopAgent(payload.agentId);
   agentService.updateAgent(payload.agentId, {
