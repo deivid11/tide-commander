@@ -75,6 +75,12 @@ export interface StandardEvent {
   fallbackRestored?: boolean;
   tools?: string[];
   errorMessage?: string;
+  /**
+   * Set when a `result` ended the run with 0 turns (see claude/session-recovery.ts):
+   * `session_missing` = `--resume` of a transcript Claude Code already deleted (retry in a fresh
+   * session); `zero_turn` = the CLI died before doing anything for another reason (make it visible).
+   */
+  errorKind?: 'session_missing' | 'zero_turn';
   resultText?: string;  // Full result text from result event (for boss delegation parsing)
   permissionDenials?: Array<{  // Tools that were denied permission (from result event)
     toolName: string;
@@ -164,6 +170,11 @@ export interface ClaudeRawEvent {
   tool_name?: string;
   input?: Record<string, unknown>;
   result?: unknown;
+  /** `result` events: true when the run ended in error; `num_turns: 0` means the CLI never got going. */
+  is_error?: boolean;
+  num_turns?: number;
+  /** `result` events with `is_error`: the CLI's own reasons (e.g. "No conversation found with session ID: …"). */
+  errors?: unknown;
   duration_ms?: number;
   total_cost_usd?: number;
   usage?: {

@@ -2,6 +2,8 @@ import type { Agent, ContextStats } from '../../shared/types.js';
 import type { SessionMessage } from '../claude/session-loader.js';
 import type { OutputMetadata } from '../claude/types.js';
 import { loadSession } from '../claude/session-loader.js';
+import { buildLostSessionRetryPrompt, shortSessionId } from '../claude/session-recovery.js';
+import { notifyAgent } from './agent-notifications.js';
 import type { RuntimeEvent } from '../runtime/index.js';
 import * as agentService from './agent-service.js';
 import {
@@ -41,6 +43,8 @@ const CODEX_RECOVERY_HISTORY_LIMIT = 12;
 const CODEX_RECOVERY_LINE_MAX_CHARS = 400;
 
 const codexRecoveryState = new Map<string, { signature: string; attempts: number }>();
+/** Lost Claude sessions already retried once (agentId → stale session signature). */
+const lostSessionRecoveryState = new Map<string, { signature: string; attempts: number }>();
 const codexContextGrowthHistory = new Map<string, number[]>();
 
 interface RuntimeEventsDeps {
@@ -671,6 +675,10 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
         clearPendingBackgroundTasks(agentId);
         clearBackgroundTasks(agentId);
         agentService.updateAgent(agentId, { status: 'error' });
+        // A run that died before its first turn (lost `--resume` transcript, expired
+        // credentials…) must never pass for a quiet end of turn: say it in the feed,
+        // notify, and for a lost session retry the same message once in a fresh one.
+        if (event.errorKind && !event.parentToolUseId) handleZeroTurnError(agentId, agent, event);
         break;
 
       case 'context_stats':
@@ -765,6 +773,80 @@ export function createRuntimeEventHandlers(deps: RuntimeEventsDeps): RuntimeRunn
     if (!receivedStepComplete && success) {
       clearPendingSilentContextRefresh(agentId);
     }
+  }
+
+  /**
+   * The CLI ended with a `result` of 0 turns (see claude/session-recovery.ts).
+   *
+   * `session_missing`: Claude Code deleted the transcript (`cleanupPeriodDays`),
+   * so `--resume` can never work again. Drop the session id, tell the feed and
+   * the notifications that the history is gone, and retry the SAME message once
+   * in a fresh session with a short notice up front. Once per stale session id:
+   * if the fresh run dies the same way, that is a different problem and it
+   * stays visible as an error instead of looping. (2026-10-27: Hoppip lost
+   * Ernesto's Slack message for three hours this way; 12 more agents idle for
+   * over a month were in the same state.)
+   *
+   * `zero_turn`: anything else that killed the CLI before it did a thing — make
+   * it loud (feed + notification) and leave the agent in `error`.
+   */
+  function handleZeroTurnError(agentId: string, agent: Agent, event: RuntimeEvent): void {
+    const reason = event.errorMessage?.trim() || 'the CLI exited before its first turn';
+    const task = agent.lastAssignedTask?.trim() || '';
+
+    if (event.errorKind === 'session_missing') {
+      const staleSessionId = agent.sessionId ?? event.sessionId;
+      const signature = `session_missing:${staleSessionId ?? 'none'}`;
+      const previous = lostSessionRecoveryState.get(agentId);
+      const attempts = previous?.signature === signature ? previous.attempts : 0;
+      const short = shortSessionId(staleSessionId);
+
+      if (attempts >= 1 || !task) {
+        const why = !task
+          ? 'there is no recorded message to retry'
+          : 'the fresh session failed the same way, so this is not just a deleted transcript';
+        log.error(`[Claude] Lost session ${staleSessionId} for ${agent.name} (${agentId}) and ${why}`);
+        agentService.updateAgent(agentId, { sessionId: undefined, lastError: reason });
+        emitOutput(agentId, `[System] Claude session ${short}… no longer exists (${reason}); ${why}. The agent stays in error until you send it a new message.`, false, undefined, 'system-session-lost');
+        notifyAgent(agentId, 'Session lost', `${agent.name} lost its Claude session (${short}…) and ${why}.`);
+        return;
+      }
+
+      lostSessionRecoveryState.set(agentId, { signature, attempts: attempts + 1 });
+      log.warn(`[Claude] Session ${staleSessionId} for ${agent.name} (${agentId}) no longer exists; clearing it and retrying the last message once in a fresh session`);
+      agentService.updateAgent(agentId, {
+        sessionId: undefined,
+        status: 'idle',
+        currentTask: undefined,
+        currentTool: undefined,
+        lastError: reason,
+      }, false);
+      emitOutput(
+        agentId,
+        `[System] Claude session ${short}… no longer exists on this machine (Claude Code deletes idle transcripts after cleanupPeriodDays). Its history is lost; retrying the same message in a fresh session.`,
+        false,
+        undefined,
+        'system-session-lost',
+      );
+      notifyAgent(agentId, 'Session lost', `${agent.name} lost its Claude session (${short}…). History is gone; retrying "${task.slice(0, 80)}" in a fresh session.`);
+
+      setTimeout(async () => {
+        try {
+          await executeCommand(agentId, buildLostSessionRetryPrompt(task, staleSessionId), undefined, true);
+        } catch (retryErr) {
+          log.error(`[Claude] Fresh-session retry failed for ${agentId}:`, retryErr);
+          agentService.updateAgent(agentId, { status: 'error', currentTask: undefined, currentTool: undefined });
+          emitError(agentId, `Retry in a fresh session failed: ${String(retryErr)}`);
+          notifyAgent(agentId, 'Retry failed', `${agent.name}: retry in a fresh session failed: ${String(retryErr).slice(0, 160)}`);
+        }
+      }, 500);
+      return;
+    }
+
+    log.error(`[Claude] ${agent.name} (${agentId}) exited before its first turn: ${reason}`);
+    agentService.updateAgent(agentId, { lastError: reason });
+    emitOutput(agentId, `[System] The CLI exited with an error before doing anything: ${reason}${task ? ` — the message "${task.slice(0, 80)}" was NOT processed.` : ''}`, false, undefined, 'system-zero-turn');
+    notifyAgent(agentId, 'Agent error', `${agent.name} exited before doing anything: ${reason.slice(0, 160)}`);
   }
 
   function handleError(agentId: string, error: string): void {

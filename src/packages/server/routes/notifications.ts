@@ -4,30 +4,25 @@
  *
  * Agents can send notifications to users via HTTP POST requests.
  * This allows agents to notify users of important events without
- * requiring WebSocket communication.
+ * requiring WebSocket communication. The fan-out itself lives in
+ * services/agent-notifications.ts so the server can raise the same
+ * notifications on its own (lost sessions, crashes).
  */
 
 import { Router, Request, Response } from 'express';
-import { agentService } from '../services/index.js';
-import { createLogger, generateId } from '../utils/index.js';
-import type { AgentNotification, ServerMessage } from '../../shared/types.js';
-import { publishNotification } from '../integrations/whatsapp/whatsapp-notification-publisher.js';
-import type { WhatsAppNotificationEventType } from '../services/whatsapp-notification-config-service.js';
-import { sendAgentPush } from '../services/push-service.js';
+import { createLogger } from '../utils/index.js';
+import type { ServerMessage } from '../../shared/types.js';
+import { notifyAgent, setAgentNotificationBroadcast } from '../services/agent-notifications.js';
 
 const log = createLogger('Notifications');
 
 const router = Router();
 
-// Store for broadcasting notifications via WebSocket
-// This will be set by the WebSocket handler
-let broadcastFn: ((message: ServerMessage) => void) | null = null;
-
 /**
  * Set the broadcast function for sending notifications to all clients
  */
 export function setBroadcast(fn: (message: ServerMessage) => void): void {
-  broadcastFn = fn;
+  setAgentNotificationBroadcast(fn);
 }
 
 /**
@@ -47,7 +42,6 @@ router.post('/', (req: Request, res: Response) => {
   try {
     const { agentId, title, message, iconUrl, imageUrl } = req.body;
 
-    // Validate required fields
     if (!agentId || !title || !message) {
       res.status(400).json({
         error: 'Missing required fields: agentId, title, message'
@@ -55,51 +49,14 @@ router.post('/', (req: Request, res: Response) => {
       return;
     }
 
-    // Get agent info for the notification
-    const agent = agentService.getAgent(agentId);
-    if (!agent) {
+    const notification = notifyAgent(agentId, title, message, {
+      ...(typeof iconUrl === 'string' && iconUrl ? { iconUrl } : {}),
+      ...(typeof imageUrl === 'string' && imageUrl ? { imageUrl } : {}),
+    });
+    if (!notification) {
       res.status(404).json({ error: `Agent not found: ${agentId}` });
       return;
     }
-
-    // Create the notification
-    const notification: AgentNotification = {
-      id: generateId(),
-      agentId: agent.id,
-      agentName: agent.name,
-      agentClass: agent.class,
-      title,
-      message,
-      timestamp: Date.now(),
-      ...(typeof iconUrl === 'string' && iconUrl ? { iconUrl } : {}),
-      ...(typeof imageUrl === 'string' && imageUrl ? { imageUrl } : {}),
-    };
-
-    // Update agent's task label to reflect the notification
-    agentService.updateAgent(agentId, { taskLabel: message });
-
-    log.log(`Notification from ${agent.name}: "${title}" - ${message}`);
-
-    // Broadcast to all connected clients
-    if (broadcastFn) {
-      broadcastFn({
-        type: 'agent_notification',
-        payload: notification,
-      } as ServerMessage);
-    } else {
-      log.warn('Broadcast function not set - notification not sent to clients');
-    }
-
-    void publishNotification(
-      classifyNotificationEventType(title),
-      `${agent.name}: ${title}`,
-      message,
-    ).catch((err) => log.warn(`WhatsApp publish skipped: ${err}`));
-
-    // Native push: reaches phones whose app is closed (and whose battery-hungry
-    // WebSocket foreground service is therefore off). No-op until a Firebase
-    // service account is installed — see services/push-service.ts.
-    void sendAgentPush(notification).catch((err) => log.warn(`Push delivery skipped: ${err}`));
 
     res.status(200).json({
       success: true,
@@ -110,13 +67,5 @@ router.post('/', (req: Request, res: Response) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-function classifyNotificationEventType(title: string): WhatsAppNotificationEventType {
-  const t = title.toLowerCase();
-  if (t.includes('plan ready') || t.includes('plan')) return 'planReady';
-  if (t.includes('error') || t.includes('failed') || t.includes('blocked')) return 'errors';
-  if (t.includes('task complete') || t.includes('completed') || t.includes('done')) return 'taskComplete';
-  return 'messages';
-}
 
 export default router;

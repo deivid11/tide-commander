@@ -15,6 +15,7 @@ import type {
   ClaudeRawEvent,
 } from './types.js';
 import { toModelFallbackEvent } from './types.js';
+import { classifyZeroTurnResult } from './session-recovery.js';
 import { ModelFallbackTracker } from '../../shared/model-fallback.js';
 import { createLogger, sanitizeUnicode } from '../utils/index.js';
 import { TIDE_COMMANDER_APPENDED_PROMPT } from '../prompts/tide-commander.js';
@@ -810,6 +811,20 @@ export class ClaudeBackend implements CLIBackend {
   }
 
   private parseResultEvent(event: ClaudeRawEvent, agentId?: string): StandardEvent {
+    // A run that died before its first turn is NOT a step_complete: reporting it
+    // as one made the agent go idle in silence (2026-10-27: `--resume` of a
+    // transcript Claude Code had deleted → "No conversation found with session
+    // ID", 0 turns, nobody told). See session-recovery.ts for what happens next.
+    const zeroTurn = classifyZeroTurnResult(event);
+    if (zeroTurn) {
+      log.error(`parseResultEvent: CLI ended with 0 turns (${zeroTurn.kind}): ${zeroTurn.message}`);
+      return {
+        type: 'error',
+        errorMessage: zeroTurn.message,
+        errorKind: zeroTurn.kind,
+        ...(event.session_id ? { sessionId: event.session_id } : {}),
+      };
+    }
     log.log(`parseResultEvent: usage=${JSON.stringify(event.usage)}, modelUsage=${JSON.stringify(event.modelUsage)}, cost=${event.total_cost_usd}`);
     // Extract result text if available (used for boss delegation parsing)
     const resultText = typeof event.result === 'string' ? event.result : undefined;

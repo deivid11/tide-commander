@@ -14,7 +14,8 @@ import { ClaudeBackend } from './backend.js';
 import { createLogger } from '../utils/logger.js';
 import { withAgentContext } from '../utils/log-context.js';
 import { isProcessRunning } from '../data/index.js';
-import { sendToTmux, hasTmuxSession, tmuxSessionName, getTmuxPanePid } from './runner/tmux-helper.js';
+import * as path from 'path';
+import { sendToTmux, hasTmuxSession, tmuxSessionName, getTmuxPanePid, isTmuxPaneCommandAlive, killTmuxSession } from './runner/tmux-helper.js';
 import type { RunningProcessInfo } from '../data/index.js';
 import { spawn } from 'child_process';
 import * as agentService from '../services/agent-service.js';
@@ -464,6 +465,19 @@ export class ClaudeRunner {
         log.log(`📋 [QUEUE-TMUX] Agent ${agentId}: coalesced queued message (stdin-closed backend, turnState=${tmuxTurnState}, ${queue[0].length} total chars)`);
         return true;
       }
+      // A tmux session can outlive its CLI: `(cat; cat) | claude` keeps the pane
+      // alive after claude died at startup (typically a `--resume` of a transcript
+      // Claude Code already deleted). Writing into that pane only kills the stray
+      // `cat`; the session then closes and, with turnState=waiting_for_input, the
+      // watchdog reads it as a clean end of turn — the message vanished and the
+      // agent sat idle (Catys Magnemite, 2026-10-27). Refuse, drop the corpse and
+      // let sendCommand fall through to a respawn.
+      const expected = activeProcess.tmuxExpectedCommand;
+      if (expected && !isTmuxPaneCommandAlive(agentId, expected)) {
+        log.error(`🧟 [SEND_MESSAGE] Agent ${agentId}: tmux session ${activeProcess.tmuxSession} is alive but '${expected}' is not running inside it (zombie) — killing it so the message respawns a fresh process`);
+        this.discardZombieTmux(agentId, activeProcess);
+        return false;
+      }
       const stdinInput = this.backend.formatStdinInput(message);
       log.log(`📨 [SEND_MESSAGE] Agent ${agentId} (tmux, turnState=${tmuxTurnState}), sending via tmux send-keys (${stdinInput.length} chars)`);
       const ok = sendToTmux(agentId, stdinInput);
@@ -654,6 +668,34 @@ export class ClaudeRunner {
     });
   }
 
+  /** Basename of this backend's CLI (`claude`, `codex`…), as the watchdog's zombie probe expects. */
+  private expectedCliCommand(): string | undefined {
+    try {
+      const executable = this.backend.getExecutablePath();
+      return executable ? path.basename(executable) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Drop a tmux session whose CLI is gone: tailer, side channel, session and our bookkeeping. */
+  private discardZombieTmux(agentId: string, activeProcess: ActiveProcess): void {
+    try {
+      activeProcess.tmuxTailer?.drain();
+    } catch {
+      // ignore
+    }
+    activeProcess.tmuxTailer?.stop();
+    try {
+      activeProcess.sideChannelStop?.();
+    } catch {
+      // ignore
+    }
+    killTmuxSession(agentId);
+    this.activeProcesses.delete(agentId);
+    this.lastStderr.delete(agentId);
+  }
+
   getQueuedMessages(agentId: string): string[] {
     return [...(this.messageQueue.get(agentId) ?? [])];
   }
@@ -674,6 +716,19 @@ export class ClaudeRunner {
   private reconnectToTmuxSession(agentId: string, logFile: string, offset: number, savedProcess?: RunningProcessInfo): void {
     const sessionName = tmuxSessionName(agentId);
     log.log(`🔄 [TMUX] Reconnecting to tmux session ${sessionName} for agent ${agentId}, log offset=${offset}`);
+
+    // A session that is alive but whose CLI already died is a zombie (see
+    // sendMessageImpl): reconnecting to it would make the next message vanish.
+    // Kill it now; with no active process the next message spawns a fresh CLI,
+    // and a `--resume` of a deleted transcript is then handled by the runtime's
+    // lost-session recovery instead of dying in silence.
+    const expectedCommand = this.expectedCliCommand();
+    if (expectedCommand && !isTmuxPaneCommandAlive(agentId, expectedCommand)) {
+      log.error(`🧟 [TMUX] Session ${sessionName} for agent ${agentId} is alive but '${expectedCommand}' is not running inside it (zombie from an earlier crash) — killing it instead of reconnecting; the next message starts a fresh process`);
+      killTmuxSession(agentId);
+      agentService.updateAgent(agentId, { status: 'idle', currentTask: undefined, currentTool: undefined, isDetached: false });
+      return;
+    }
 
     // Create a dummy child process (we don't own the real one — tmux does)
     const dummyProcess = spawn('true', [], { stdio: 'ignore' });
@@ -701,6 +756,9 @@ export class ClaudeRunner {
       lastActivityTime: Date.now(),
       tmuxSession: sessionName,
       tmuxLogFile: logFile,
+      // Lets the 5s watchdog and sendMessageImpl spot a CLI that dies later on
+      // (spawned processes always carry this; reconnected ones didn't).
+      ...(expectedCommand ? { tmuxExpectedCommand: expectedCommand } : {}),
       isReconnected: true,
     };
     this.activeProcesses.set(agentId, activeProcess);

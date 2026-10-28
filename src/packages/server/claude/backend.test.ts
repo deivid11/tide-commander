@@ -1163,3 +1163,53 @@ describe('parseContextOutput', () => {
     expect(result!.usedPercent).toBe(37.7);
   });
 });
+
+// A `result` with 0 turns and is_error is how Claude Code reports a `--resume` of a transcript it
+// already deleted (and any other death before the first turn). It used to come out as a quiet
+// step_complete: the agent went idle and a Slack message was lost for three hours (2026-10-27).
+describe('ClaudeBackend zero-turn results', () => {
+  const backend = new ClaudeBackend();
+
+  it('a 0-turn error result whose errors say the conversation is gone is a session_missing error event', () => {
+    const result = backend.parseEvent({
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      num_turns: 0,
+      session_id: '0ef35dde-dbe8-453f-b8f6-b28b42a18c03',
+      errors: ['No conversation found with session ID: 0ef35dde-dbe8-453f-b8f6-b28b42a18c03'],
+      total_cost_usd: 0,
+    });
+    expect(result).toEqual({
+      type: 'error',
+      errorMessage: 'No conversation found with session ID: 0ef35dde-dbe8-453f-b8f6-b28b42a18c03',
+      errorKind: 'session_missing',
+      sessionId: '0ef35dde-dbe8-453f-b8f6-b28b42a18c03',
+    });
+  });
+
+  it('any other 0-turn error is a zero_turn error event, not a step_complete', () => {
+    const result = backend.parseEvent({
+      type: 'result',
+      subtype: 'error_during_execution',
+      is_error: true,
+      num_turns: 0,
+      session_id: 'sess-x',
+      errors: ['OAuth token has expired'],
+    });
+    expect(result).toMatchObject({ type: 'error', errorKind: 'zero_turn', errorMessage: 'OAuth token has expired' });
+  });
+
+  it('a failed turn that did run (num_turns > 0) is still a step_complete', () => {
+    const result = backend.parseEvent({
+      type: 'result',
+      subtype: 'error_max_turns',
+      is_error: true,
+      num_turns: 30,
+      session_id: 'sess-y',
+      duration_ms: 1200,
+      total_cost_usd: 0.1,
+    });
+    expect(result).toMatchObject({ type: 'step_complete', durationMs: 1200, cost: 0.1 });
+  });
+});
