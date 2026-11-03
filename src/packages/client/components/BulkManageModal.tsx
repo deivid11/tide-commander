@@ -49,7 +49,7 @@ export interface BulkManageModalProps {
 type StatusFilter = 'all' | 'idle' | 'working' | 'error' | 'stopped';
 type IdleTimeFilter = 'any' | '>1h' | '>6h' | '>1d' | '>3d' | '>7d' | '>30d';
 type ProviderFilter = 'all' | 'claude' | 'codex' | 'opencode' | 'grok' | 'pi';
-type ModelFilter = 'all' | 'fable-5-1' | 'fable-5-1m' | 'fable-5' | 'opus' | 'opus-5-5-1m' | 'opus-5-5' | 'opus-5-1m' | 'opus-5' | 'opus-4-7-1m' | 'opus-4-7' | 'opus-4-6' | 'sonnet-5-5' | 'sonnet-5-1m' | 'sonnet-5' | 'sonnet' | 'haiku';
+type ModelFilter = 'all' | 'fable-5-1' | 'fable-5-1m' | 'fable-5' | 'opus' | 'opus-5-5-1m' | 'opus-5-5' | 'opus-5-1m' | 'opus-5' | 'opus-4-7-1m' | 'opus-4-7' | 'opus-4-6' | 'sonnet-5-5' | 'sonnet-5-1m' | 'sonnet-5' | 'sonnet' | 'haiku-5-5' | 'haiku';
 
 type ConfirmAction = 'delete' | 'clear-context' | 'change-model' | 'add-skill' | 'remove-skill' | null;
 type SkillPickerMode = 'add' | 'remove' | null;
@@ -188,6 +188,7 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
           modelFilter === 'sonnet-5-5' ? agentModel === 'claude-sonnet-5-5' :
           modelFilter === 'sonnet-5-1m' ? agentModel === 'claude-sonnet-5[1m]' :
           modelFilter === 'sonnet-5' ? agentModel === 'claude-sonnet-5' :
+          modelFilter === 'haiku-5-5' ? agentModel === 'claude-haiku-5-5' :
           agentModel === modelFilter;
         if (!matchesFilter) return false;
       }
@@ -582,7 +583,8 @@ export function BulkManageModal({ isOpen, onClose }: BulkManageModalProps) {
                 <option value="sonnet-5-1m">Sonnet 5 [1M]</option>
                 <option value="sonnet-5">Sonnet 5 (200K)</option>
                 <option value="sonnet">Sonnet (legacy)</option>
-                <option value="haiku">Haiku</option>
+                <option value="haiku-5-5">Haiku 5.5 [1M]</option>
+                <option value="haiku">Haiku (legacy)</option>
               </select>
 
               <input

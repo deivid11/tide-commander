@@ -269,13 +269,14 @@ export function isDeprecatedCodexModel(model: CodexModel): boolean {
 // Short names ('sonnet' | 'opus' | 'haiku') are legacy aliases for the CLI's
 // latest-of-family resolution. Explicit IDs (e.g. 'claude-opus-5-5') are
 // preferred for new agents so we pin a specific version. Models such as Fable
-// 5.1 and Sonnet 5.5 expose a native 1M context under their bare model ID. The '[1m]' suffix
+// 5.1, Sonnet 5.5 and Haiku 5.5 expose a native 1M context under their bare model ID. The '[1m]' suffix
 // remains a Tide Commander label for older models whose 1M context uses the
 // beta header; those labels translate to bare model IDs on the CLI side.
 export type ClaudeModel =
   | 'sonnet'
   | 'opus'
   | 'haiku'
+  | 'claude-haiku-5-5'
   | 'claude-fable-5-1'
   | 'claude-fable-5'
   | 'claude-fable-5[1m]'
@@ -294,7 +295,7 @@ export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: st
   'claude-fable-5-1': { label: 'Fable 5.1 [1M]', description: 'Latest Fable — most capable Claude model for the hardest and longest-running tasks, native 1M token context window', icon: '🪄', contextWindow: 1000000 },
   'claude-opus-5-5[1m]': { label: 'Opus 5.5 [1M]', description: 'Latest Opus with 1M token context window — for complex agentic coding and enterprise work (default)', icon: '🧠', contextWindow: 1000000 },
   'claude-sonnet-5-5': { label: 'Sonnet 5.5 [1M]', description: 'Latest Sonnet — near-Opus intelligence at lower cost, native 1M token context window', icon: '⚡', contextWindow: 1000000 },
-  haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀', contextWindow: 200000 },
+  'claude-haiku-5-5': { label: 'Haiku 5.5 [1M]', description: 'Latest Haiku — fast and economical, native 1M token context window', icon: '🚀', contextWindow: 1000000 },
   // Everything below stays a valid model value for existing agents and CLI
   // passthrough, but is hidden from the new/edit agent pickers: previous
   // generations, legacy family aliases, and plain (200K) ids whose 1M variant
@@ -304,6 +305,7 @@ export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: st
   'claude-sonnet-5[1m]': { label: 'Sonnet 5 [1M]', description: 'Previous Sonnet generation with 1M token context window', icon: '⚡', contextWindow: 1000000, deprecated: true },
   'opus[1m]': { label: 'Opus 4.7 [1M]', description: 'Older Opus generation with 1M token context window', icon: '🧠', contextWindow: 1000000, deprecated: true },
   sonnet: { label: 'Sonnet (legacy)', description: 'Legacy alias — prefer Sonnet 5.5 [1M]', icon: '⚡', contextWindow: 200000, deprecated: true },
+  haiku: { label: 'Haiku (legacy)', description: 'Legacy alias — prefer Haiku 5.5 [1M]', icon: '🚀', contextWindow: 200000, deprecated: true },
   'claude-fable-5': { label: 'Fable 5 (200K)', description: 'Previous Fable generation with 200K context (Fable 5.1 preferred)', icon: '🪄', contextWindow: 200000, deprecated: true },
   'claude-opus-5-5': { label: 'Opus 5.5 (200K)', description: 'Latest Opus, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },
   'claude-opus-5': { label: 'Opus 5 (200K)', description: 'Previous Opus generation, 200K context window (1M variant preferred)', icon: '🧠', contextWindow: 200000, deprecated: true },

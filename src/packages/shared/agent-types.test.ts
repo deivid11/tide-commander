@@ -47,6 +47,18 @@ describe('CLAUDE_MODELS — Sonnet', () => {
   });
 });
 
+describe('CLAUDE_MODELS — Haiku', () => {
+  it('offers Haiku 5.5 with its native 1M context under the bare id', () => {
+    expect(CLAUDE_MODELS['claude-haiku-5-5']).toMatchObject({ label: 'Haiku 5.5 [1M]', contextWindow: 1000000 });
+    expect(isDeprecatedClaudeModel('claude-haiku-5-5')).toBe(false);
+  });
+
+  it('keeps the legacy haiku alias valid for existing agents but hides it from the picker', () => {
+    expect(CLAUDE_MODELS.haiku.contextWindow).toBe(200000);
+    expect(isDeprecatedClaudeModel('haiku')).toBe(true);
+  });
+});
+
 describe('providerClosesStdinAfterPrompt', () => {
   it('is true for Grok, Codex, OpenCode, and Pi', () => {
     expect(providerClosesStdinAfterPrompt('grok')).toBe(true);
@@ -102,7 +114,7 @@ describe('new/edit agent picker', () => {
   it('offers only the current generation of each family', () => {
     const visible = Object.keys(CLAUDE_MODELS).filter((id) => !isDeprecatedClaudeModel(id as keyof typeof CLAUDE_MODELS));
     // Picker order is the registry's key order: Fable → Opus → Sonnet → Haiku.
-    expect(visible).toEqual(['claude-fable-5-1', 'claude-opus-5-5[1m]', 'claude-sonnet-5-5', 'haiku']);
+    expect(visible).toEqual(['claude-fable-5-1', 'claude-opus-5-5[1m]', 'claude-sonnet-5-5', 'claude-haiku-5-5']);
   });
 });
 
