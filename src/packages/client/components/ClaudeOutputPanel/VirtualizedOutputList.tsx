@@ -853,6 +853,12 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
   // re-targets after never-measured rows above settle from estimates to real
   // heights — without it a long jump can land a few rows off.
   const handlePromptMarkerJump = useCallback((marker: PromptMarker) => {
+    // A jump is an explicit request to read away from the latest message (same
+    // contract as search navigation): release the bottom-follow gates, or the
+    // next streamed chunk sees the sticky latch and snaps back to the bottom.
+    stickyBottomRef.current = false;
+    onPinCancel?.();
+    onUserScroll?.();
     isProgrammaticScrollRef.current = true;
     virtualizer.scrollToIndex(marker.index, { align: 'center' });
     requestAnimationFrame(() => {
@@ -862,7 +868,7 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       });
     });
     onPromptMarkerJump?.(marker.index);
-  }, [virtualizer, onPromptMarkerJump]);
+  }, [virtualizer, onPromptMarkerJump, onPinCancel, onUserScroll]);
 
   // Which marker (position in promptMarkers) is "current" — drives the rail's
   // blue dot. Held in STATE and refreshed from scroll events (plus content
@@ -1215,23 +1221,61 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
     };
   }, [scrollContainerRef, scrollToBottom]);
 
-  // Scroll to selected message when navigating
+  // Scroll to selected message when navigating — ONCE per selection change.
+  // The selection outlives the jump (a prompt-rail tap or Alt+J/K sets it and
+  // nothing clears it on mobile), so re-centring whenever `allItems.length`
+  // changed yanked a reader who had scrolled back to the bottom up to that old
+  // message on every new streamed row ("scroll jumps up randomly"). Length is
+  // still a dependency, but only to retry a selection whose row hadn't
+  // rendered yet.
+  const centeredSelectionRef = useRef<number | null>(null);
+  // The programmatic-scroll release timer lives in a ref, NOT in the effect's
+  // cleanup: the effect re-runs on every new row (and then returns early), so
+  // a cleanup-cleared timer would leave isProgrammaticScrollRef stuck true and
+  // every later user scroll misclassified.
+  const selectionReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (selectionReleaseTimerRef.current) clearTimeout(selectionReleaseTimerRef.current);
+  }, []);
   useEffect(() => {
-    if (selectedMessageIndex !== null && selectedMessageIndex >= 0 && selectedMessageIndex < allItems.length) {
-      isProgrammaticScrollRef.current = true;
-      virtualizer.scrollToIndex(selectedMessageIndex, { align: 'center' });
-      const timer = setTimeout(() => {
-        isProgrammaticScrollRef.current = false;
-      }, 100);
-      return () => clearTimeout(timer);
+    if (selectedMessageIndex === null || selectedMessageIndex < 0) {
+      centeredSelectionRef.current = null;
+      return;
     }
+    if (centeredSelectionRef.current === selectedMessageIndex) return;
+    if (selectedMessageIndex >= allItems.length) return; // retried when the row arrives
+    centeredSelectionRef.current = selectedMessageIndex;
+    isProgrammaticScrollRef.current = true;
+    virtualizer.scrollToIndex(selectedMessageIndex, { align: 'center' });
+    if (selectionReleaseTimerRef.current) clearTimeout(selectionReleaseTimerRef.current);
+    selectionReleaseTimerRef.current = setTimeout(() => {
+      selectionReleaseTimerRef.current = null;
+      isProgrammaticScrollRef.current = false;
+    }, 100);
   }, [selectedMessageIndex, virtualizer, allItems.length]);
 
   // Scroll to active search match. The search results panel overlays the top
   // of the output, so after centring we nudge the row down if it landed behind
   // the panel — keeping the clicked match visible on screen.
+  // Like the selection above: centre once per match (and per panel height),
+  // never again just because new rows streamed in while the search stays open.
+  // Timers live in refs so the per-row re-runs can't cancel the release.
+  const centeredSearchRef = useRef<string | null>(null);
+  const searchScrollTimersRef = useRef<{ raf: number | null; timer: ReturnType<typeof setTimeout> | null }>({ raf: null, timer: null });
+  useEffect(() => () => {
+    const timers = searchScrollTimersRef.current;
+    if (timers.raf !== null) cancelAnimationFrame(timers.raf);
+    if (timers.timer) clearTimeout(timers.timer);
+  }, []);
   useEffect(() => {
-    if (searchActiveIndex !== null && searchActiveIndex !== undefined && searchActiveIndex >= 0 && searchActiveIndex < allItems.length) {
+    if (searchActiveIndex === null || searchActiveIndex === undefined || searchActiveIndex < 0) {
+      centeredSearchRef.current = null;
+      return;
+    }
+    const searchKey = `${searchActiveIndex}:${searchPanelHeight}`;
+    if (centeredSearchRef.current === searchKey) return;
+    if (searchActiveIndex < allItems.length) {
+      centeredSearchRef.current = searchKey;
       // Search navigation is an explicit request to READ away from the latest
       // message. Release every bottom-follow gate before moving; otherwise the
       // virtualizer lands on the match for one frame, then a row measurement or
@@ -1242,7 +1286,11 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
       isProgrammaticScrollRef.current = true;
       virtualizer.scrollToIndex(searchActiveIndex, { align: 'center' });
 
-      const raf = requestAnimationFrame(() => {
+      const timers = searchScrollTimersRef.current;
+      if (timers.raf !== null) cancelAnimationFrame(timers.raf);
+      if (timers.timer) clearTimeout(timers.timer);
+      timers.raf = requestAnimationFrame(() => {
+        timers.raf = null;
         const container = scrollContainerRef.current;
         if (container && searchPanelHeight > 0) {
           const row = container.querySelector<HTMLElement>(`[data-index="${searchActiveIndex}"]`);
@@ -1259,13 +1307,10 @@ export const VirtualizedOutputList = memo(function VirtualizedOutputList({
         }
       });
 
-      const timer = setTimeout(() => {
+      timers.timer = setTimeout(() => {
+        timers.timer = null;
         isProgrammaticScrollRef.current = false;
       }, 120);
-      return () => {
-        cancelAnimationFrame(raf);
-        clearTimeout(timer);
-      };
     }
   }, [searchActiveIndex, virtualizer, allItems.length, searchPanelHeight, scrollContainerRef, onPinCancel, onUserScroll]);
 

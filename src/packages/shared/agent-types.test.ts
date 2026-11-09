@@ -18,13 +18,18 @@ import {
   providerDisplayName,
 } from './agent-types.js';
 
-describe('CLAUDE_MODELS — Fable 5.1', () => {
-  it('exposes the canonical Fable 5.1 id with its native 1M context', () => {
-    expect(CLAUDE_MODELS['claude-fable-5-1']).toMatchObject({
-      label: 'Fable 5.1 [1M]',
+describe('CLAUDE_MODELS — Fable', () => {
+  it('offers Fable 5.2 with its native 1M context under the bare id', () => {
+    expect(CLAUDE_MODELS['claude-fable-5-2']).toMatchObject({
+      label: 'Fable 5.2 [1M]',
       contextWindow: 1000000,
     });
-    expect(isDeprecatedClaudeModel('claude-fable-5-1')).toBe(false);
+    expect(isDeprecatedClaudeModel('claude-fable-5-2')).toBe(false);
+  });
+
+  it('keeps Fable 5.1 valid for existing agents but hides it from the picker', () => {
+    expect(CLAUDE_MODELS['claude-fable-5-1'].contextWindow).toBe(1000000);
+    expect(isDeprecatedClaudeModel('claude-fable-5-1')).toBe(true);
   });
 });
 
@@ -102,14 +107,14 @@ describe('new/edit agent picker', () => {
   it('offers only the current generation of each family', () => {
     const visible = Object.keys(CLAUDE_MODELS).filter((id) => !isDeprecatedClaudeModel(id as keyof typeof CLAUDE_MODELS));
     // Picker order is the registry's key order: Fable → Opus → Sonnet → Haiku.
-    expect(visible).toEqual(['claude-fable-5-1', 'claude-opus-5-5[1m]', 'claude-sonnet-5-5', 'haiku']);
+    expect(visible).toEqual(['claude-fable-5-2', 'claude-opus-5-5[1m]', 'claude-sonnet-5-5', 'haiku']);
   });
 });
 
 describe('CODEX_MODELS — GPT-6', () => {
-  it('offers Astra → Sol 6.1 → Luna, defaulting to GPT-6.1 Sol with high reasoning', () => {
+  it('offers Astra → Sol 6.1 → Terra 6.1 → Luna, defaulting to GPT-6.1 Sol with high reasoning', () => {
     const visible = (Object.keys(CODEX_MODELS) as (keyof typeof CODEX_MODELS)[]).filter((id) => !isDeprecatedCodexModel(id));
-    expect(visible).toEqual(['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-luna']);
+    expect(visible).toEqual(['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna']);
     expect(DEFAULT_CODEX_MODEL).toBe('gpt-6.1-sol');
     expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('high');
   });

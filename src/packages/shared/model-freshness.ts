@@ -27,7 +27,7 @@ export interface OutdatedModelNotice {
 // Newest model of each Claude family, as offered in the pickers.
 const LATEST_CLAUDE: Record<'opus' | 'fable' | 'sonnet', ClaudeModel> = {
   opus: 'claude-opus-5-5[1m]',
-  fable: 'claude-fable-5-1',
+  fable: 'claude-fable-5-2',
   sonnet: 'claude-sonnet-5-5',
 };
 
@@ -48,18 +48,20 @@ export function outdatedClaudeModel(model: string | undefined | null): OutdatedM
   return { newerModel: latest, newerLabel: CLAUDE_MODELS[latest].label };
 }
 
-// GPT-6 models superseded by a point release of the same line.
-const CODEX_POINT_RELEASES: Readonly<Record<string, CodexModel>> = {
+// Superseded models whose successor is a newer release of the SAME line
+// (6 Sol → 6.1 Sol, 5.6 Terra → 6.1 Terra), still registered but hidden.
+const CODEX_LINE_SUCCESSORS: Readonly<Record<string, CodexModel>> = {
   'gpt-6-sol': 'gpt-6.1-sol',
+  'gpt-5.6-terra': 'gpt-6.1-terra',
 };
 
 /** Notice for a Codex model id (bare or `openai-codex/…`). */
 export function outdatedCodexModel(model: string | undefined | null): OutdatedModelNotice | null {
   if (!model) return null;
   const id = model.trim().replace(/^openai-codex\//, '');
-  // A GPT-6 model with a point release of its own line (6 Sol → 6.1 Sol).
-  const pointRelease = CODEX_POINT_RELEASES[id];
-  if (pointRelease) return { newerModel: pointRelease, newerLabel: CODEX_MODELS[pointRelease].label };
+  // A newer release of the model's own line (6 Sol → 6.1 Sol, 5.6 Terra → 6.1 Terra).
+  const lineSuccessor = CODEX_LINE_SUCCESSORS[id];
+  if (lineSuccessor) return { newerModel: lineSuccessor, newerLabel: CODEX_MODELS[lineSuccessor].label };
   if (!/^gpt-5(?:[.-]|$)/.test(id)) return null; // the rest of GPT-6 is current
   // The retired model's own successor when it has one (5.6 Luna → 6 Luna),
   // else the default (Terra has no GPT-6 counterpart and is still registered).

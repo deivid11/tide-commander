@@ -34,7 +34,7 @@ import { createWorkflowActions, type WorkflowActions, DEFAULT_WORKFLOW_STATE } f
 
 
 // Import shortcuts
-import { ShortcutConfig, DEFAULT_SHORTCUTS } from './shortcuts';
+import { ShortcutConfig, DEFAULT_SHORTCUTS, isRetiredDefaultBinding } from './shortcuts';
 
 // Import mouse controls
 import {
@@ -377,6 +377,10 @@ class Store
     if (stored) {
       const mergedShortcuts = DEFAULT_SHORTCUTS.map((defaultShortcut) => {
         const saved = stored.find((s) => s.id === defaultShortcut.id);
+        // A saved copy of a RETIRED default binding is not a user choice: it was
+        // persisted along with the rest of the list. Drop it so the new default
+        // applies (plain Tab moved from Commander View to working-agent cycling).
+        if (saved && isRetiredDefaultBinding(saved)) return defaultShortcut;
         return saved ? { ...defaultShortcut, ...saved } : defaultShortcut;
       });
       return mergedShortcuts;

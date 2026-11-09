@@ -4,6 +4,7 @@ import { matchesShortcut, matchesShortcutString, parseShortcutString } from '../
 import type { SceneManager } from '../scene/SceneManager';
 import { closeTopModal } from './useModalStack';
 import type { UseModalState, UseModalStateWithId } from './index';
+import { markKeyboardCycleSelection } from '../utils/selectionIntent';
 
 type AgentWithShortcut = { id: string; shortcut?: string; name: string };
 
@@ -63,6 +64,17 @@ export function useKeyboardShortcuts({
         // Always close the top-most modal first (including image modal inside terminal).
         if (closeTopModal()) {
           e.preventDefault();
+          return;
+        }
+
+        // Flat view: Escape in a text field only leaves the field, so the
+        // keyboard shortcuts work right away. Falling through deselected the
+        // agent, which swapped the chat for the Areas overview. The composer's
+        // own / and @ dropdowns still get this Escape to close themselves.
+        if (isInputFocused && currentState.viewMode === 'flat') {
+          if (target.closest('.guake-input')?.querySelector('.file-mention-dropdown')) return;
+          e.preventDefault();
+          target.blur();
           return;
         }
 
@@ -165,7 +177,45 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      // Toggle Commander View (Tab)
+      // Tab / Shift+Tab — cycle through the agents that are WORKING right now,
+      // in the stable agent order (wrapping). Not while typing (Tab completes /
+      // moves focus there), inside the embedded terminal (the shell needs Tab),
+      // or in Commander View (Tab switches its area tabs). The chat composer is
+      // the exception when EMPTY: focus usually sits there, and excluding it
+      // made the first Tab merely leave the input ("needs a double Tab"). Its
+      // only Tab use is / completion, which needs text.
+      const inEmptyComposer = isInputFocused
+        && !!target.closest('.guake-input')
+        && ((target as HTMLInputElement | HTMLTextAreaElement).value ?? '') === '';
+      if ((!isInputFocused || inEmptyComposer) && !commanderModal.isOpen && !target.closest('.guake-bottom-terminal-embed')) {
+        const nextWorkingShortcut = shortcuts.find(s => s.id === 'cycle-working-next');
+        const prevWorkingShortcut = shortcuts.find(s => s.id === 'cycle-working-prev');
+        const dir = matchesShortcut(e, nextWorkingShortcut) ? 1 : matchesShortcut(e, prevWorkingShortcut) ? -1 : 0;
+        if (dir !== 0) {
+          e.preventDefault();
+          const working = Array.from(currentState.agents.values()).filter((agent) => agent.status === 'working');
+          if (working.length === 0) return;
+          // Leave the composer so the following Tabs keep cycling even when the
+          // next agent has a draft in its input.
+          if (inEmptyComposer) target.blur();
+          const selectedId = currentState.selectedAgentIds.size === 1
+            ? Array.from(currentState.selectedAgentIds)[0]
+            : null;
+          const currentIndex = selectedId ? working.findIndex((agent) => agent.id === selectedId) : -1;
+          const nextIndex = currentIndex === -1
+            ? (dir === 1 ? 0 : working.length - 1)
+            : (currentIndex + dir + working.length) % working.length;
+          // Keep focus out of the chat input (on every device), or the next Tab
+          // would move focus inside it instead of continuing the cycle.
+          store.setLastSelectionViaDirectClick(true);
+          markKeyboardCycleSelection();
+          store.selectAgent(working[nextIndex].id);
+          sceneRef.current?.refreshSelectionVisuals();
+          return;
+        }
+      }
+
+      // Toggle Commander View (alternate binding — unbound by default)
       const commanderTabShortcut = shortcuts.find(s => s.id === 'toggle-commander-tab');
       if (matchesShortcut(e, commanderTabShortcut) && !isInputFocused) {
         e.preventDefault();

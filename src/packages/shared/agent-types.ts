@@ -186,6 +186,7 @@ export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-ac
 export type CodexModel =
   | 'gpt-6-astra'
   | 'gpt-6.1-sol'
+  | 'gpt-6.1-terra'
   | 'gpt-6-sol'
   | 'gpt-6-luna'
   | 'gpt-5.6-terra';
@@ -224,6 +225,11 @@ export const CODEX_MODELS: Record<CodexModel, { label: string; description: stri
     description: 'GPT-6.1 Sol — latest Sol, agentic workhorse for everyday coding (default)',
     icon: '☀️',
   },
+  'gpt-6.1-terra': {
+    label: 'GPT-6.1 Terra',
+    description: 'GPT-6.1 Terra — balanced coding model with a 500K context window',
+    icon: '🌍',
+  },
   'gpt-6-luna': {
     label: 'GPT-6 Luna',
     description: 'GPT-6 Luna — fast and affordable agentic coding',
@@ -239,7 +245,7 @@ export const CODEX_MODELS: Record<CodexModel, { label: string; description: stri
   },
   'gpt-5.6-terra': {
     label: 'GPT-5.6 Terra',
-    description: 'Previous generation balanced coding model (retained for existing agents)',
+    description: 'Previous generation balanced coding model (GPT-6.1 Terra preferred)',
     icon: '🌍',
     deprecated: true,
   },
@@ -276,6 +282,7 @@ export type ClaudeModel =
   | 'sonnet'
   | 'opus'
   | 'haiku'
+  | 'claude-fable-5-2'
   | 'claude-fable-5-1'
   | 'claude-fable-5'
   | 'claude-fable-5[1m]'
@@ -291,7 +298,7 @@ export type ClaudeModel =
   | 'opus[1m]';
 
 export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: string; icon: string; contextWindow: number; deprecated?: boolean }> = {
-  'claude-fable-5-1': { label: 'Fable 5.1 [1M]', description: 'Latest Fable — most capable Claude model for the hardest and longest-running tasks, native 1M token context window', icon: '🪄', contextWindow: 1000000 },
+  'claude-fable-5-2': { label: 'Fable 5.2 [1M]', description: 'Latest Fable — most capable Claude model for the hardest and longest-running tasks, native 1M token context window', icon: '🪄', contextWindow: 1000000 },
   'claude-opus-5-5[1m]': { label: 'Opus 5.5 [1M]', description: 'Latest Opus with 1M token context window — for complex agentic coding and enterprise work (default)', icon: '🧠', contextWindow: 1000000 },
   'claude-sonnet-5-5': { label: 'Sonnet 5.5 [1M]', description: 'Latest Sonnet — near-Opus intelligence at lower cost, native 1M token context window', icon: '⚡', contextWindow: 1000000 },
   haiku: { label: 'Haiku', description: 'Fast and economical', icon: '🚀', contextWindow: 200000 },
@@ -299,6 +306,7 @@ export const CLAUDE_MODELS: Record<ClaudeModel, { label: string; description: st
   // passthrough, but is hidden from the new/edit agent pickers: previous
   // generations, legacy family aliases, and plain (200K) ids whose 1M variant
   // is listed above.
+  'claude-fable-5-1': { label: 'Fable 5.1 [1M]', description: 'Previous Fable generation, native 1M token context window (Fable 5.2 preferred)', icon: '🪄', contextWindow: 1000000, deprecated: true },
   'claude-fable-5[1m]': { label: 'Fable 5 [1M]', description: 'Previous Fable generation with 1M token context window', icon: '🪄', contextWindow: 1000000, deprecated: true },
   'claude-opus-5[1m]': { label: 'Opus 5 [1M]', description: 'Previous Opus generation with 1M token context window', icon: '🧠', contextWindow: 1000000, deprecated: true },
   'claude-sonnet-5[1m]': { label: 'Sonnet 5 [1M]', description: 'Previous Sonnet generation with 1M token context window', icon: '⚡', contextWindow: 1000000, deprecated: true },

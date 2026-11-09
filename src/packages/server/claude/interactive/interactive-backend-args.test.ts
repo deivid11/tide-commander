@@ -32,6 +32,8 @@ describe('buildInteractiveClaudeArgs', () => {
 
   it('passes native 1M model ids through unchanged', () => {
     expect(modelArg('claude-fable-5-1')).toBe('claude-fable-5-1');
+    // Not yet known to the CLI: the [1m] label makes it use the native 1M window.
+    expect(modelArg('claude-fable-5-2')).toBe('claude-fable-5-2[1m]');
     expect(modelArg('claude-sonnet-5')).toBe('claude-sonnet-5');
   });
 

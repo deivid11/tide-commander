@@ -17,6 +17,21 @@ import {
 } from '../../utils/storage';
 import { setAgentDraft } from '../../utils/agentDrafts';
 import type { AttachedFile } from './types';
+import { useToast } from '../Toast';
+
+/**
+ * Files up to this size are read into memory before the upload starts.
+ *
+ * Sending the File itself makes Chrome read it from disk at send time, and on
+ * remote machines that read fails with `net::ERR_ACCESS_DENIED`: files on
+ * network drives, cloud-sync placeholders (OneDrive / Drive for desktop),
+ * files pasted or dragged from a remote-desktop session (virtual files), or a
+ * file that changed after it was picked. Reading first turns that into a clear,
+ * immediate error and makes the upload independent of the disk.
+ */
+const IN_MEMORY_UPLOAD_MAX_BYTES = 512 * 1024 * 1024;
+
+class UploadReadError extends Error {}
 
 // Stable empty references to avoid defeating memo on consumers
 const EMPTY_MAP = new Map<number, string>();
@@ -82,6 +97,7 @@ interface TerminalInputState {
 }
 
 export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): TerminalInputState {
+  const { showToast } = useToast();
   // Per-agent input state
   const [agentCommands, setAgentCommands] = useState<Map<string, string>>(new Map());
   const [agentForceTextarea, setAgentForceTextarea] = useState<Map<string, boolean>>(new Map());
@@ -268,6 +284,14 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
     };
 
     try {
+      let body: Blob = file;
+      if (file.size <= IN_MEMORY_UPLOAD_MAX_BYTES) {
+        try {
+          body = new Blob([await file.arrayBuffer()], { type: file.type });
+        } catch (readError) {
+          throw new UploadReadError(readError instanceof Error ? readError.message : String(readError));
+        }
+      }
 
       // fetch does not expose upload progress. XHR is deliberately used for this
       // request so Guake can report actual bytes sent for large attachments.
@@ -289,11 +313,22 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
           if (!event.lengthComputable || event.total <= 0) return;
           reportProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
         };
-        xhr.onerror = () => reject(new Error('Network error while uploading file'));
+        xhr.onerror = () => reject(new Error(
+          file.size > IN_MEMORY_UPLOAD_MAX_BYTES
+            // Too big to buffer: the browser read it from disk, which is the
+            // usual way this fails on remote machines.
+            ? 'The browser could not read or send the file. If it is on a network drive, a synced folder or a remote desktop, copy it to a local folder and attach it again.'
+            : 'The connection dropped while uploading. Try again.',
+        ));
         xhr.onabort = () => reject(new DOMException('File upload was cancelled', 'AbortError'));
         xhr.onload = () => {
           if (xhr.status < 200 || xhr.status >= 300) {
-            reject(new Error(xhr.responseText || `Upload failed (${xhr.status})`));
+            let message = xhr.responseText;
+            try {
+              const parsed = JSON.parse(xhr.responseText) as { error?: unknown };
+              if (typeof parsed?.error === 'string') message = parsed.error;
+            } catch { /* plain-text body */ }
+            reject(new Error(message || `Upload failed (${xhr.status})`));
             return;
           }
           try {
@@ -308,7 +343,7 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
           }
         };
         reportProgress(0);
-        xhr.send(file);
+        xhr.send(body);
       });
 
       reportProgress(100);
@@ -323,13 +358,24 @@ export function useTerminalInput({ selectedAgentId }: UseTerminalInputOptions): 
     } catch (err) {
       if (!(err instanceof DOMException && err.name === 'AbortError')) {
         console.error('Upload error:', err);
+        // Failures used to stay in the console: the attachment just never appeared.
+        if (err instanceof UploadReadError) {
+          showToast(
+            'error',
+            `Couldn't read ${displayName}`,
+            'The browser was denied access to this file. It happens with files on network drives, synced folders (OneDrive, Google Drive) or copied from a remote desktop. Copy it to a local folder (e.g. Downloads) and attach it again.',
+            10_000,
+          );
+        } else {
+          showToast('error', `Couldn't upload ${displayName}`, err instanceof Error ? err.message : String(err), 8_000);
+        }
       }
       return null;
     } finally {
       uploadRequestsRef.current.delete(uploadId);
       setUploadingFiles((current) => current.filter((entry) => entry.id !== uploadId));
     }
-  }, []);
+  }, [showToast]);
 
   const cancelUpload = useCallback((id: string) => {
     uploadRequestsRef.current.get(id)?.abort();

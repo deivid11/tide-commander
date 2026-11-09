@@ -27,6 +27,11 @@ import { getAgent } from '../services/agent-service.js';
 const log = createLogger('Backend');
 
 export function translateClaudeCliModel(model: string): string {
+  // Fable 5.2 is natively 1M (Models API: max_input_tokens 1M, max_tokens 128K)
+  // but CLIs that don't know it yet fall back to a 200K window. The `[1m]`
+  // suffix makes them use 1M — the same label the CLI itself stores for
+  // catalog-delivered Fable models. Drop this line once the CLI knows the id.
+  if (model === 'claude-fable-5-2') return 'claude-fable-5-2[1m]';
   if (model === 'opus[1m]') return 'claude-opus-4-7';
   if (model === 'claude-opus-5-5[1m]') return 'claude-opus-5-5';
   if (model === 'claude-opus-5[1m]') return 'claude-opus-5';

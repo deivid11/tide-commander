@@ -38,6 +38,7 @@ import {
 import { renameAgentRequestPreview } from '../../plugins/rename-agent/renameAgentRequest';
 import { bolbaRecommendationRequestPreview } from '../../plugins/bolba-tasks/bolbaRecommendationRequest';
 import { shellCommandResultPreview } from '../../plugins/shell-commands/shellCommandResult';
+import { consumeKeyboardCycleSelection } from '../../utils/selectionIntent';
 
 /**
  * Isolated elapsed timer component — owns its own 1-second setInterval so the
@@ -664,7 +665,10 @@ export const TerminalInputArea = memo(function TerminalInputArea({
     const isMobileWidth = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
     const wasSwipe = store.consumeSwipeSelectionFlag();
     const wasDirectClick = store.consumeDirectClickSelectionFlag();
-    const shouldSuppressAutofocus = (isTouchDevice && (wasSwipe || wasDirectClick)) || isMobileWidth;
+    // Tab-cycling working agents must keep focus out of the input everywhere,
+    // or the next Tab would move focus inside it and end the cycle.
+    const wasKeyboardCycle = consumeKeyboardCycleSelection();
+    const shouldSuppressAutofocus = (isTouchDevice && (wasSwipe || wasDirectClick)) || isMobileWidth || wasKeyboardCycle;
 
     if (_isOpen && (!wasOpen || selectedAgentId) && !shouldSuppressAutofocus) {
       const timeoutId = setTimeout(() => {

@@ -380,7 +380,7 @@ export function useSpotlightSearch({
         id: 'cmd-commander',
         type: 'command',
         title: 'Commander View',
-        subtitle: coarsePointer ? '' : (commanderShortcut?.key ? formatShortcut(commanderShortcut) : 'Tab'),
+        subtitle: coarsePointer ? '' : (commanderShortcut?.key ? formatShortcut(commanderShortcut) : ''),
         icon: <Icon name="dashboard" size={16} />,
         action: () => {
           onCloseRef.current();

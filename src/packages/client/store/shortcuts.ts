@@ -35,13 +35,30 @@ function shortcut(
   return { id, name, description, key, modifiers, enabled: true, context };
 }
 
+// Bindings that used to be defaults and were moved. A saved shortcut list
+// persists every entry, so without this an untouched old default would keep
+// shadowing the new one forever.
+const RETIRED_DEFAULT_BINDINGS: ReadonlyArray<{ id: string; key: string }> = [
+  { id: 'toggle-commander-tab', key: 'Tab' }, // Tab now cycles working agents
+];
+
+/** True when `saved` is exactly a retired default binding (plain key, no modifiers). */
+export function isRetiredDefaultBinding(saved: ShortcutConfig): boolean {
+  const modifiers = saved.modifiers ?? {};
+  const plain = !modifiers.ctrl && !modifiers.alt && !modifiers.shift && !modifiers.meta;
+  return plain && RETIRED_DEFAULT_BINDINGS.some((retired) => retired.id === saved.id && retired.key === saved.key);
+}
+
 // Default shortcuts configuration
 export const DEFAULT_SHORTCUTS: ShortcutConfig[] = [
   // Global shortcuts
-  // Ctrl+K belongs to Spotlight search (toggle-spotlight); Commander keeps Tab
-  // (toggle-commander-tab) and stays rebindable in Settings.
-  shortcut('toggle-commander', 'Toggle Commander', 'Open/close Commander View (unbound — Tab also toggles; set a key in Settings)', '', {}),
-  shortcut('toggle-commander-tab', 'Toggle Commander (Tab)', 'Open/close Commander View with Tab', 'Tab', {}),
+  // Ctrl+K belongs to Spotlight search (toggle-spotlight). Tab cycles the
+  // working agents (cycle-working-*); Commander View is unbound by default —
+  // open it from Spotlight or bind a key in Settings.
+  shortcut('toggle-commander', 'Toggle Commander', 'Open/close Commander View (unbound — set a key in Settings, or use Spotlight)', '', {}),
+  shortcut('toggle-commander-tab', 'Toggle Commander (alt binding)', 'Second binding for Commander View (unbound — Tab now cycles working agents)', '', {}),
+  shortcut('cycle-working-next', 'Next Working Agent', 'Switch to the next agent that is working (wraps around)', 'Tab', {}),
+  shortcut('cycle-working-prev', 'Previous Working Agent', 'Switch to the previous agent that is working (wraps around)', 'Tab', { shift: true }),
   shortcut('spawn-agent', 'Spawn Agent', 'Open new agent spawn modal', 'n', { alt: true }),
   shortcut('select-agent-1', 'Select Agent 1', 'Select first agent', '1', { ctrl: true }),
   shortcut('select-agent-2', 'Select Agent 2', 'Select second agent', '2', { ctrl: true }),

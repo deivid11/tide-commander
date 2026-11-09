@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.224.0] - 2026-11-09
+
+### Added
+- **Claude Fable 5.2** — the new Fable (native 1M context) is now the Fable offered in the pickers, the bulk manager filter and boss/LLM model matching. Agents on Fable 5.1 keep working and the header model chip suggests the upgrade.
+- **GPT-6.1 Terra** — balanced Codex model with a 500K context window; GPT-5.6 Terra agents get an upgrade hint.
+- **Tab cycles working agents** — Tab / Shift+Tab switch to the next / previous agent that is working (wraps around), without the chat input stealing focus mid-cycle. Commander View is now unbound by default (open it from Spotlight or bind a key in Settings); an untouched saved Tab binding for Commander is migrated automatically.
+
+### Changed
+- **Escape in the Flat view composer** only leaves the text field instead of deselecting the agent, so keyboard shortcuts work immediately.
+
+### Fixed
+- **Expired sessions no longer swallow messages** — resuming a Claude session whose transcript was cleaned up (30+ days idle) used to end silently with 0 turns. The agent now starts a fresh session and retries the same message once, with a notification; other 0-turn CLI deaths are surfaced as errors. Zombie tmux sessions whose CLI already died are killed and respawned instead of receiving the message.
+- **Chat no longer jumps up while streaming** — a prompt-rail / Alt+J/K selection or an open search re-centred on its old message on every new streamed row; it now centres once per selection, and jumping releases the follow-bottom latch.
+- **Uploads on remote machines fail clearly** — files on network drives, synced folders or copied from a remote desktop are read into memory first, and every upload failure now shows a toast instead of silently disappearing.
+
 ## [1.223.1] - 2026-10-02
 
 ### Fixed
