@@ -10,7 +10,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { agentService, runtimeService, bossMessageService, skillService } from '../services/index.js';
 import { getClaudeProjectDir, loadAreas, saveAreas } from '../data/index.js';
-import { loadSession } from '../claude/session-loader.js';
+import { loadSession, listAllSessions } from '../claude/session-loader.js';
 import { getAllCustomClasses } from '../services/custom-class-service.js';
 // Session listing is done inline for performance
 import { createLogger } from '../utils/logger.js';
@@ -211,7 +211,6 @@ router.get('/pi/models', async (req: Request, res: Response) => {
 router.get('/claude-sessions', async (req: Request, res: Response) => {
   try {
     const cwd = req.query.cwd as string | undefined;
-    const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 
     interface SessionWithProject {
       sessionId: string;
@@ -287,61 +286,23 @@ router.get('/claude-sessions', async (req: Request, res: Response) => {
         allSessions.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
       }
     } else {
-      // List all sessions across all projects
-      if (fs.existsSync(CLAUDE_PROJECTS_DIR)) {
-        const projectDirs = fs.readdirSync(CLAUDE_PROJECTS_DIR);
-
-        for (const encodedPath of projectDirs) {
-          const projectDir = path.join(CLAUDE_PROJECTS_DIR, encodedPath);
-          const stats = fs.statSync(projectDir);
-          if (!stats.isDirectory()) continue;
-
-          // Decode path: -home-user-project -> /home/user/project
-          const decodedPath = encodedPath.replace(/^-/, '/').replace(/-/g, '/');
-
-          const files = fs.readdirSync(projectDir);
-          for (const file of files) {
-            if (!file.endsWith('.jsonl')) continue;
-
-            const sessionId = file.replace('.jsonl', '');
-            const filePath = path.join(projectDir, file);
-            const fileStats = fs.statSync(filePath);
-
-            // Count messages quickly
-            const content = fs.readFileSync(filePath, 'utf-8');
-            const lines = content.split('\n').filter(l => l.trim());
-            let messageCount = 0;
-            let firstMessage: string | undefined;
-
-            for (const line of lines) {
-              try {
-                const parsed = JSON.parse(line);
-                if (parsed.type === 'user' || parsed.type === 'assistant') {
-                  messageCount++;
-                  if (!firstMessage && parsed.type === 'user' && parsed.message?.content) {
-                    const msg = typeof parsed.message.content === 'string'
-                      ? parsed.message.content
-                      : parsed.message.content[0]?.text || '';
-                    firstMessage = msg.substring(0, 100);
-                  }
-                }
-              } catch {
-                // Skip invalid lines
-              }
-            }
-
-            allSessions.push({
-              sessionId,
-              projectPath: decodedPath,
-              lastModified: fileStats.mtime,
-              messageCount,
-              firstMessage,
-            });
-          }
-        }
-
-        // Sort by last modified, newest first
-        allSessions.sort((a, b) => new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime());
+      // List all sessions across all projects.
+      // Goes through listAllSessions (stat + cached header read of the newest
+      // few) instead of reading and JSON-parsing every transcript in full:
+      // with ~25k transcripts / 6 GB on disk the old synchronous scan froze
+      // the whole event loop for about a minute per request.
+      const recent = await listAllSessions({ limit: 200 });
+      for (const s of recent) {
+        if (s.provider !== 'claude') continue;
+        allSessions.push({
+          sessionId: s.sessionId,
+          // Prefer the cwd recorded in the transcript; the dir-name decode is lossy.
+          projectPath: s.projectPath || s.projectDir.replace(/^-/, '/').replace(/-/g, '/'),
+          lastModified: s.lastModified,
+          messageCount: Math.max(1, Math.round(s.sizeBytes / 500)),
+          firstMessage: s.firstPrompt ? s.firstPrompt.substring(0, 100) : undefined,
+        });
+        if (allSessions.length >= 20) break;
       }
     }
 

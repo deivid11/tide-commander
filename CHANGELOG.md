@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.224.1] - 2026-11-10
+
+### Fixed
+- **Opening the Spawn Agent dialog no longer freezes the server** — with no working directory set, the session list read and parsed every Claude transcript on disk in one blocking pass. On machines with a large transcript history this hung every request for a minute or more and dropped the WebSocket connection. The list now reads only the newest sessions' headers and returns in a fraction of a second.
+- **Listing an agent's sessions no longer stalls on large transcripts** — message counts are streamed instead of loading each transcript whole, and are cached until the file changes.
+- **Clear / collapse context confirmation shows above an open chat** — the dialog opened from the unit panel rendered underneath the chat terminal; it is now portaled to the page root.
+
 ## [1.224.0] - 2026-11-09
 
 ### Added

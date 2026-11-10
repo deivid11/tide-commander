@@ -52,6 +52,7 @@ import { AgentIcon } from '../AgentIcon';
 import { Icon } from '../Icon';
 import { SessionSearchModal } from '../SessionSearchModal';
 import { ConfirmModal } from '../shared/ConfirmModal';
+import { ModalPortal } from '../shared/ModalPortal';
 import { TaskListView } from '../shared/TaskListView';
 
 // ============================================================================
@@ -746,41 +747,45 @@ const ContextConfirmModal = memo(function ContextConfirmModal({
 }: ContextConfirmModalProps) {
   const { t } = useTranslation(['common']);
   const { handleMouseDown: handleBackdropMouseDown, handleClick: handleBackdropClick } = useModalClose(onClose);
+  // Portal to <body>: the unit panel's stacking context sits below the chat
+  // terminal, so an inline overlay would render underneath an open chat.
   return (
-    <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
-      <div className="modal confirm-modal">
-        <div className="modal-header">{action === 'collapse' ? t('unitPanel.collapseContextTitle') : t('unitPanel.clearContextTitle')}</div>
-        <div className="modal-body confirm-modal-body">
-          {action === 'collapse' ? (
-            <>
-              <p dangerouslySetInnerHTML={{ __html: t('unitPanel.collapseContextMsg', { name: agentName }) }} />
-              <p className="confirm-modal-note">
-                {t('unitPanel.collapseContextNote')}
-              </p>
-            </>
-          ) : (
-            <>
-              <p dangerouslySetInnerHTML={{ __html: t('unitPanel.clearContextMsg', { name: agentName }) }} />
-              <p className="confirm-modal-note">
-                {t('unitPanel.clearContextNote')}
-              </p>
-            </>
-          )}
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>
-            {t('buttons.cancel')}
-          </button>
-          <button
-            className={`btn ${action === 'clear' ? 'btn-danger' : 'btn-primary'}`}
-            onClick={onConfirm}
-            autoFocus
-          >
-            {action === 'collapse' ? t('unitPanel.collapseBtn') : t('unitPanel.clearContextBtn')}
-          </button>
+    <ModalPortal>
+      <div className="modal-overlay visible" onMouseDown={handleBackdropMouseDown} onClick={handleBackdropClick}>
+        <div className="modal confirm-modal">
+          <div className="modal-header">{action === 'collapse' ? t('unitPanel.collapseContextTitle') : t('unitPanel.clearContextTitle')}</div>
+          <div className="modal-body confirm-modal-body">
+            {action === 'collapse' ? (
+              <>
+                <p dangerouslySetInnerHTML={{ __html: t('unitPanel.collapseContextMsg', { name: agentName }) }} />
+                <p className="confirm-modal-note">
+                  {t('unitPanel.collapseContextNote')}
+                </p>
+              </>
+            ) : (
+              <>
+                <p dangerouslySetInnerHTML={{ __html: t('unitPanel.clearContextMsg', { name: agentName }) }} />
+                <p className="confirm-modal-note">
+                  {t('unitPanel.clearContextNote')}
+                </p>
+              </>
+            )}
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-secondary" onClick={onClose}>
+              {t('buttons.cancel')}
+            </button>
+            <button
+              className={`btn ${action === 'clear' ? 'btn-danger' : 'btn-primary'}`}
+              onClick={onConfirm}
+              autoFocus
+            >
+              {action === 'collapse' ? t('unitPanel.collapseBtn') : t('unitPanel.clearContextBtn')}
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+    </ModalPortal>
   );
 });
 

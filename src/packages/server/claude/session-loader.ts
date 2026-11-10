@@ -970,44 +970,88 @@ export function getProjectDir(cwd: string): string {
 }
 
 /**
+ * Message-count cache for listSessions, keyed by file path and validated by
+ * size + mtime. Transcripts are append-only, so an unchanged file never needs
+ * recounting; without this every call re-read every transcript in the project.
+ */
+const sessionMessageCountCache = new Map<string, { size: number; mtimeMs: number; count: number }>();
+const SESSION_MESSAGE_COUNT_CACHE_MAX = 8000;
+
+/**
+ * Count user/assistant turns by streaming the file. Never loads the whole
+ * transcript into memory and yields to the event loop between chunks, so a
+ * multi-hundred-MB session cannot stall the server the way a readFileSync +
+ * split + JSON.parse of the full content did.
+ */
+async function countSessionMessages(filePath: string): Promise<number> {
+  let count = 0;
+  const stream = fs.createReadStream(filePath, { encoding: 'utf-8' });
+  try {
+    const rl = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    for await (const line of rl) {
+      if (!line.trim()) continue;
+      try {
+        const parsed = JSON.parse(line) as { type?: string };
+        if (parsed.type === 'user' || parsed.type === 'assistant') count++;
+      } catch {
+        // Skip invalid/incomplete lines
+      }
+    }
+  } finally {
+    stream.destroy();
+  }
+  return count;
+}
+
+/**
  * List all sessions for a project directory
  */
 export async function listSessions(cwd: string): Promise<SessionInfo[]> {
   const projectDir = getProjectDir(cwd);
 
-  if (!fs.existsSync(projectDir)) {
+  let files: string[];
+  try {
+    files = await fs.promises.readdir(projectDir);
+  } catch {
     return [];
   }
 
-  const files = fs.readdirSync(projectDir);
+  const sessionFiles = files.filter(f => f.endsWith('.jsonl'));
   const sessions: SessionInfo[] = [];
 
-  for (const file of files) {
-    if (!file.endsWith('.jsonl')) continue;
-
-    const sessionId = file.replace('.jsonl', '');
-    const filePath = path.join(projectDir, file);
-    const stats = fs.statSync(filePath);
-
-    // Quick count of messages (approximate)
-    const content = fs.readFileSync(filePath, 'utf-8');
-    const lines = content.split('\n').filter(l => l.trim());
-    const messageCount = lines.filter(l => {
-      try {
-        const parsed = JSON.parse(l);
-        return parsed.type === 'user' || parsed.type === 'assistant';
-      } catch {
-        return false;
+  // Bounded concurrency: enough to overlap I/O without opening every file at once.
+  const concurrency = 8;
+  let cursor = 0;
+  const workers: Promise<void>[] = [];
+  for (let i = 0; i < concurrency; i++) {
+    workers.push((async () => {
+      while (cursor < sessionFiles.length) {
+        const file = sessionFiles[cursor++];
+        const filePath = path.join(projectDir, file);
+        try {
+          const stats = await fs.promises.stat(filePath);
+          const cached = sessionMessageCountCache.get(filePath);
+          let messageCount: number;
+          if (cached && cached.size === stats.size && cached.mtimeMs === stats.mtimeMs) {
+            messageCount = cached.count;
+          } else {
+            messageCount = await countSessionMessages(filePath);
+            if (sessionMessageCountCache.size >= SESSION_MESSAGE_COUNT_CACHE_MAX) sessionMessageCountCache.clear();
+            sessionMessageCountCache.set(filePath, { size: stats.size, mtimeMs: stats.mtimeMs, count: messageCount });
+          }
+          sessions.push({
+            sessionId: file.replace('.jsonl', ''),
+            projectPath: cwd,
+            lastModified: stats.mtime,
+            messageCount,
+          });
+        } catch {
+          // File vanished or is unreadable — skip it
+        }
       }
-    }).length;
-
-    sessions.push({
-      sessionId,
-      projectPath: cwd,
-      lastModified: stats.mtime,
-      messageCount,
-    });
+    })());
   }
+  await Promise.all(workers);
 
   // Sort by last modified, newest first
   sessions.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime());
