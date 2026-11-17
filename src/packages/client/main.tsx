@@ -13,8 +13,8 @@ import './styles/main.scss';
 initializeTheme();
 initializePlugins();
 
-// Keep Chromium from stranding a native tooltip above every other app when the
-// window loses focus while one is showing (most visible in the installed app).
+// Show `title` tooltips in-page: Chromium's native ones can be stranded on
+// screen above every other app (most visible in the installed app on macOS).
 installTooltipLeakFix();
 
 // In the APK, send external links straight to Android. Letting WebView process

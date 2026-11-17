@@ -321,7 +321,8 @@ describe('CodexJsonEventParser', () => {
       type: 'tool_start',
       toolName: 'Bash',
       toolInput: {
-        command: '/bin/zsh -lc "tail -n 5 README.md"',
+        // The zsh -lc wrapper is unwrapped to the command the agent ran.
+        command: 'tail -n 5 README.md',
         status: 'in_progress',
       },
       uuid: 'cmd_123',
@@ -621,6 +622,54 @@ describe('CodexJsonEventParser', () => {
       payload: { type: 'patch_apply_begin', call_id: 'call_b3UDLWRt0skpb3NWfEsBITDm' },
     });
     expect(events).toHaveLength(0);
+  });
+
+  it('drops event_msg.item_completed duplicates instead of dumping raw JSON (newer Codex)', () => {
+    const parser = new CodexJsonEventParser();
+    const items = [
+      { type: 'CommandExecution', id: 'exec-1', command: ['/usr/bin/zsh', '-lc', 'pnpm typecheck'], status: 'completed', exit_code: 0 },
+      { type: 'FileChange', id: 'exec-2', changes: { '/repo/a.ts': { type: 'update', unified_diff: '@@ -1 +1 @@' } } },
+      { type: 'AgentMessage', id: 'msg_1', content: [{ type: 'Text', text: 'hi' }], phase: 'commentary' },
+      { type: 'Reasoning', id: 'rs_1', summary_text: [], raw_content: [] },
+      { type: 'UserMessage', id: 'u1', content: [{ type: 'text', text: 'hello' }] },
+      { type: 'SomethingNew', id: 'x1' },
+    ];
+    for (const item of items) {
+      expect(parser.parseEvent({ type: 'event_msg', payload: { type: 'item_completed', thread_id: 't', turn_id: 'r', item } })).toEqual([]);
+    }
+    expect(parser.parseEvent({ type: 'event_msg', payload: { type: 'thread_settings_applied' } })).toEqual([]);
+  });
+
+  it('renders an item_completed web.search Extension as a web_search tool row', () => {
+    const parser = new CodexJsonEventParser();
+    const events = parser.parseEvent({
+      type: 'event_msg',
+      payload: {
+        type: 'item_completed',
+        item: {
+          type: 'Extension',
+          kind: 'web.search',
+          id: 'exec-97d3',
+          query: 'https://developer.apple.com/documentation/endpointsecurity/client',
+          action: { type: 'openPage', url: 'https://developer.apple.com/documentation/endpointsecurity/client' },
+          results: [],
+        },
+      },
+    });
+    expect(events.map((event) => event.type)).toEqual(['tool_start', 'tool_result']);
+    expect(events[0]).toMatchObject({
+      toolName: 'web_search',
+      toolUseId: 'exec-97d3',
+      toolInput: { actionType: 'openPage', actionUrl: 'https://developer.apple.com/documentation/endpointsecurity/client' },
+    });
+  });
+
+  it('drops response_item.additional_tools (the tool catalogue Codex hands the model)', () => {
+    const parser = new CodexJsonEventParser();
+    expect(parser.parseEvent({
+      type: 'response_item',
+      payload: { type: 'additional_tools', id: 'at_1', role: 'developer', tools: [{ type: 'namespace', name: 'functions', tools: [] }] },
+    })).toEqual([]);
   });
 
   it('maps response_item.reasoning summary to thinking event', () => {

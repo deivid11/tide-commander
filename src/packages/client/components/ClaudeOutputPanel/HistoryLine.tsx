@@ -46,6 +46,7 @@ import { Icon } from '../Icon';
 import { FileTypeIcon } from './FileTypeIcon';
 import { ShellWriteParam } from './ShellWriteParam';
 import { WithMissingFiles } from './WithMissingFiles';
+import { HistoryBashStatus } from './BashStatusIndicator';
 import { MISSING_FILE_TITLE } from '../../utils/fileExistence';
 import { parseEditReplacements } from '../shared/useFilteredOutputs';
 import { BashSummaryParam } from './BashSummaryParam';
@@ -136,6 +137,14 @@ export const HistoryLine = memo(function HistoryLine({
   const hideCost = useHideCost();
   const settings = useSettings();
   const { type, content: rawContent, toolName, toolUseId, timestamp, _bashOutput, _bashCommand, _toolOutput, _askQuestionAnswers, _taskSubject, _taskSnapshot, _pendingPromptId, _priorTodos } = message;
+  // What the command modal opens with. A command with no result yet while its
+  // agent works is RUNNING: 'Running...' is the hosts' live-modal marker, which
+  // fills in the output when the result lands (was "No output available").
+  const bashModalOutput = (output: string | undefined): string => {
+    if (output) return output;
+    if (output === undefined && agentId && store.getState().agents.get(agentId)?.status === 'working') return 'Running...';
+    return t('tools:display.noOutputAvailable');
+  };
   // `_pendingPromptId` is enriched by AgentTerminalPane.enrichHistory from the
   // pending agent-prompts map. We still keep a defensive fallback via the
   // store hook here in case a future call site renders HistoryLine outside the
@@ -891,7 +900,7 @@ export const HistoryLine = memo(function HistoryLine({
           return;
         }
         if (isBashTool && bashCommand && onBashClick) {
-          onBashClick(bashCommand, _bashOutput || t('tools:display.noOutputAvailable'));
+          onBashClick(bashCommand, bashModalOutput(_bashOutput));
         }
       };
 
@@ -1266,6 +1275,13 @@ export const HistoryLine = memo(function HistoryLine({
                 )}
                 </WithMissingFiles>
               )
+            )}
+            {isBashTool && (
+              <HistoryBashStatus
+                output={_bashOutput}
+                agentId={agentId}
+                completedTask={matchingExecTasks.some((task) => task.status === 'completed')}
+              />
             )}
             {isBashTool && <BashInlineToggle enabled={settings.inlineBashOutputs} />}
           </div>
@@ -1648,7 +1664,7 @@ export const HistoryLine = memo(function HistoryLine({
         const bashRowSummary = !bashShellWrite ? getBashRowSummary(bashCommand) : null;
 
         const handleBashClick = onBashClick
-          ? () => onBashClick(bashCommand, _bashOutput || t('tools:display.noOutputAvailable'))
+          ? () => onBashClick(bashCommand, bashModalOutput(_bashOutput))
           : undefined;
 
         const chip = bashTrackingStatusCommand ? (() => {
@@ -1763,6 +1779,7 @@ export const HistoryLine = memo(function HistoryLine({
               <span className="output-tool-icon"><Icon name={bashShellWrite ? getToolIconName(bashShellWrite.toolName) : iconName} size={14} /></span>
               <span className="output-tool-name">{bashShellWrite ? getLocalizedToolName(bashShellWrite.toolName, t) : displayToolName}</span>
               {chip}
+              <HistoryBashStatus output={_bashOutput} agentId={agentId} />
               <BashInlineToggle enabled={settings.inlineBashOutputs} />
             </div>
             {(settings.inlineBashOutputs || searchReveal) && _bashOutput && (

@@ -131,4 +131,18 @@ describe('CodexAppServerEventAdapter', () => {
     expect(a.handle('thread/status/changed', { threadId: 't' })).toEqual([]);
     expect(a.handle('account/rateLimits/updated', { threadId: 't' })).toEqual([]);
   });
+
+  it('shows the script a shell-wrapped command runs, not the zsh -lc wrapper', () => {
+    const a = new CodexAppServerEventAdapter();
+    const [start] = a.handle('item/started', {
+      threadId: 't',
+      item: {
+        id: 'c2',
+        type: 'commandExecution',
+        command: `/usr/bin/zsh -lc "pwd && rg --files --hidden -g '"'!.git'"' | head -220"`,
+        status: 'in_progress',
+      },
+    });
+    expect(start).toMatchObject({ type: 'tool_start', toolInput: { command: "pwd && rg --files --hidden -g '!.git' | head -220" } });
+  });
 });

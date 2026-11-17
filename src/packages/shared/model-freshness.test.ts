@@ -24,7 +24,9 @@ describe('outdatedCodexModel', () => {
     expect(outdatedCodexModel('gpt-5.6-luna')?.newerLabel).toBe('GPT-6 Luna');
     expect(outdatedCodexModel('gpt-5.6-terra')).toEqual({ newerModel: 'gpt-6.1-terra', newerLabel: 'GPT-6.1 Terra' });
     expect(outdatedCodexModel('gpt-6.1-terra')).toBeNull();
-    expect(outdatedCodexModel('gpt-6-astra')).toBeNull();
+    expect(outdatedCodexModel('gpt-6.2-astra')).toBeNull();
+    expect(outdatedCodexModel('gpt-6-astra')).toEqual({ newerModel: 'gpt-6.2-astra', newerLabel: 'GPT-6.2 Astra' });
+    expect(outdatedAgentModel({ provider: 'pi', piModel: 'openai-codex/gpt-6-astra' })).toEqual({ newerModel: 'openai-codex/gpt-6.2-astra', newerLabel: 'GPT-6.2 Astra' });
     expect(outdatedCodexModel('gpt-6.1-sol')).toBeNull();
     expect(outdatedCodexModel('gpt-6-sol')).toEqual({ newerModel: 'gpt-6.1-sol', newerLabel: 'GPT-6.1 Sol' });
   });

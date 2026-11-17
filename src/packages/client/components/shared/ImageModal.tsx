@@ -10,11 +10,12 @@
  * Same hazard documented in ClaudeOutputPanel/historyDedup.ts.
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ModalPortal } from './ModalPortal';
 import { ZoomableImage } from './ZoomableImage';
 import { useModalClose } from '../../hooks/useModalClose';
 import { Icon } from '../Icon';
+import { canCopyImageData, copyImageToClipboard } from '../../utils/clipboard';
 
 /** Browse a set of images from one viewer (a conversation's screenshots). */
 export interface ImageGallery {
@@ -95,6 +96,38 @@ export function ImageModal({ url, name, onClose, subtitle, downloadName, gallery
     active?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
   }, [browsable, index]);
 
+  // Copy the shown image to the clipboard. Status resets per image so browsing
+  // never shows a stale ✓ from the previous one.
+  const [copyStatus, setCopyStatus] = useState<{ state: 'idle' | 'copying' | 'copied' | 'error'; detail?: string }>({ state: 'idle' });
+  const copyResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    setCopyStatus({ state: 'idle' });
+    return () => { if (copyResetRef.current) clearTimeout(copyResetRef.current); };
+  }, [url]);
+  const handleCopyImage = async () => {
+    if (copyStatus.state === 'copying') return;
+    setCopyStatus({ state: 'copying' });
+    let next: { state: 'copied' | 'error'; detail?: string };
+    try {
+      const mode = await copyImageToClipboard(url);
+      next = {
+        state: 'copied',
+        detail: mode === 'image'
+          ? 'Image copied'
+          : 'Copied as rich content — pastes as an image in Docs, Gmail, Word… (real image copy needs HTTPS)',
+      };
+    } catch (err) {
+      next = { state: 'error', detail: `Couldn't copy: ${err instanceof Error ? err.message : String(err)}` };
+    }
+    setCopyStatus(next);
+    if (copyResetRef.current) clearTimeout(copyResetRef.current);
+    copyResetRef.current = setTimeout(() => setCopyStatus({ state: 'idle' }), next.state === 'copied' ? 1800 : 4000);
+  };
+  const copyTitle = copyStatus.detail
+    ?? (canCopyImageData()
+      ? 'Copy image'
+      : 'Copy image (on plain HTTP it copies as rich content for Docs, Gmail, Word…)');
+
   const go = (event: React.MouseEvent, next: number) => {
     event.stopPropagation();
     gallery?.onNavigate(next);
@@ -112,6 +145,16 @@ export function ImageModal({ url, name, onClose, subtitle, downloadName, gallery
             {browsable && (
               <span className="image-modal-counter" aria-live="polite">{index + 1} / {count}</span>
             )}
+            <button
+              type="button"
+              className={`image-modal-download image-modal-copy is-${copyStatus.state}`}
+              onClick={handleCopyImage}
+              disabled={copyStatus.state === 'copying'}
+              title={copyTitle}
+              aria-label="Copy image to clipboard"
+            >
+              <Icon name={copyStatus.state === 'copied' ? 'check' : copyStatus.state === 'error' ? 'warning-circle' : 'copy'} size={12} />
+            </button>
             {downloadName && (
               <a className="image-modal-download" href={url} download={downloadName} title="Download" aria-label="Download">
                 <Icon name="download" size={12} />

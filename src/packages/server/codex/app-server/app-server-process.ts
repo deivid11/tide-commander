@@ -28,7 +28,7 @@
  * `killDetachedAppServerDaemon()` is called by the account switcher.
  */
 
-import { spawn } from 'child_process';
+import { execFileSync, spawn } from 'child_process';
 import * as http from 'http';
 import * as net from 'net';
 import * as fs from 'fs';
@@ -83,6 +83,8 @@ export class CodexAppServerProcess {
   private stopped = false;
   /** True when the last ensureStarted() rejoined an already-running daemon. */
   private reconnectedToExisting = false;
+  /** codexBinaryStamp of the binary the connected daemon was started from. */
+  private daemonStamp: string | undefined;
 
   constructor(private readonly opts: AppServerProcessOptions) {}
 
@@ -93,6 +95,16 @@ export class CodexAppServerProcess {
   /** Did the current connection rejoin a daemon that survived a prior commander? */
   didReconnect(): boolean {
     return this.reconnectedToExisting;
+  }
+
+  /**
+   * The codex binary on disk changed since this daemon started (an upgrade).
+   * The daemon is restart-surviving, so without this it would keep serving
+   * the OLD version forever — and an old codex rejects newer models
+   * ("model is not supported when using Codex with a ChatGPT account").
+   */
+  isOutdated(): boolean {
+    return this.daemonStamp === undefined || this.daemonStamp !== codexBinaryStamp(this.opts.executablePath);
   }
 
   ensureStarted(): Promise<void> {
@@ -112,6 +124,9 @@ export class CodexAppServerProcess {
     if (existing && (await this.isDaemonHealthy(existing))) {
       if (await daemonAccountIsCurrent(existing.port)) {
         log.log(`🔗 Rejoining existing app-server daemon pid=${existing.pid} port=${existing.port}`);
+        // Rejoin even when outdated: it may be running in-flight turns from
+        // before the restart. The runner replaces it once no turn is running.
+        this.daemonStamp = existing.binaryStamp;
         this.port = existing.port;
         this.reconnectedToExisting = true;
         await this.connectAndInitialize(existing.port);
@@ -126,8 +141,10 @@ export class CodexAppServerProcess {
     // 2. Spawn a fresh detached daemon.
     this.reconnectedToExisting = false;
     const port = await findFreePort();
+    const binaryStamp = codexBinaryStamp(this.opts.executablePath);
     const pid = this.spawnDaemon(port);
-    saveDaemonInfo({ port, pid, startedAt: Date.now() });
+    saveDaemonInfo({ port, pid, startedAt: Date.now(), binaryStamp });
+    this.daemonStamp = binaryStamp;
     this.port = port;
 
     await this.waitForReadyz(port);
@@ -319,6 +336,32 @@ export class CodexAppServerProcess {
     this.disconnect();
     killDetachedAppServerDaemon();
   }
+}
+
+const binaryStampCache = new Map<string, { key: string; stamp: string }>();
+
+/**
+ * Identity of the codex binary at `executablePath`: its `--version` output,
+ * cached per (real path, mtime, size) so turn starts don't spawn a process
+ * each time — an npm upgrade replaces the file, which changes the key.
+ */
+export function codexBinaryStamp(executablePath: string): string {
+  let real = executablePath;
+  try { real = fs.realpathSync(executablePath); } catch { /* bare name on PATH */ }
+  let key: string | null = null;
+  try {
+    const stat = fs.statSync(real);
+    key = `${real}:${stat.mtimeMs}:${stat.size}`;
+  } catch { /* not a path we can stat — re-read the version every time */ }
+  const cached = binaryStampCache.get(executablePath);
+  if (key && cached?.key === key) return cached.stamp;
+  let stamp = key ?? executablePath;
+  try {
+    const version = execFileSync(executablePath, ['--version'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (version) stamp = version;
+  } catch { /* fall back to the file identity */ }
+  if (key) binaryStampCache.set(executablePath, { key, stamp });
+  return stamp;
 }
 
 /**

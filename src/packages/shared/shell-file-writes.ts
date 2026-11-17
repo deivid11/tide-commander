@@ -908,3 +908,26 @@ function joinPosix(base: string, target: string): string {
   }
   return `${absolute ? '/' : ''}${parts.join('/')}`;
 }
+
+const SHELL_LAUNCHER_RE = /^(?:\/(?:usr\/)?(?:local\/)?bin\/)?(?:zsh|bash|sh|dash)$/;
+const SHELL_COMMAND_FLAG_RE = /^-[a-z]*c[a-z]*$/;
+
+/**
+ * The script inside a `<shell> -lc '<script>'` launch, with the shell's own
+ * quoting removed — what the agent actually ran. Codex reports every command
+ * wrapped this way (`/usr/bin/zsh -lc "pwd && rg -g '"'!.git'"'"`), and the
+ * `'"'…'"'` concatenations defeat regex unwrapping. Anything that is not
+ * exactly one such launch (extra arguments, pipelines around it, a dynamic
+ * script) comes back unchanged.
+ */
+export function unwrapShellLaunch(command: string): string {
+  if (!command || !/\b(?:zsh|bash|sh|dash)\b/.test(command.slice(0, 40))) return command;
+  const commands = parseShellCommands(command);
+  if (commands.length !== 1) return command;
+  const words = commands[0].words;
+  if (words.length !== 3) return command;
+  const [shell, flag, script] = words;
+  if (shell.dynamic || !SHELL_LAUNCHER_RE.test(shell.value)) return command;
+  if (!SHELL_COMMAND_FLAG_RE.test(flag.value)) return command;
+  return script.value.trim() || command;
+}

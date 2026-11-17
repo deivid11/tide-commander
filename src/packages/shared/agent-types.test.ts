@@ -112,9 +112,9 @@ describe('new/edit agent picker', () => {
 });
 
 describe('CODEX_MODELS — GPT-6', () => {
-  it('offers Astra → Sol 6.1 → Terra 6.1 → Luna, defaulting to GPT-6.1 Sol with high reasoning', () => {
+  it('offers Astra 6.2 → Sol 6.1 → Terra 6.1 → Luna, defaulting to GPT-6.1 Sol with high reasoning', () => {
     const visible = (Object.keys(CODEX_MODELS) as (keyof typeof CODEX_MODELS)[]).filter((id) => !isDeprecatedCodexModel(id));
-    expect(visible).toEqual(['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna']);
+    expect(visible).toEqual(['gpt-6.2-astra', 'gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna']);
     expect(DEFAULT_CODEX_MODEL).toBe('gpt-6.1-sol');
     expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('high');
   });

@@ -231,3 +231,25 @@
     background: color-mix(in srgb, var(--bg-primary) 95%, var(--accent-orange) 5%);
   }
 }
+
+// In-page replacement for native `title` tooltips (utils/tooltipLeakFix.ts).
+// Shown as a popover, so the UA popover defaults (inset, margin) are reset.
+.tide-title-tip {
+  position: fixed;
+  inset: auto;
+  z-index: 2147483647;
+  margin: 0;
+  max-width: min(22rem, calc(100vw - 12px));
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--bg-primary) 97%, white);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-sm;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  color: var(--text-primary);
+  font-family: $font-family;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}

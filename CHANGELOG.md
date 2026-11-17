@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.225.0] - 2026-11-17
+
+### Added
+- **GPT-6.2 Astra** — the new Astra is the one offered in the Codex pickers; GPT-6 Astra agents keep working and the model chip suggests the upgrade.
+- **Copy image from the image viewer** — a new button copies the image as real PNG data (HTTPS / localhost) or, on plain-HTTP origins, as rich content that pastes as an image in Docs, Gmail or Word.
+
+### Changed
+- **Tooltips are drawn inside the page** — `title` tooltips now use an in-page tooltip while hovering, so Chromium can no longer strand a native tooltip floating above every other app (installed app on macOS).
+
+### Fixed
+- **Bash rows keep their status after a refresh** — history rows now show the running spinner / result icon too, so commands no longer lose their status a few seconds after a session refresh.
+- **Codex sessions no longer fill up with raw `[codex-event]` JSON** — newer Codex `item_completed` records are recognised: duplicates are skipped and web searches render as a WebSearch row, both live and in history. Commands wrapped in `zsh -lc '…'` are unwrapped to what the agent actually ran.
+- **Codex upgrades take effect without a restart** — the app-server daemon is replaced (once no turn is running) when the codex binary on disk changes, so newer models stop being rejected by an old daemon.
+- **Jira issues with paged attachments load correctly** — attachment lists returned as `{ values: [...] }` are handled.
+
 ## [1.224.1] - 2026-11-10
 
 ### Fixed

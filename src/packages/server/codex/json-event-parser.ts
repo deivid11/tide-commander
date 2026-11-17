@@ -4,7 +4,8 @@ import * as path from 'path';
 import type { RuntimeEvent } from '../runtime/types.js';
 import { createLogger } from '../utils/logger.js';
 import { materializeCodexGeneratedImage } from './generated-image.js';
-import { getShellFileWrites } from '../../shared/shell-file-writes.js';
+import { getShellFileWrites, unwrapShellLaunch } from '../../shared/shell-file-writes.js';
+import { classifyCodexItemCompleted, SILENT_CODEX_EVENT_MSG_TYPES, SILENT_CODEX_RESPONSE_ITEM_TYPES } from './item-completed.js';
 
 type JsonObject = Record<string, unknown>;
 
@@ -28,6 +29,8 @@ interface CodexCollabAgentState {
 interface CodexItem {
   id?: string;
   type?: string;
+  /** Newer Codex `Extension` items: what the extension did, e.g. `web.search`. */
+  kind?: string;
   text?: string;
   query?: string;
   command?: string;
@@ -177,6 +180,7 @@ function parseItem(item: unknown): CodexItem | undefined {
   return {
     id: asString(item.id),
     type: asString(item.type),
+    kind: asString(item.kind),
     text: asString(item.text),
     query: asString(item.query),
     command: asString(item.command),
@@ -469,6 +473,20 @@ export class CodexJsonEventParser {
       return [];
     }
 
+    // item_completed (newer Codex): duplicates of rendered records, except
+    // web searches — see codex/item-completed.ts.
+    if (payloadType === 'item_completed') {
+      const action = classifyCodexItemCompleted(payload);
+      if (action.kind !== 'web_search') return [];
+      return this.parseWebSearchEvent(
+        { call_id: action.callId || undefined, query: action.query, action: action.action } as CodexResponsePayload,
+        true,
+      );
+    }
+    if (payloadType && SILENT_CODEX_EVENT_MSG_TYPES.has(payloadType)) {
+      return [];
+    }
+
     return [this.buildUnknownEventFallback(`Unhandled Codex event_msg type: ${payloadType}`, payload)];
   }
 
@@ -602,6 +620,8 @@ export class CodexJsonEventParser {
     if (payload.type === 'custom_tool_call_output') {
       return this.parseCustomToolCallOutput(payload);
     }
+
+    if (SILENT_CODEX_RESPONSE_ITEM_TYPES.has(payload.type)) return [];
 
     return [this.buildUnknownEventFallback(`Unhandled Codex response_item payload type: ${payload.type}`, payload)];
   }
@@ -1179,7 +1199,8 @@ export class CodexJsonEventParser {
 
   private buildCommandExecutionToolInput(item: CodexItem): Record<string, unknown> {
     return {
-      command: item.command,
+      // `/bin/zsh -lc '<script>'` → the script the agent ran.
+      command: item.command ? unwrapShellLaunch(item.command) : item.command,
       status: item.status,
     };
   }
@@ -1351,8 +1372,11 @@ export class CodexJsonEventParser {
   }
 
   private extractShellCommand(command: string): string {
-    // Typical form from codex exec JSON:
-    // /bin/zsh -lc "actual command"
+    // Typical form from codex exec JSON: /bin/zsh -lc "actual command". The
+    // lexer handles quote concatenation ('"'!.git'"'); the regexes below stay
+    // as the fallback for anything it declines.
+    const unwrapped = unwrapShellLaunch(command);
+    if (unwrapped !== command) return unwrapped;
     const doubleQuoted = command.match(/-lc\s+"([\s\S]*)"$/);
     if (doubleQuoted) {
       return this.unescapeShellDoubleQuotes(doubleQuoted[1]);

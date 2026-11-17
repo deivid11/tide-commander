@@ -196,6 +196,25 @@ export class CodexAppServerRunner implements RuntimeRunner {
     // replayed deltas + turn/completed will finalize it via applyEvent().
   }
 
+  /**
+   * Replace a daemon started from an older codex binary — but only while no
+   * agent has a turn in flight, so an upgrade never cuts running work (the
+   * check repeats on every launch until the daemon is idle). Idle agents'
+   * thread subscriptions die with it; their next message resumes the thread
+   * by sessionId, the same lazy path used after a daemon crash.
+   */
+  private replaceOutdatedDaemonIfIdle(): boolean {
+    const proc = this.process;
+    if (!proc || !proc.isAlive() || !proc.isOutdated()) return false;
+    if ([...this.agents.values()].some((state) => state.turnState === 'processing')) return false;
+    log.warn('codex binary changed since the app-server daemon started — replacing the daemon');
+    proc.killDaemon();
+    this.process = null;
+    this.agents.clear();
+    this.threadToAgent.clear();
+    return true;
+  }
+
   private handleProcessExit(): void {
     // The WebSocket to the daemon dropped. Finalize live agents so none stays
     // stuck 'working'; the daemon itself likely survives, so the next message
@@ -274,9 +293,13 @@ export class CodexAppServerRunner implements RuntimeRunner {
 
   private async runImpl(request: RunnerRequest): Promise<void> {
     const { agentId, workingDir } = request;
-    const proc = this.ensureProcess(workingDir);
+    let proc = this.ensureProcess(workingDir);
     try {
       await proc.ensureStarted();
+      if (this.replaceOutdatedDaemonIfIdle()) {
+        proc = this.ensureProcess(workingDir);
+        await proc.ensureStarted();
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       log.error(`Failed to start app-server for ${agentId.slice(0, 8)}: ${msg}`);

@@ -184,6 +184,7 @@ export const DEFAULT_PI_MODEL = '';
 export type CodexApprovalMode = 'untrusted' | 'on-failure' | 'on-request' | 'never';
 export type CodexSandboxMode = 'read-only' | 'workspace-write' | 'danger-full-access';
 export type CodexModel =
+  | 'gpt-6.2-astra'
   | 'gpt-6-astra'
   | 'gpt-6.1-sol'
   | 'gpt-6.1-terra'
@@ -215,9 +216,9 @@ export interface CodexConfig {
 
 // Key order is the picker order: Astra → Sol → Luna (most capable first).
 export const CODEX_MODELS: Record<CodexModel, { label: string; description: string; icon: string; deprecated?: boolean }> = {
-  'gpt-6-astra': {
-    label: 'GPT-6 Astra',
-    description: 'GPT-6 Astra — OpenAI\'s most capable model for complex, demanding work',
+  'gpt-6.2-astra': {
+    label: 'GPT-6.2 Astra',
+    description: 'GPT-6.2 Astra — OpenAI\'s most capable model for complex, demanding work',
     icon: '✨',
   },
   'gpt-6.1-sol': {
@@ -237,6 +238,12 @@ export const CODEX_MODELS: Record<CodexModel, { label: string; description: stri
   },
   // Superseded models: valid for existing agents, hidden from the new/edit
   // agent pickers.
+  'gpt-6-astra': {
+    label: 'GPT-6 Astra',
+    description: 'Previous Astra generation (GPT-6.2 Astra preferred)',
+    icon: '✨',
+    deprecated: true,
+  },
   'gpt-6-sol': {
     label: 'GPT-6 Sol',
     description: 'Previous Sol generation (GPT-6.1 Sol preferred)',

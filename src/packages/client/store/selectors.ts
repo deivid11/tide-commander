@@ -216,6 +216,19 @@ export function useAgent(agentId: string | null): Agent | undefined {
 }
 
 /**
+ * Whether an agent is working right now. Narrower than useAgent: only flips
+ * re-render, not every metrics update of the agent object.
+ */
+export function useAgentIsWorking(agentId: string | null): boolean {
+  return useSelector(
+    useCallback(
+      (state: StoreState) => (agentId ? state.agents.get(agentId)?.status === 'working' : false),
+      [agentId]
+    )
+  );
+}
+
+/**
  * Get selected agent IDs. Only re-renders when selection changes.
  */
 export function useSelectedAgentIds(): Set<string> {

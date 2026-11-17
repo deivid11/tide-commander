@@ -16,6 +16,7 @@
 
 import type { StandardEvent } from '../../claude/types.js';
 import { createLogger } from '../../utils/logger.js';
+import { unwrapShellLaunch } from '../../../shared/shell-file-writes.js';
 
 const log = createLogger('CodexAppServerAdapter');
 
@@ -123,7 +124,8 @@ export class CodexAppServerEventAdapter {
   private handleItemStarted(item: AppServerItem): StandardEvent[] {
     switch (item.type) {
       case 'commandExecution': {
-        const command = item.command || '';
+        // Codex wraps every command as `/usr/bin/zsh -lc '<script>'`; show the script.
+        const command = unwrapShellLaunch(item.command || '');
         // item.id lets the client attach the eventual tool_result output to
         // this card live (attachToolResult) instead of waiting for /history.
         const ids = item.id ? { uuid: item.id, toolUseId: item.id } : {};

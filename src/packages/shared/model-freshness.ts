@@ -49,9 +49,11 @@ export function outdatedClaudeModel(model: string | undefined | null): OutdatedM
 }
 
 // Superseded models whose successor is a newer release of the SAME line
-// (6 Sol → 6.1 Sol, 5.6 Terra → 6.1 Terra), still registered but hidden.
+// (6 Sol → 6.1 Sol, 6 Astra → 6.2 Astra, 5.6 Terra → 6.1 Terra), still
+// registered but hidden.
 const CODEX_LINE_SUCCESSORS: Readonly<Record<string, CodexModel>> = {
   'gpt-6-sol': 'gpt-6.1-sol',
+  'gpt-6-astra': 'gpt-6.2-astra',
   'gpt-5.6-terra': 'gpt-6.1-terra',
 };
 

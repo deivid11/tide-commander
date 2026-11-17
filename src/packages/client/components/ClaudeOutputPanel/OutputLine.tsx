@@ -44,6 +44,7 @@ import { Icon, type IconName } from '../Icon';
 import { FileTypeIcon } from './FileTypeIcon';
 import { ShellWriteParam } from './ShellWriteParam';
 import { WithMissingFiles } from './WithMissingFiles';
+import { BashStatusIcon } from './BashStatusIndicator';
 import { MISSING_FILE_TITLE } from '../../utils/fileExistence';
 import { parseEditReplacements } from '../shared/useFilteredOutputs';
 import { BashSummaryParam } from './BashSummaryParam';
@@ -56,7 +57,6 @@ import { providerLabel } from '../../utils/providerDisplay';
 import { ProviderIcon } from '../ProviderIcon';
 import { ThinkingBlock } from './ThinkingBlock';
 import { GrepResultsModal } from './GrepResultsModal';
-import { ActivityGlyph } from '../shared/ActivityGlyph';
 import { PluginOutputHost } from '../../plugins/PluginOutputHost';
 import { RenameAgentRequestCard } from '../../plugins/rename-agent/RenameAgentRequestCard';
 import { parseRenameAgentRequest } from '../../plugins/rename-agent/renameAgentRequest';
@@ -1644,15 +1644,12 @@ export const OutputLine = memo(function OutputLine({ output, agentId, execTasks 
             </WithMissingFiles>
           )}
 
-          {isBashTool && _isRunning && (
-            <span className="bash-output-indicator bash-output-indicator--running">
-              <ActivityGlyph animated size={11} className="bash-activity-glyph" />
-            </span>
-          )}
-          {isBashTool && !_isRunning && (
-            <span className="bash-output-indicator">
-              <Icon name={execTasks.some(t => t.status === 'completed') ? 'success' : (hasBashOutput ? 'file-text' : 'terminal')} size={12} />
-            </span>
+          {isBashTool && (
+            <BashStatusIcon
+              running={!!_isRunning}
+              hasOutput={!!hasBashOutput}
+              completedTask={execTasks.some(t => t.status === 'completed')}
+            />
           )}
           {isBashTool && <BashInlineToggle enabled={settings.inlineBashOutputs} />}
           {isStreaming && <span className="output-tool-loading">...</span>}

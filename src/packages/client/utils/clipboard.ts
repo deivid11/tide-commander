@@ -251,3 +251,74 @@ export async function copyRichContentToClipboard(html: string, _plainText: strin
     throw new Error('Rich text copy failed');
   }
 }
+
+/**
+ * Decode any image the browser can display and re-encode it as PNG — the only
+ * image type browsers accept in `navigator.clipboard.write`. PNGs pass through.
+ */
+async function imageUrlToPngBlob(url: string): Promise<Blob> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not load the image (${response.status})`);
+  const blob = await response.blob();
+  if (blob.type === 'image/png') return blob;
+
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const image = new Image();
+    image.src = objectUrl;
+    await image.decode();
+    // An SVG with only a viewBox has no intrinsic size; give it a sane one.
+    const width = image.naturalWidth || 1024;
+    const height = image.naturalHeight || 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas unavailable');
+    context.drawImage(image, 0, 0, width, height);
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((png) => (png ? resolve(png) : reject(new Error('Could not encode the image'))), 'image/png');
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read the image'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Whether the browser lets the page put real image data on the clipboard. */
+export function canCopyImageData(): boolean {
+  return typeof window !== 'undefined'
+    && window.isSecureContext
+    && typeof navigator !== 'undefined'
+    && !!navigator.clipboard?.write
+    && typeof ClipboardItem !== 'undefined';
+}
+
+/**
+ * Copy an image to the clipboard.
+ *
+ * - `'image'`: real PNG data — pastes as an image everywhere. Needs a secure
+ *   context (HTTPS or localhost); browsers expose no image clipboard otherwise.
+ * - `'html'`: fallback on plain-HTTP origins (e.g. a LAN IP over http): the
+ *   image embedded as a data-URL `<img>`, which rich editors (Docs, Gmail,
+ *   Word…) paste as an image; plain-text fields won't.
+ */
+export async function copyImageToClipboard(url: string): Promise<'image' | 'html'> {
+  if (canCopyImageData()) {
+    // Hand ClipboardItem the pending blob (not an awaited one) so the write
+    // starts inside the click's user activation — Safari requires it.
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': imageUrlToPngBlob(url) })]);
+    return 'image';
+  }
+  const dataUrl = await blobToDataUrl(await imageUrlToPngBlob(url));
+  await copyRichContentToClipboard(`<img src="${dataUrl}" alt="">`, '');
+  return 'html';
+}

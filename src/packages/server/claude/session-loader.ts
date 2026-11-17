@@ -17,6 +17,7 @@ import { materializeCodexGeneratedImage } from '../codex/generated-image.js';
 import { normalizePiToolInput } from '../pi/tool-input.js';
 import { extractPiReasoningMetadata } from '../pi/reasoning-metadata.js';
 import { serializeToolResultContent } from './tool-result-content.js';
+import { classifyCodexItemCompleted, SILENT_CODEX_EVENT_MSG_TYPES, SILENT_CODEX_RESPONSE_ITEM_TYPES } from '../codex/item-completed.js';
 
 const log = createLogger('Session');
 
@@ -3382,6 +3383,40 @@ function parseCodexEntryMessages(
       return;
     }
 
+    // item_completed (newer Codex): duplicates of rendered records, except
+    // web searches — see codex/item-completed.ts. Same decision as the live parser.
+    if (payload.type === 'item_completed') {
+      const action = classifyCodexItemCompleted(payload);
+      if (action.kind === 'web_search') {
+        const callId = action.callId || `${entry.timestamp}-web-search`;
+        const toolInput = normalizeCodexWebSearchToolInput({ query: action.query, action: action.action ?? {} });
+        if (!toolUseIdToName.has(callId)) {
+          toolUseIdToName.set(callId, 'web_search');
+          messages.push({
+            type: 'tool_use',
+            content: JSON.stringify(toolInput, null, 2),
+            timestamp: entry.timestamp,
+            uuid: `${entry.timestamp}-tool-use-web-search`,
+            toolName: 'web_search',
+            toolInput,
+            toolUseId: callId,
+          });
+        }
+        messages.push({
+          type: 'tool_result',
+          content: JSON.stringify(toolInput, null, 2),
+          timestamp: entry.timestamp,
+          uuid: `${entry.timestamp}-tool-result-web-search`,
+          toolName: 'web_search',
+          toolUseId: callId,
+        });
+      }
+      return;
+    }
+    if (typeof payload.type === 'string' && SILENT_CODEX_EVENT_MSG_TYPES.has(payload.type)) {
+      return;
+    }
+
     // Unknown event_msg types: keep fallback
     const payloadType = typeof payload.type === 'string' ? payload.type : 'unknown';
     messages.push({
@@ -3604,6 +3639,8 @@ function parseCodexEntryMessages(
     });
     return;
   }
+
+  if (typeof payloadType === 'string' && SILENT_CODEX_RESPONSE_ITEM_TYPES.has(payloadType)) return;
 
   const unknownPayloadType = typeof payloadType === 'string' ? payloadType : 'unknown';
   messages.push({

@@ -32,6 +32,11 @@ export interface DaemonInfo {
   port: number;
   pid: number;
   startedAt: number;
+  /**
+   * Which codex binary the daemon was started from (see codexBinaryStamp).
+   * Missing on daemons started before this field existed → treated as outdated.
+   */
+  binaryStamp?: string;
 }
 
 export interface PersistedAppServerAgent {

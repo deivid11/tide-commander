@@ -21,3 +21,25 @@ describe('isDaemonAccountCurrent', () => {
     expect(isDaemonAccountCurrent(null, null)).toBe(true);
   });
 });
+
+describe('codexBinaryStamp', () => {
+  it('reports the binary version and notices when the file is replaced (an upgrade)', async () => {
+    const { codexBinaryStamp } = await import('./app-server-process.js');
+    const fsMod = await import('node:fs');
+    const osMod = await import('node:os');
+    const pathMod = await import('node:path');
+    const dir = fsMod.mkdtempSync(pathMod.join(osMod.tmpdir(), 'tc-codex-stamp-'));
+    const bin = pathMod.join(dir, 'codex');
+    try {
+      fsMod.writeFileSync(bin, '#!/bin/sh\necho "codex-cli 0.159.1"\n', { mode: 0o755 });
+      expect(codexBinaryStamp(bin)).toBe('codex-cli 0.159.1');
+      // npm replaces the file on upgrade: new content, new mtime.
+      fsMod.writeFileSync(bin, '#!/bin/sh\necho "codex-cli 0.169.0"\n', { mode: 0o755 });
+      const later = new Date(Date.now() + 5000);
+      fsMod.utimesSync(bin, later, later);
+      expect(codexBinaryStamp(bin)).toBe('codex-cli 0.169.0');
+    } finally {
+      fsMod.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

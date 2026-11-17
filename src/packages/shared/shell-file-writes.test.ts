@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyzeShellFileWrites, analyzeShellInspection, getPureShellFileWrites, getShellFileWrites, parseShellCommands } from './shell-file-writes';
+import { unwrapShellLaunch, analyzeShellFileWrites, analyzeShellInspection, getPureShellFileWrites, getShellFileWrites, parseShellCommands } from './shell-file-writes';
 
 const paths = (command: string) => getShellFileWrites(command).map((write) => `${write.operation}:${write.path}`);
 
@@ -149,5 +149,27 @@ describe('analyzeShellInspection', () => {
     expect(analyzeShellInspection('cd /repo && npm test | grep FAIL')).toBeNull();
     expect(analyzeShellInspection('cat "$FILE"')).toBeNull();
     expect(analyzeShellInspection('echo hello')).toBeNull();
+  });
+});
+
+describe('unwrapShellLaunch', () => {
+  it('returns the script of a shell -lc launch with quoting removed', () => {
+    expect(unwrapShellLaunch(`/usr/bin/zsh -lc "pwd && rg --files --hidden -g '"'!.git'"' -g '"'!node_modules'"' | head -220"`))
+      .toBe("pwd && rg --files --hidden -g '!.git' -g '!node_modules' | head -220");
+    expect(unwrapShellLaunch(`/usr/bin/zsh -lc 'rg --files apps/device/src | sort && git log -8 --oneline'`))
+      .toBe('rg --files apps/device/src | sort && git log -8 --oneline');
+    expect(unwrapShellLaunch(`bash -c 'echo "hi there"'`)).toBe('echo "hi there"');
+  });
+
+  it('leaves anything that is not exactly one shell launch untouched', () => {
+    for (const command of [
+      'pnpm typecheck',
+      `zsh -lc 'a' && echo b`,
+      `bash script.sh arg`,
+      `/usr/bin/zsh -lc "$SCRIPT" extra`,
+      `python3 -c 'print(1)'`,
+    ]) {
+      expect(unwrapShellLaunch(command)).toBe(command);
+    }
   });
 });

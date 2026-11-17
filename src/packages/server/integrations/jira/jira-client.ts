@@ -254,14 +254,17 @@ export class JiraClient {
       }
     )) as {
       comment?: { id?: string; public?: boolean };
-      attachments?: JiraAttachment[];
+      // JSM returns a paged DTO ({ size, values: [...] }), not a bare array.
+      attachments?: JiraAttachment[] | { values?: JiraAttachment[] };
     };
     const id = result.comment?.id;
     if (!id) throw new Error(`JSM did not return the attachment comment id for ${issueKey}`);
     return {
       id,
       public: result.comment?.public ?? isPublic,
-      attachments: result.attachments ?? [],
+      attachments: Array.isArray(result.attachments)
+        ? result.attachments
+        : (result.attachments?.values ?? []),
     };
   }
 

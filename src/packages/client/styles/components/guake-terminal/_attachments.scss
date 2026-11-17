@@ -667,6 +667,28 @@
   }
 }
 
+// Copy-image button: same chrome as the download link, plus feedback states.
+button.image-modal-copy {
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+
+  &:disabled {
+    cursor: progress;
+    opacity: 0.6;
+  }
+
+  &.is-copied {
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+  }
+
+  &.is-error {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+  }
+}
+
 .image-modal-close {
   background: color-mix(in srgb, var(--accent-red) 20%, transparent);
   border: 1px solid var(--accent-red);

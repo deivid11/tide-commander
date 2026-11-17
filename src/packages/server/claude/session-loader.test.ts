@@ -426,6 +426,33 @@ describe('session-loader provider normalization', () => {
     });
   });
 
+  it('skips newer-Codex event_msg.item_completed duplicates and keeps web searches', async () => {
+    const sessionId = 'session-item-completed';
+    const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '11', '14');
+    fs.mkdirSync(sessionDir, { recursive: true });
+    const sessionFile = path.join(sessionDir, `run-${sessionId}.jsonl`);
+    const at = (s: number) => `2026-11-14T11:38:${String(s).padStart(2, '0')}.000Z`;
+    const entries = [
+      { timestamp: at(1), type: 'event_msg', payload: { type: 'item_completed', item: { type: 'CommandExecution', id: 'exec-1', command: ['/usr/bin/zsh', '-lc', 'pnpm typecheck'], status: 'completed' } } },
+      { timestamp: at(2), type: 'event_msg', payload: { type: 'item_completed', item: { type: 'AgentMessage', id: 'msg_1', content: [{ type: 'Text', text: 'hi' }] } } },
+      { timestamp: at(3), type: 'event_msg', payload: { type: 'item_completed', item: { type: 'Reasoning', id: 'rs_1' } } },
+      { timestamp: at(4), type: 'event_msg', payload: { type: 'thread_settings_applied' } },
+      { timestamp: at(5), type: 'event_msg', payload: { type: 'item_completed', item: { type: 'Extension', kind: 'web.search', id: 'exec-ws', query: 'endpoint security', action: { type: 'search', query: 'endpoint security' } } } },
+    ];
+    fs.writeFileSync(sessionFile, `${entries.map((entry) => JSON.stringify(entry)).join('\n')}\n`, 'utf8');
+
+    const { loadSession } = await import('./session-loader.js');
+    const history = await loadSession('/workspace/project', sessionId, 20, 0);
+
+    expect(history?.messages.some((message) => message.content.includes('[codex-event]'))).toBe(false);
+    expect(history?.messages.map((message) => message.type)).toEqual(['tool_use', 'tool_result']);
+    expect(history?.messages[0]).toMatchObject({
+      toolName: 'web_search',
+      toolUseId: 'exec-ws',
+      toolInput: { actionType: 'search', actionQuery: 'endpoint security' },
+    });
+  });
+
   it('silently skips event_msg.task_complete (handled by response_item.message)', async () => {
     const sessionId = 'session-task-complete';
     const sessionDir = path.join(tempHomeDir, '.codex', 'sessions', '2026', '02', '07');
