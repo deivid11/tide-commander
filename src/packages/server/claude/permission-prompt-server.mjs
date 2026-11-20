@@ -44,7 +44,9 @@ function send(msg) {
 
 const TOOL_NAME = 'permission_prompt';
 const SERVER_INFO = { name: 'tideperm', version: '1.1.0' };
-const TIDE_SERVER = process.env.TIDE_SERVER || 'http://localhost:5174';
+// Fallback only: the runner always sets TIDE_SERVER. Keep the port in step with
+// the server default (see src/packages/server/utils/commander-url.ts).
+const TIDE_SERVER = process.env.TIDE_SERVER || 'http://localhost:6200';
 const TIDE_AGENT_ID = process.env.TIDE_AGENT_ID || '';
 const AUTH_TOKEN = process.env.AUTH_TOKEN || 'abcd';
 
