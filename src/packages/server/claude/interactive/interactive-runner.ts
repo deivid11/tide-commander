@@ -44,6 +44,7 @@ import {
 } from './interactive-recovery-store.js';
 import * as agentService from '../../services/agent-service.js';
 import { createLogger } from '../../utils/logger.js';
+import { getAgentServerUrl } from '../../utils/commander-url.js';
 import { withAgentContext } from '../../utils/log-context.js';
 
 const log = createLogger('Interactive');
@@ -259,7 +260,7 @@ export class InteractiveClaudeRunner implements RuntimeRunner {
       ...process.env,
       LANG: 'en_US.UTF-8',
       LC_ALL: 'en_US.UTF-8',
-      TIDE_SERVER: `http://localhost:${process.env.TIDE_PORT || process.env.PORT || 5174}`,
+      TIDE_SERVER: getAgentServerUrl(),
       TIDE_AGENT_ID: agentId,
     };
 

@@ -6,6 +6,7 @@ import type { RunnerStdoutPipeline } from './stdout-pipeline.js';
 import type { RunnerInternalEventBus } from './internal-events.js';
 import type { RunnerRecoveryStore } from './recovery-store.js';
 import { createLogger } from '../../utils/logger.js';
+import { getAgentServerUrl } from '../../utils/commander-url.js';
 import {
   isTmuxEnabled,
   checkTmuxAvailability,
@@ -155,7 +156,7 @@ export class RunnerProcessLifecycle {
       ...process.env,
       LANG: 'en_US.UTF-8',
       LC_ALL: 'en_US.UTF-8',
-      TIDE_SERVER: `http://localhost:${process.env.TIDE_PORT || process.env.PORT || 5174}`,
+      TIDE_SERVER: getAgentServerUrl(),
       // Used by the MCP permission-prompt server (see backend.ts) to route
       // AskUserQuestion / ExitPlanMode back to this agent's UI thread.
       TIDE_AGENT_ID: agentId,

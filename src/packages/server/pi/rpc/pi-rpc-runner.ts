@@ -33,6 +33,7 @@ import {
   type PersistedPiRpcProcess,
 } from './pi-rpc-recovery-store.js';
 import { createLogger } from '../../utils/logger.js';
+import { getAgentServerUrl } from '../../utils/commander-url.js';
 import { appendQueuedMessage, prependQueuedMessage } from '../../../shared/message-queue.js';
 
 const log = createLogger('PiRpc');
@@ -538,7 +539,7 @@ export class PiRpcRunner implements RuntimeRunner {
       ...this.backend.getExtraEnv(),
       LANG: 'en_US.UTF-8',
       LC_ALL: 'en_US.UTF-8',
-      TIDE_SERVER: `http://localhost:${process.env.TIDE_PORT || process.env.PORT || 5174}`,
+      TIDE_SERVER: getAgentServerUrl(),
       TIDE_AGENT_ID: request.agentId,
     };
     const useTmux = process.platform !== 'win32' && isTmuxEnabled();
